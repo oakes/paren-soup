@@ -1,0 +1,13 @@
+/* workaround for refresh issues in webkit-based browsers */
+@-webkit-keyframes androidBugfix {from { padding: 0; } to { padding: 0; }}
+body { -webkit-animation: androidBugfix infinite 1s; }
+/* end workaround */
+
+html, body, textarea {
+    height: 100%;
+    width: 100%;
+    padding: 0px;
+    margin: 0px;
+    font-size: 16px;
+    font-family: monospace;
+}
