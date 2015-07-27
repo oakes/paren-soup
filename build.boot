@@ -6,9 +6,9 @@
     [adzerk/boot-cljs-repl     "0.1.10-SNAPSHOT" :scope "test"]
     [adzerk/boot-reload        "0.3.1"           :scope "test"]
     [pandeiro/boot-http        "0.6.3-SNAPSHOT"  :scope "test"]
+    [org.clojars.oakes/tools.reader "0.10.0-SNAPSHOT"]
     [org.clojure/clojure       "1.7.0"]
     [org.clojure/clojurescript "0.0-3308"]
-    [org.clojure/tools.reader "0.10.0-alpha1"]
     [prismatic/schema "0.4.3"]
     [ring "1.4.0"]])
 

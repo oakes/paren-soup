@@ -29,5 +29,17 @@ html, body {
 }
 
 .set {
+	color: purple;
+}
+
+.number {
+	color: yellow;
+}
+
+.string {
 	color: red;
+}
+
+.keyword {
+	color: blue;
 }

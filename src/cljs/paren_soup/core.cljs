@@ -1,5 +1,5 @@
 (ns paren-soup.core
-  (:require [cljs.tools.reader :refer [read]]
+  (:require [cljs.tools.reader :refer [read *wrap-value-and-add-metadata?*]]
             [cljs.tools.reader.reader-types :refer [indexing-push-back-reader]]
             [clojure.string :refer [split-lines join replace]]
             [clojure.walk :refer [postwalk]]
@@ -12,7 +12,8 @@
   "Returns either a form or an exception object, or nil if EOF is reached."
   [reader :- js/Object]
   (try
-    (read reader false nil)
+    (binding [*wrap-value-and-add-metadata?* true]
+      (read reader false nil))
     (catch js/Error e e)))
 
 (defn read-all :- [read-result]
@@ -32,27 +33,32 @@
             (if (instance? js/Error token)
               (assoc (.-data token) :message (.-message token))
               (if (coll? token)
-                [(assoc (meta token) :type (type token))
+                [(assoc (meta token) :value (if (:wrapped? (meta token))
+                                              (first token)
+                                              token))
                  (map token-list token)]
-                (assoc (meta token) :type (type token))))))))
+                (assoc (meta token) :value token)))))))
 
 (defn tag-list :- [{Keyword Any}]
   "Returns a list of maps describing each HTML tag to be added."
   [tokens :- [{Keyword Any}]]
   (flatten
     (for [token tokens]
-      [(select-keys token [:line :column :type])
+      [(select-keys token [:line :column :value])
        (select-keys token [:end-line :end-column])])))
 
 (defn tag->html :- Str
   "Returns an HTML string for the given tag description."
   [tag :- {Keyword Any}]
   (cond
-    (= Symbol (:type tag)) "<span class='symbol'>"
-    (= List (:type tag)) "<span class='list'>"
-    (= PersistentVector (:type tag)) "<span class='vector'>"
-    (= PersistentHashMap (:type tag)) "<span class='map'>"
-    (= PersistentHashSet (:type tag)) "<span class='set'>"
+    (-> tag :value symbol?) "<span class='symbol'>"
+    (-> tag :value list?) "<span class='list'>"
+    (-> tag :value vector?) "<span class='vector'>"
+    (-> tag :value map?) "<span class='map'>"
+    (-> tag :value set?) "<span class='set'>"
+    (-> tag :value number?) "<span class='number'>"
+    (-> tag :value string?) "<span class='string'>"
+    (-> tag :value keyword?) "<span class='keyword'>"
     (:end-line tag) "</span>"
     :else "<span>"))
 
