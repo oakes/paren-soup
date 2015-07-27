@@ -6,9 +6,7 @@
             [schema.core :refer [maybe either Any Str Int Keyword]])
   (:require-macros [schema.core :refer [defn with-fn-validation]]))
 
-(def read-result (either [Any] {Any Any} js/Error))
-
-(defn read-safe :- (maybe read-result)
+(defn read-safe :- (maybe (either Any js/Error))
   "Returns either a form or an exception object, or nil if EOF is reached."
   [reader :- js/Object]
   (try
@@ -16,7 +14,7 @@
       (read reader false nil))
     (catch js/Error e e)))
 
-(defn read-all :- [read-result]
+(defn read-all :- [(either Any js/Error)]
   "Returns a list of values representing each top-level form."
   [s :- Str]
   (let [reader (indexing-push-back-reader s)]
@@ -73,10 +71,10 @@
         lines (for [line-num (range (count lines))]
                 (let [begin-tags (get begin-tags-by-line (+ line-num 1))
                       end-tags (get end-tags-by-line (+ line-num 1))
-                      get-col #(or (:column %) (:end-column %))
-                      tags (sort-by get-col (concat begin-tags end-tags))
+                      tags (sort-by #(or (:column %) (:end-column %))
+                                    (concat begin-tags end-tags))
                       html (map tag->html tags)
-                      columns (set (map get-col tags))
+                      columns (set (map #(or (:column %) (:end-column %)) tags))
                       line (get lines line-num)
                       segments (loop [i 0
                                       segments []
