@@ -115,8 +115,7 @@
          (for [elem (-> parent .-children array-seq)
                :when (seq (drop-while #(-> elem .-classList (.contains %) not)
                                       ["list" "vector" "map" "set"]))]
-           (apply merge
-                  {elem (get rainbow-colors (mod level (count rainbow-colors)))}
+           (merge {elem (get rainbow-colors (mod level (count rainbow-colors)))}
                   (rainbow-delimiters elem (inc level))))))
 
 (defn init! []
