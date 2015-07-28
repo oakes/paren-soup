@@ -95,16 +95,18 @@
                   (str line "<br/>")))]
     (join lines)))
 
-(def rainbow-colors [[0 0 0] ; black
-                     [255 0 0] ; red
-                     [0 255 0] ; green
-                     [0 0 255] ; blue
-                     [255 255 0] ; yellow
-                     [0 255 255] ; teal
-                     [255 0 255] ; purple
-                     ])
+(def rainbow-colors ["aqua"
+                     "brown"
+                     "cornflowerblue"
+                     "fuchsia"
+                     "gold"
+                     "hotpink"
+                     "lime"
+                     "orange"
+                     "plum"
+                     "tomato"])
 
-(defn rainbow-delimiters :- {js/Element [Int]}
+(defn rainbow-delimiters :- {js/Element Str}
   "Returns a map of elements and colors."
   [parent :- js/Element
    level :- Int]
@@ -123,8 +125,7 @@
     (set! (.-spellcheck editor) false)
     (set! (.-innerHTML editor) (add-tags (.-value test-content)))
     (doseq [[elem color] (rainbow-delimiters editor 0)]
-      (set! (-> elem .-style .-color)
-            (apply str (interleave ["rgb(" ", " ", " ")"] color))))))
+      (set! (-> elem .-style .-color) color))))
 
 (defn init-with-validation! []
   (with-fn-validation (init!)))
