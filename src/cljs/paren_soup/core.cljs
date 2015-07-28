@@ -42,13 +42,14 @@
   [tokens :- [{Keyword Any}]]
   (flatten
     (for [token tokens]
-      [(select-keys token [:line :column :value])
+      [(select-keys token [:line :column :value :message])
        (select-keys token [:end-line :end-column])])))
 
 (defn tag->html :- Str
   "Returns an HTML string for the given tag description."
   [tag :- {Keyword Any}]
   (cond
+    (:message tag) (str "<span class='error'>" (:message tag) "</span>")
     (-> tag :value symbol?) "<span class='symbol'>"
     (-> tag :value list?) "<span class='list'>"
     (-> tag :value vector?) "<span class='vector'>"
@@ -94,11 +95,36 @@
                   (str line "<br/>")))]
     (join lines)))
 
+(def rainbow-colors [[0 0 0] ; black
+                     [255 0 0] ; red
+                     [0 255 0] ; green
+                     [0 0 255] ; blue
+                     [255 255 0] ; yellow
+                     [0 255 255] ; teal
+                     [255 0 255] ; purple
+                     ])
+
+(defn rainbow-delimiters :- {js/Element [Int]}
+  "Returns a map of elements and colors."
+  [parent :- js/Element
+   level :- Int]
+  (apply merge
+         {}
+         (for [elem (-> parent .-children array-seq)
+               :when (seq (drop-while #(-> elem .-classList (.contains %) not)
+                                      ["list" "vector" "map" "set"]))]
+           (apply merge
+                  {elem (get rainbow-colors (mod level (count rainbow-colors)))}
+                  (rainbow-delimiters elem (inc level))))))
+
 (defn init! []
   (let [test-content (.querySelector js/document "textarea")
         editor (.querySelector js/document ".paren-soup")]
     (set! (.-spellcheck editor) false)
-    (set! (.-innerHTML editor) (add-tags (.-value test-content)))))
+    (set! (.-innerHTML editor) (add-tags (.-value test-content)))
+    (doseq [[elem color] (rainbow-delimiters editor 0)]
+      (set! (-> elem .-style .-color)
+            (apply str (interleave ["rgb(" ", " ", " ")"] color))))))
 
 (defn init-with-validation! []
   (with-fn-validation (init!)))

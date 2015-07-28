@@ -12,7 +12,28 @@
 (defn -main
   "I don't do a whole lot ... yet."
   [& args]
-  (println "Hello, World!"))
+  (println "Hello, World!")
+  (s/invoke-later
+    ; listen for keys while modifier is down
+    (shortcuts/listen-for-shortcuts!
+      (fn [key-code]
+        (case key-code
+          ; enter
+          10 (projects/toggle-project-tree-selection!)
+          ; page up
+          33 (editors/move-tab-selection! -1)
+          ; page down
+          34 (editors/move-tab-selection! 1)
+          ; up
+          38 (projects/move-project-tree-selection! -1)
+          ; down
+          40 (projects/move-project-tree-selection! 1)
+          ; Q
+          81 (window/confirm-exit-app!)
+          ; W
+          87 (editors/close-selected-editor!)
+          ; else
+          false)))))
 
 (def ^:const hello #{1 2 3})</textarea>
     <script type="text/javascript" src="main.js"></script>
