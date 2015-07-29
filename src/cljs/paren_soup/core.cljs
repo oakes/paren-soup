@@ -29,7 +29,7 @@
     (flatten
       (conj result
             (if (instance? js/Error token)
-              (assoc (.-data token) :message (.-message token))
+              (assoc (.-data token) :message (.-message token) :error? true)
               (let [{:keys [line column end-line end-column wrapped?]} (meta token)
                     value (if wrapped? (first token) token)
                     delimiter-size (if (set? value) 2 1)]
@@ -52,17 +52,22 @@
   "Returns an HTML string for the given tag description."
   [tag :- {Keyword Any}]
   (cond
-    (:message tag) (str "<span class='error'>" (:message tag) "</span>")
-    (-> tag :value symbol?) "<span class='symbol'>"
-    (-> tag :value list?) "<span class='collection list'>"
-    (-> tag :value vector?) "<span class='collection vector'>"
-    (-> tag :value map?) "<span class='collection map'>"
-    (-> tag :value set?) "<span class='collection set'>"
-    (-> tag :value number?) "<span class='number'>"
-    (-> tag :value string?) "<span class='string'>"
-    (-> tag :value keyword?) "<span class='keyword'>"
-    (:end-line tag) "</span>"
     (:delimiter? tag) "<span class='delimiter'>"
+    (:line tag) (let [value (:value tag)]
+                  (cond
+                    (symbol? value) "<span class='symbol'>"
+                    (list? value) "<span class='collection list'>"
+                    (vector? value) "<span class='collection vector'>"
+                    (map? value) "<span class='collection map'>"
+                    (set? value) "<span class='collection set'>"
+                    (number? value) "<span class='number'>"
+                    (string? value) "<span class='string'>"
+                    (keyword? value) "<span class='keyword'>"
+                    (nil? value) "<span class='nil'>"
+                    (or (= value true) (= value false)) "<span class='boolean'>"
+                    :else "<span>"))
+    (:end-line tag) "</span>"
+    (:error? tag) (str "<span class='error'>" (:message tag) "</span>")
     :else "<span>"))
 
 (defn add-tags :- Str

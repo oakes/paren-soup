@@ -29,6 +29,14 @@ html, body {
 	color: blue;
 }
 
+.nil {
+	color: lightblue;
+}
+
+.boolean {
+	color: lightblue;
+}
+
 .error {
 	color: red;
 }
