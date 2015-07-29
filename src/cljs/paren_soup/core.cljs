@@ -20,30 +20,33 @@
   (let [reader (indexing-push-back-reader s)]
     (take-while some? (repeatedly (partial read-safe reader)))))
 
-(defn token-list :- [{Keyword Any}]
-  "Returns a list of maps describing each token."
+(defn tag-list :- [{Keyword Any}]
+  "Returns a list of maps describing each tag."
   ([token :- Any]
-    (token-list token []))
+    (tag-list token []))
   ([token :- Any
     result :- [Any]]
     (flatten
       (conj result
             (if (instance? js/Error token)
               (assoc (.-data token) :message (.-message token))
-              (if (coll? token)
-                [(assoc (meta token) :value (if (:wrapped? (meta token))
-                                              (first token)
-                                              token))
-                 (map token-list token)]
-                (assoc (meta token) :value token)))))))
-
-(defn tag-list :- [{Keyword Any}]
-  "Returns a list of maps describing each HTML tag to be added."
-  [tokens :- [{Keyword Any}]]
-  (flatten
-    (for [token tokens]
-      [(select-keys token [:line :column :value :message])
-       (select-keys token [:end-line :end-column])])))
+              (let [{:keys [line column end-line end-column wrapped?]} (meta token)
+                    value (if wrapped? (first token) token)
+                    delimiter-size (if (set? value) 2 1)]
+                [; begin tag
+                 {:line line :column column :value value}
+                 (if (coll? value)
+                   [; open delimiter tags
+                    {:line line :column column :delimiter? true}
+                    {:end-line line :end-column (+ column delimiter-size)}
+                    ; child tags
+                    (map tag-list value)
+                    ; close delimiter tags
+                    {:line end-line :column (- end-column 1) :delimiter? true}
+                    {:end-line end-line :end-column end-column}]
+                   [])
+                 ; end tag
+                 {:end-line end-line :end-column end-column}]))))))
 
 (defn tag->html :- Str
   "Returns an HTML string for the given tag description."
@@ -51,31 +54,32 @@
   (cond
     (:message tag) (str "<span class='error'>" (:message tag) "</span>")
     (-> tag :value symbol?) "<span class='symbol'>"
-    (-> tag :value list?) "<span class='list'>"
-    (-> tag :value vector?) "<span class='vector'>"
-    (-> tag :value map?) "<span class='map'>"
-    (-> tag :value set?) "<span class='set'>"
+    (-> tag :value list?) "<span class='collection list'>"
+    (-> tag :value vector?) "<span class='collection vector'>"
+    (-> tag :value map?) "<span class='collection map'>"
+    (-> tag :value set?) "<span class='collection set'>"
     (-> tag :value number?) "<span class='number'>"
     (-> tag :value string?) "<span class='string'>"
     (-> tag :value keyword?) "<span class='keyword'>"
     (:end-line tag) "</span>"
+    (:delimiter? tag) "<span class='delimiter'>"
     :else "<span>"))
 
 (defn add-tags :- Str
   "Returns a copy of the given string with markup added."
   [s :- Str]
   (let [lines (split-lines s)
-        tokens (token-list (read-all s))
-        tags (tag-list tokens)
-        begin-tags-by-line (group-by :line tags)
-        end-tags-by-line (group-by :end-line tags)
+        tags (tag-list (read-all s))
+        tags-by-line (group-by #(or (:line %) (:end-line %)) tags)
         lines (for [line-num (range (count lines))]
-                (let [begin-tags (get begin-tags-by-line (+ line-num 1))
-                      end-tags (get end-tags-by-line (+ line-num 1))
-                      tags (sort-by #(or (:column %) (:end-column %))
-                                    (concat begin-tags end-tags))
-                      html (map tag->html tags)
-                      columns (set (map #(or (:column %) (:end-column %)) tags))
+                (let [tags-for-line (sort-by #(or (:column %) (:end-column %))
+                                             (get tags-by-line (+ line-num 1)))
+                      tags-per-column (partition-by #(or (:column %) (:end-column %))
+                                                    tags-for-line)
+                      html-per-column (map #(join (map tag->html %))
+                                           tags-per-column)
+                      columns (set (map #(or (:column %) (:end-column %))
+                                        tags-for-line))
                       line (get lines line-num)
                       segments (loop [i 0
                                       segments []
@@ -88,12 +92,10 @@
                                      (recur (inc i)
                                             segments
                                             (conj current-segment c)))
-                                   (conj segments current-segment)))
-                      segments (map join segments)
-                      segments (map #(replace % " " "&nbsp;") segments)
-                      line (join (interleave segments (concat html (repeat ""))))]
-                  (str line "<br/>")))]
-    (join lines)))
+                                   (map join (conj segments current-segment))))
+                      segments (map #(replace % " " "&nbsp;") segments)]
+                  (join (interleave segments (concat html-per-column (repeat ""))))))]
+    (join "<br/>" lines)))
 
 (def rainbow-colors ["aqua"
                      "brown"
@@ -112,18 +114,21 @@
    level :- Int]
   (apply merge
          {}
-         (for [elem (-> parent .-children array-seq)
-               :when (seq (drop-while #(-> elem .-classList (.contains %) not)
-                                      ["list" "vector" "map" "set"]))]
-           (merge {elem (get rainbow-colors (mod level (count rainbow-colors)))}
-                  (rainbow-delimiters elem (inc level))))))
+         (for [elem (-> parent .-children array-seq)]
+           (cond
+             (-> elem .-classList (.contains "delimiter"))
+             {elem (get rainbow-colors (mod level (count rainbow-colors)))}
+             (-> elem .-classList (.contains "collection"))
+             (apply merge {} (rainbow-delimiters elem (inc level)))
+             :else
+             {}))))
 
 (defn init! []
   (let [test-content (.querySelector js/document "textarea")
         editor (.querySelector js/document ".paren-soup")]
     (set! (.-spellcheck editor) false)
     (set! (.-innerHTML editor) (add-tags (.-value test-content)))
-    (doseq [[elem color] (rainbow-delimiters editor 0)]
+    (doseq [[elem color] (rainbow-delimiters editor -1)]
       (set! (-> elem .-style .-color) color))))
 
 (defn init-with-validation! []
