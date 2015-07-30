@@ -3,6 +3,7 @@
   :dependencies [[org.clojars.oakes/tools.reader "0.10.0-SNAPSHOT"]
                  [org.clojure/clojure "1.7.0"]
                  [org.clojure/clojurescript "0.0-3308"]
+                 [org.clojure/core.async "0.1.346.0-17112a-alpha"]
                  [prismatic/schema "0.4.3"]
                  [ring "1.4.0"]]
   :hooks [leiningen.cljsbuild]

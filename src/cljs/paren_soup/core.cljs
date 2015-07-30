@@ -1,10 +1,13 @@
 (ns paren-soup.core
-  (:require [cljs.tools.reader :refer [read *wrap-value-and-add-metadata?*]]
+  (:require [cljs.core.async :refer [chan put! <!]]
+            [cljs.tools.reader :refer [read *wrap-value-and-add-metadata?*]]
             [cljs.tools.reader.reader-types :refer [indexing-push-back-reader]]
             [clojure.string :refer [split-lines join replace]]
             [clojure.walk :refer [postwalk]]
+            [goog.events :as events]
             [schema.core :refer [maybe either Any Str Int Keyword]])
-  (:require-macros [schema.core :refer [defn with-fn-validation]]))
+  (:require-macros [schema.core :refer [defn with-fn-validation]]
+                   [cljs.core.async.macros :refer [go]]))
 
 (defn read-safe :- (maybe (either Any js/Error))
   "Returns either a form or an exception object, or nil if EOF is reached."
@@ -53,6 +56,8 @@
   [tag :- {Keyword Any}]
   (cond
     (:delimiter? tag) "<span class='delimiter'>"
+    (:error? tag) (or (.log js/console (:message tag))
+                      "<span class='error'></span>")
     (:line tag) (let [value (:value tag)]
                   (cond
                     (symbol? value) "<span class='symbol'>"
@@ -67,7 +72,6 @@
                     (or (= value true) (= value false)) "<span class='boolean'>"
                     :else "<span>"))
     (:end-line tag) "</span>"
-    (:error? tag) (str "<span class='error'>" (:message tag) "</span>")
     :else "<span>"))
 
 (defn add-tags :- Str
@@ -97,21 +101,12 @@
                                      (recur (inc i)
                                             segments
                                             (conj current-segment c)))
-                                   (map join (conj segments current-segment))))
-                      segments (map #(replace % " " "&nbsp;") segments)]
+                                   (map join (conj segments current-segment))))]
                   (join (interleave segments (concat html-per-column (repeat ""))))))]
     (join "<br/>" lines)))
 
-(def rainbow-colors ["aqua"
-                     "brown"
-                     "cornflowerblue"
-                     "fuchsia"
-                     "gold"
-                     "hotpink"
-                     "lime"
-                     "orange"
-                     "plum"
-                     "tomato"])
+(def rainbow-colors ["aqua" "brown" "cornflowerblue"  "fuchsia" "gold"
+                     "hotpink" "lime" "orange" "plum" "tomato"])
 
 (defn rainbow-delimiters :- {js/Element Str}
   "Returns a map of elements and colors."
@@ -128,13 +123,22 @@
              :else
              {}))))
 
+(defn refresh! [editor :- js/Element]
+  (set! (.-innerHTML editor) (add-tags (.-innerText editor)))
+  (doseq [[elem color] (rainbow-delimiters editor -1)]
+    (set! (-> elem .-style .-color) color)))
+
 (defn init! []
-  (let [editor (.querySelector js/document ".paren-soup")]
+  (let [editor (.querySelector js/document ".paren-soup")
+        changes (chan)]
     (set! (.-spellcheck editor) false)
     (set! (.-contentEditable editor) true)
-    (set! (.-innerHTML editor) (add-tags (.-innerText editor)))
-    (doseq [[elem color] (rainbow-delimiters editor -1)]
-      (set! (-> elem .-style .-color) color))))
+    (refresh! editor)
+    (events/listen editor "keydown" #(put! changes %))
+    (go (while true
+          (let [event (<! changes)
+                editor (.-target event)]
+            (refresh! editor))))))
 
 (defn init-with-validation! []
   (with-fn-validation (init!)))
