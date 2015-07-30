@@ -129,10 +129,10 @@
              {}))))
 
 (defn init! []
-  (let [test-content (.querySelector js/document "textarea")
-        editor (.querySelector js/document ".paren-soup")]
+  (let [editor (.querySelector js/document ".paren-soup")]
     (set! (.-spellcheck editor) false)
-    (set! (.-innerHTML editor) (add-tags (.-value test-content)))
+    (set! (.-contentEditable editor) true)
+    (set! (.-innerHTML editor) (add-tags (.-innerText editor)))
     (doseq [[elem color] (rainbow-delimiters editor -1)]
       (set! (-> elem .-style .-color) color))))
 
