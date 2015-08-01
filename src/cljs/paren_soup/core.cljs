@@ -124,11 +124,14 @@
              {}))))
 
 (defn refresh! [editor :- js/Element]
-  (set! (.-innerHTML editor) (add-tags (.-innerText editor)))
+  (let [sel (-> js/rangy .getSelection (.saveCharacterRanges editor))]
+    (set! (.-innerHTML editor) (add-tags (.-innerText editor)))
+    (-> js/rangy .getSelection (.restoreCharacterRanges editor sel)))
   (doseq [[elem color] (rainbow-delimiters editor -1)]
     (set! (-> elem .-style .-color) color)))
 
 (defn init! []
+  (.init js/rangy)
   (let [editor (.querySelector js/document ".paren-soup")
         changes (chan)]
     (set! (.-spellcheck editor) false)
