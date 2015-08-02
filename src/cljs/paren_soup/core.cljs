@@ -135,7 +135,6 @@
   (let [editor (.querySelector js/document ".paren-soup")
         changes (chan)]
     (set! (.-spellcheck editor) false)
-    (set! (.-contentEditable editor) true)
     (refresh! editor)
     (events/listen editor "keydown" #(put! changes %))
     (go (while true
