@@ -2,10 +2,10 @@
   (:require [cljs.core.async :refer [chan put! <!]]
             [cljs.tools.reader :refer [read *wrap-value-and-add-metadata?*]]
             [cljs.tools.reader.reader-types :refer [indexing-push-back-reader]]
-            [clojure.string :refer [split-lines join replace]]
+            [clojure.string :refer [split-lines join replace triml]]
             [clojure.walk :refer [postwalk]]
             [goog.events :as events]
-            [schema.core :refer [maybe either Any Str Int Keyword]])
+            [schema.core :refer [maybe either Any Str Int Keyword Bool]])
   (:require-macros [schema.core :refer [defn with-fn-validation]]
                    [cljs.core.async.macros :refer [go]]))
 
@@ -26,35 +26,67 @@
 (defn tag-list :- [{Keyword Any}]
   "Returns a list of maps describing each tag."
   ([token :- Any]
-    (tag-list token []))
+    (tag-list token [] 0))
   ([token :- Any
-    result :- [Any]]
+    result :- [Any]
+    level :- Int]
     (flatten
       (conj result
             (if (instance? js/Error token)
-              (assoc (.-data token) :message (.-message token) :error? true)
+              (assoc (.-data token) :message (.-message token) :error? true :level level)
               (let [{:keys [line column end-line end-column wrapped?]} (meta token)
                     value (if wrapped? (first token) token)
                     delimiter-size (if (set? value) 2 1)]
                 [; begin tag
-                 {:line line :column column :value value}
+                 {:line line :column column :value value :level level}
                  (if (coll? value)
                    [; open delimiter tags
-                    {:line line :column column :delimiter? true}
-                    {:end-line line :end-column (+ column delimiter-size)}
+                    {:line line :column column :delimiter? true :level level}
+                    {:end-line line :end-column (+ column delimiter-size) :level level}
                     ; child tags
-                    (map tag-list value)
+                    (map #(tag-list % result (inc level)) value)
                     ; close delimiter tags
-                    {:line end-line :column (- end-column 1) :delimiter? true}
-                    {:end-line end-line :end-column end-column}]
+                    {:line end-line :column (- end-column 1) :delimiter? true :level (dec level)}
+                    {:end-line end-line :end-column end-column :level (dec level)}]
                    [])
                  ; end tag
-                 {:end-line end-line :end-column end-column}]))))))
+                 {:end-line end-line :end-column end-column :level (dec level)}]))))))
+
+(defn add-indent-tags  :- [{Keyword Any}]
+  "Returns a list of maps describing each tag, with indent tags included for each line."
+  [tags :- [{Keyword Any}]
+   line-count :- Int]
+  (flatten
+    (let [tags-by-line (group-by #(or (:line %) (:end-line %)) tags)]
+      (loop [i 1
+             current-level 0
+             result []]
+        (if (<= i line-count)
+          (if-let [tags-for-line (get tags-by-line i)]
+            (recur (inc i)
+                   (-> tags-for-line last :level)
+                   (concat result
+                           [{:line i
+                             :column 1
+                             :level current-level
+                             :indent? true}]
+                           tags-for-line))
+            (recur (inc i)
+                   current-level
+                   (conj result
+                         {:line i
+                          :column 1
+                          :level current-level
+                          :indent? true})))
+          result)))))
 
 (defn tag->html :- Str
   "Returns an HTML string for the given tag description."
   [tag :- {Keyword Any}]
   (cond
+    (:indent? tag) (str "<span class='indent'>"
+                        (join (take (:level tag) (repeat "  ")))
+                        "</span>")
     (:delimiter? tag) "<span class='delimiter'>"
     (:error? tag) (or (.log js/console (:message tag))
                       "<span class='error'></span>")
@@ -69,16 +101,17 @@
                     (string? value) "<span class='string'>"
                     (keyword? value) "<span class='keyword'>"
                     (nil? value) "<span class='nil'>"
-                    (or (= value true) (= value false)) "<span class='boolean'>"
+                    (contains? #{true false} value) "<span class='boolean'>"
                     :else "<span>"))
     (:end-line tag) "</span>"
     :else "<span>"))
 
-(defn add-tags :- Str
+(defn add-markup :- Str
   "Returns a copy of the given string with markup added."
   [s :- Str]
-  (let [lines (split-lines s)
-        tags (tag-list (read-all s))
+  (let [lines (mapv triml (split-lines s))
+        tags (tag-list (read-all (join \newline lines)))
+        tags (add-indent-tags tags (count lines))
         tags-by-line (group-by #(or (:line %) (:end-line %)) tags)
         lines (for [line-num (range (count lines))]
                 (let [tags-for-line (sort-by #(or (:column %) (:end-column %))
@@ -123,9 +156,20 @@
              :else
              {}))))
 
-(defn refresh! [editor :- js/Element]
+(defn refresh!
+  [editor :- js/Element
+   advance-caret? :- Bool]
   (let [sel (-> js/rangy .getSelection (.saveCharacterRanges editor))]
-    (set! (.-innerHTML editor) (add-tags (.-innerText editor)))
+    (set! (.-innerHTML editor) (add-markup (.-innerText editor)))
+    (when advance-caret?
+      (let [range (.-characterRange (aget sel 0))
+            text (.-innerText editor)
+            position (loop [i (.-start range)]
+                       (if (= " " (aget text i))
+                         (recur (inc i))
+                         i))]
+        (set! (.-start range) position)
+        (set! (.-end range) position)))
     (-> js/rangy .getSelection (.restoreCharacterRanges editor sel)))
   (doseq [[elem color] (rainbow-delimiters editor -1)]
     (set! (-> elem .-style .-color) color)))
@@ -135,12 +179,16 @@
   (let [editor (.querySelector js/document ".paren-soup")
         changes (chan)]
     (set! (.-spellcheck editor) false)
-    (refresh! editor)
+    (refresh! editor false)
+    (events/listen editor "DOMCharacterDataModified" #(put! changes %))
     (events/listen editor "keydown" #(put! changes %))
     (go (while true
           (let [event (<! changes)
-                editor (.-target event)]
-            (refresh! editor))))))
+                editor (.-currentTarget event)]
+            (case (.-type event)
+              "keydown" (when (= 13 (.-keyCode event))
+                          (refresh! editor true))
+              (refresh! editor false)))))))
 
 (defn init-with-validation! []
   (with-fn-validation (init!)))
