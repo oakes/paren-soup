@@ -26,34 +26,33 @@
 (defn tag-list :- [{Keyword Any}]
   "Returns a list of maps describing each tag."
   ([token :- Any]
-    (tag-list token [] 0))
+    (tag-list token -2))
   ([token :- Any
-    result :- [Any]
     level :- Int]
     (flatten
-      (conj result
-            (if (instance? js/Error token)
-              (assoc (.-data token) :message (.-message token) :error? true :level level)
-              (let [{:keys [line column end-line end-column wrapped?]} (meta token)
-                    value (if wrapped? (first token) token)
-                    delimiter-size (if (set? value) 2 1)]
-                [; begin tag
-                 {:line line :column column :value value :level level}
-                 (if (coll? value)
-                   [; open delimiter tags
-                    {:line line :column column :delimiter? true :level level}
-                    {:end-line line :end-column (+ column delimiter-size) :level level}
-                    ; child tags
-                    (map #(tag-list % result (inc level)) value)
-                    ; close delimiter tags
-                    {:line end-line :column (- end-column 1) :delimiter? true :level (dec level)}
-                    {:end-line end-line :end-column end-column :level (dec level)}]
-                   [])
-                 ; end tag
-                 {:end-line end-line :end-column end-column :level (dec level)}]))))))
+      (if (instance? js/Error token)
+        [(assoc (.-data token) :message (.-message token) :error? true :level level)]
+        (let [{:keys [line column end-line end-column wrapped?]} (meta token)
+              value (if wrapped? (first token) token)
+              delimiter-size (if (set? value) 2 1)]
+          [; begin tag
+           {:line line :column column :value value :level level}
+           (if (coll? value)
+             (let [new-level (+ level 2 (max (dec column) 0))]
+               [; open delimiter tags
+                {:line line :column column :delimiter? true}
+                {:end-line line :end-column (+ column delimiter-size) :level new-level}
+                ; child tags
+                (map #(tag-list % new-level) value)
+                ; close delimiter tags
+                {:line end-line :column (dec end-column) :delimiter? true}
+                {:end-line end-line :end-column end-column}])
+             [])
+           ; end tag
+           {:end-line end-line :end-column end-column :level level}])))))
 
-(defn add-indent-tags  :- [{Keyword Any}]
-  "Returns a list of maps describing each tag, with indent tags included for each line."
+(defn indent-list :- [{Keyword Any}]
+  "Returns a list of maps describing each indent tag."
   [tags :- [{Keyword Any}]
    line-count :- Int]
   (flatten
@@ -62,22 +61,14 @@
              current-level 0
              result []]
         (if (<= i line-count)
-          (if-let [tags-for-line (get tags-by-line i)]
-            (recur (inc i)
-                   (-> tags-for-line last :level)
-                   (concat result
-                           [{:line i
-                             :column 1
-                             :level current-level
-                             :indent? true}]
-                           tags-for-line))
-            (recur (inc i)
-                   current-level
-                   (conj result
-                         {:line i
-                          :column 1
-                          :level current-level
-                          :indent? true})))
+          (recur (inc i)
+                 (or (some-> (get tags-by-line i) last :level)
+                     current-level)
+                 (conj result
+                       {:line i
+                        :column 1
+                        :level current-level
+                        :indent? true}))
           result)))))
 
 (defn tag->html :- Str
@@ -85,7 +76,7 @@
   [tag :- {Keyword Any}]
   (cond
     (:indent? tag) (str "<span class='indent'>"
-                        (join (take (:level tag) (repeat "  ")))
+                        (join (repeat (:level tag) " "))
                         "</span>")
     (:delimiter? tag) "<span class='delimiter'>"
     (:error? tag) (or (.log js/console (:message tag))
@@ -106,12 +97,13 @@
     (:end-line tag) "</span>"
     :else "<span>"))
 
-(defn add-markup :- Str
-  "Returns a copy of the given string with markup added."
+(defn add-html :- Str
+  "Returns a copy of the given string with html added."
   [s :- Str]
   (let [lines (mapv triml (split-lines s))
         tags (tag-list (read-all (join \newline lines)))
-        tags (add-indent-tags tags (count lines))
+        indent-tags (indent-list tags (count lines))
+        tags (concat indent-tags tags)
         tags-by-line (group-by #(or (:line %) (:end-line %)) tags)
         lines (for [line-num (range (count lines))]
                 (let [tags-for-line (sort-by #(or (:column %) (:end-column %))
@@ -160,7 +152,7 @@
   [editor :- js/Element
    advance-caret? :- Bool]
   (let [sel (-> js/rangy .getSelection (.saveCharacterRanges editor))]
-    (set! (.-innerHTML editor) (add-markup (.-innerText editor)))
+    (set! (.-innerHTML editor) (add-html (.-innerText editor)))
     (when advance-caret?
       (let [range (.-characterRange (aget sel 0))
             text (.-innerText editor)
