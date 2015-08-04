@@ -26,30 +26,43 @@
 (defn tag-list :- [{Keyword Any}]
   "Returns a list of maps describing each tag."
   ([token :- Any]
-    (tag-list token -2))
+    (tag-list token 0 0 0 0))
   ([token :- Any
-    level :- Int]
+    parent-level :- Int
+    parent-adjust :- Int
+    parent-column :- Int
+    parent-line :- Int]
     (flatten
       (if (instance? js/Error token)
-        [(assoc (.-data token) :message (.-message token) :error? true :level level)]
+        [(assoc (.-data token) :message (.-message token) :error? true :level parent-level)]
         (let [{:keys [line column end-line end-column wrapped?]} (meta token)
-              value (if wrapped? (first token) token)
-              delimiter-size (if (set? value) 2 1)]
-          [; begin tag
-           {:line line :column column :value value :level level}
-           (if (coll? value)
-             (let [new-level (+ level 2 (max (dec column) 0))]
-               [; open delimiter tags
-                {:line line :column column :delimiter? true}
-                {:end-line line :end-column (+ column delimiter-size) :level new-level}
-                ; child tags
-                (map #(tag-list % new-level) value)
-                ; close delimiter tags
-                {:line end-line :column (dec end-column) :delimiter? true}
-                {:end-line end-line :end-column end-column}])
-             [])
-           ; end tag
-           {:end-line end-line :end-column end-column :level level}])))))
+              value (if wrapped? (first token) token)]
+          (if (and (coll? value) (nil? (meta token)))
+            ; this is a key-value pair from a map
+            (map #(tag-list % parent-level parent-adjust parent-column parent-line) value)
+            [; begin tag
+             {:line line :column column :value value}
+             (if (coll? value)
+               (let [delimiter-size (if (set? value) 2 1)
+                     new-level (+ parent-level
+                                  (if (not= parent-line line)
+                                    parent-adjust
+                                    0))
+                     new-column (max (dec column)
+                                     parent-column
+                                     0)
+                     new-adjust (if (list? value) 2 delimiter-size)]
+                 [; open delimiter tags
+                  {:line line :column column :delimiter? true}
+                  {:end-line line :end-column (+ column delimiter-size) :level (+ new-level new-adjust new-column)}
+                  ; child tags
+                  (map #(tag-list % new-level new-adjust new-column line) value)
+                  ; close delimiter tags
+                  {:line end-line :column (dec end-column) :delimiter? true}
+                  {:end-line end-line :end-column end-column}])
+               [])
+             ; end tag
+             {:end-line end-line :end-column end-column :level (+ parent-level parent-adjust parent-column)}]))))))
 
 (defn indent-list :- [{Keyword Any}]
   "Returns a list of maps describing each indent tag."
@@ -109,7 +122,7 @@
   "Returns a copy of the given string with html added."
   [s :- Str]
   (let [lines (split-lines-without-indent s)
-        tags (tag-list (read-all (join \newline lines)))
+        tags (mapcat tag-list (read-all (join \newline lines)))
         indent-tags (indent-list tags (count lines))
         tags (concat indent-tags tags)
         tags-by-line (group-by #(or (:line %) (:end-line %)) tags)
