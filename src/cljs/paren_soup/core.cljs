@@ -182,15 +182,14 @@
   (let [sel (-> js/rangy .getSelection (.saveCharacterRanges editor))]
     (set! (.-innerHTML editor) (add-html (.-innerText editor)))
     (when advance-caret?
-      (when-let [first-sel (aget sel 0)]
-        (let [range (.-characterRange first-sel)
-              text (.-innerText editor)
-              position (loop [i (.-start range)]
-                         (if (= " " (aget text i))
-                           (recur (inc i))
-                           i))]
-          (set! (.-start range) position)
-          (set! (.-end range) position))))
+      (let [range (.-characterRange (aget sel 0))
+            text (.-innerText editor)
+            position (loop [i (.-start range)]
+                       (if (= " " (aget text i))
+                         (recur (inc i))
+                         i))]
+        (set! (.-start range) position)
+        (set! (.-end range) position)))
     (-> js/rangy .getSelection (.restoreCharacterRanges editor sel)))
   (doseq [[elem color] (rainbow-delimiters editor -1)]
     (set! (-> elem .-style .-color) color)))
