@@ -97,10 +97,18 @@
     (:end-line tag) "</span>"
     :else "<span>"))
 
+(defn split-lines-without-indent :- [Str]
+  "Splits the string into lines while removing all indentation."
+  [s :- Str]
+  (let [lines (map triml (split-lines (str s " ")))
+        last-line (last lines)]
+    (conj (vec (butlast lines))
+          (subs last-line 0 (dec (count last-line))))))
+
 (defn add-html :- Str
   "Returns a copy of the given string with html added."
   [s :- Str]
-  (let [lines (mapv triml (split-lines s))
+  (let [lines (split-lines-without-indent s)
         tags (tag-list (read-all (join \newline lines)))
         indent-tags (indent-list tags (count lines))
         tags (concat indent-tags tags)
@@ -149,19 +157,21 @@
              {}))))
 
 (defn refresh!
+  "Refreshes the contents of the editor."
   [editor :- js/Element
    advance-caret? :- Bool]
   (let [sel (-> js/rangy .getSelection (.saveCharacterRanges editor))]
     (set! (.-innerHTML editor) (add-html (.-innerText editor)))
     (when advance-caret?
-      (let [range (.-characterRange (aget sel 0))
-            text (.-innerText editor)
-            position (loop [i (.-start range)]
-                       (if (= " " (aget text i))
-                         (recur (inc i))
-                         i))]
-        (set! (.-start range) position)
-        (set! (.-end range) position)))
+      (when-let [first-sel (aget sel 0)]
+        (let [range (.-characterRange first-sel)
+              text (.-innerText editor)
+              position (loop [i (.-start range)]
+                         (if (= " " (aget text i))
+                           (recur (inc i))
+                           i))]
+          (set! (.-start range) position)
+          (set! (.-end range) position))))
     (-> js/rangy .getSelection (.restoreCharacterRanges editor sel)))
   (doseq [[elem color] (rainbow-delimiters editor -1)]
     (set! (-> elem .-style .-color) color)))
@@ -172,15 +182,14 @@
         changes (chan)]
     (set! (.-spellcheck editor) false)
     (refresh! editor false)
-    (events/listen editor "DOMCharacterDataModified" #(put! changes %))
+    (events/removeAll editor)
     (events/listen editor "keydown" #(put! changes %))
     (go (while true
           (let [event (<! changes)
-                editor (.-currentTarget event)]
-            (case (.-type event)
-              "keydown" (when (= 13 (.-keyCode event))
-                          (refresh! editor true))
-              (refresh! editor false)))))))
+                editor (.-currentTarget event)
+                code (.-keyCode event)]
+            (when-not (contains? #{37 38 39 40} code)
+              (refresh! editor (= 13 code))))))))
 
 (defn init-with-validation! []
   (with-fn-validation (init!)))
