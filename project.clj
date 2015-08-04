@@ -15,7 +15,11 @@
         :source-paths ["src/cljs"]
         :compiler {:output-to "resources/public/main.js"
                    :optimizations :advanced
-                   :pretty-print false}
+                   :pretty-print false
+                   :foreign-libs [{:file "src/js/rangy-core.js"
+                                   :provides ["rangy.core"]}
+                                  {:file "src/js/rangy-textrange.js"
+                                   :provides ["rangy.textrange"]}]}
         :jar true}}}
   :aot [paren-soup.core]
   :main paren-soup.core

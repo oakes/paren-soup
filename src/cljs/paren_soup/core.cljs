@@ -5,6 +5,8 @@
             [clojure.string :refer [split-lines join replace triml]]
             [clojure.walk :refer [postwalk]]
             [goog.events :as events]
+            [rangy.core]
+            [rangy.textrange]
             [schema.core :refer [maybe either Any Str Int Keyword Bool]])
   (:require-macros [schema.core :refer [defn with-fn-validation]]
                    [cljs.core.async.macros :refer [go]]))
