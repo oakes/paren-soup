@@ -1,6 +1,6 @@
 (defproject paren-soup "0.0.1-SNAPSHOT"
   :description "FIXME: write this!"
-  :dependencies [[org.clojars.oakes/tools.reader "0.10.0-SNAPSHOT"]
+  :dependencies [[org.clojars.oakes/tools.reader "0.10.1-SNAPSHOT"]
                  [org.clojure/clojure "1.7.0"]
                  [org.clojure/clojurescript "1.7.28"]
                  [org.clojure/core.async "0.1.346.0-17112a-alpha"]
