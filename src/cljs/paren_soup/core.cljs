@@ -19,12 +19,6 @@
       (read reader false nil))
     (catch js/Error e e)))
 
-(defn read-forms :- [Any]
-  "Returns a list of values representing each top-level form."
-  [s :- Str]
-  (let [reader (indexing-push-back-reader s)]
-    (repeatedly (partial read-safe reader))))
-
 (defn tag-list :- [{Keyword Any}]
   "Returns a list of maps describing each tag."
   ([token :- Any]
@@ -153,8 +147,9 @@
   "Returns the given string with html added."
   [s :- Str]
   (let [lines (split-lines-without-indent s)
+        reader (indexing-push-back-reader (join \newline lines))
         tags (sequence (comp (take-while some?) (mapcat tag-list))
-                       (read-forms (join \newline lines)))
+                       (repeatedly (partial read-safe reader)))
         tags (concat (indent-list tags (count lines)) tags)
         get-line #(or (:line %) (:end-line %))
         tags-by-line (group-by get-line tags)]
