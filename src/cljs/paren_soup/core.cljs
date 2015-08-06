@@ -125,38 +125,46 @@
     (conj (vec (butlast lines))
           (subs last-line 0 (dec (count last-line))))))
 
+(defn add-html-to-line :- Str
+  "Returns the given line with html added."
+  [line :- Str
+   tags-for-line :- [{Keyword Any}]]
+  (let [get-column #(or (:column %) (:end-column %))
+        tags-for-line (sort-by get-column tags-for-line)
+        tags-per-column (partition-by get-column tags-for-line)
+        html-per-column (map #(join (map tag->html %)) tags-per-column)
+        columns (set (map get-column tags-for-line))
+        segments (loop [i 0
+                        segments []
+                        current-segment []]
+                   (if-let [c (get line i)]
+                     (if (contains? columns (inc i))
+                       (recur (inc i)
+                              (conj segments current-segment)
+                              [c])
+                       (recur (inc i)
+                              segments
+                              (conj current-segment c)))
+                     (map join (conj segments current-segment))))]
+    (join (interleave segments (concat html-per-column (repeat ""))))))
+
 (defn add-html :- Str
-  "Returns a copy of the given string with html added."
+  "Returns the given string with html added."
   [s :- Str]
   (let [lines (split-lines-without-indent s)
         tags (sequence (comp (take-while some?) (mapcat tag-list))
                        (read-forms (join \newline lines)))
         tags (concat (indent-list tags (count lines)) tags)
-        tags-by-line (group-by #(or (:line %) (:end-line %)) tags)
-        lines (for [line-num (range (count lines))]
-                (let [tags-for-line (sort-by #(or (:column %) (:end-column %))
-                                             (get tags-by-line (+ line-num 1)))
-                      tags-per-column (partition-by #(or (:column %) (:end-column %))
-                                                    tags-for-line)
-                      html-per-column (map #(join (map tag->html %))
-                                           tags-per-column)
-                      columns (set (map #(or (:column %) (:end-column %))
-                                        tags-for-line))
-                      line (get lines line-num)
-                      segments (loop [i 0
-                                      segments []
-                                      current-segment []]
-                                 (if-let [c (get line i)]
-                                   (if (contains? columns (inc i))
-                                     (recur (inc i)
-                                            (conj segments current-segment)
-                                            [c])
-                                     (recur (inc i)
-                                            segments
-                                            (conj current-segment c)))
-                                   (map join (conj segments current-segment))))]
-                  (join (interleave segments (concat html-per-column (repeat ""))))))]
-    (join "<br/>" lines)))
+        get-line #(or (:line %) (:end-line %))
+        tags-by-line (group-by get-line tags)]
+    (->> (zipmap (iterate inc 1) lines)
+         (map (fn [[i line]]
+                [i [line (get tags-by-line i)]]))
+         (apply concat)
+         (apply sorted-map)
+         vals
+         (map (partial apply add-html-to-line))
+         (join "<br/>"))))
 
 (def rainbow-colors ["aqua" "brown" "cornflowerblue"  "fuchsia" "gold"
                      "hotpink" "lime" "orange" "plum" "tomato"])
