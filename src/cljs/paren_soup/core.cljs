@@ -131,8 +131,9 @@
    tags-for-line :- [{Keyword Any}]]
   (let [get-column #(or (:column %) (:end-column %))
         tags-for-line (sort-by get-column tags-for-line)
-        tags-per-column (partition-by get-column tags-for-line)
-        html-per-column (map #(join (map tag->html %)) tags-per-column)
+        html-per-column (sequence (comp (partition-by get-column)
+                                        (map #(join (map tag->html %))))
+                                  tags-for-line)
         columns (set (map get-column tags-for-line))
         segments (loop [i 0
                         segments []
