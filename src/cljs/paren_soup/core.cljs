@@ -19,7 +19,7 @@
       (read reader false nil))
     (catch js/Error e e)))
 
-(defn read-forms :- js/Object
+(defn read-forms :- [Any]
   "Returns a list of values representing each top-level form."
   [s :- Str]
   (let [reader (indexing-push-back-reader s)]
