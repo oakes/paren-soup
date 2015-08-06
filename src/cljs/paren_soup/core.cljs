@@ -19,11 +19,11 @@
       (read reader false nil))
     (catch js/Error e e)))
 
-(defn read-all :- [(either Any js/Error)]
+(defn read-forms :- js/Object
   "Returns a list of values representing each top-level form."
   [s :- Str]
   (let [reader (indexing-push-back-reader s)]
-    (take-while some? (repeatedly (partial read-safe reader)))))
+    (repeatedly (partial read-safe reader))))
 
 (defn tag-list :- [{Keyword Any}]
   "Returns a list of maps describing each tag."
@@ -76,21 +76,20 @@
   "Returns a list of maps describing each indent tag."
   [tags :- [{Keyword Any}]
    line-count :- Int]
-  (flatten
-    (let [tags-by-line (group-by #(or (:line %) (:end-line %)) tags)]
-      (loop [i 1
-             current-level 0
-             result []]
-        (if (<= i line-count)
-          (recur (inc i)
-                 (or (some-> (get tags-by-line i) last :level)
-                     current-level)
-                 (conj result
-                       {:line i
-                        :column 1
-                        :level current-level
-                        :indent? true}))
-          result)))))
+  (let [tags-by-line (group-by #(or (:line %) (:end-line %)) tags)]
+    (loop [i 1
+           current-level 0
+           result []]
+      (if (<= i line-count)
+        (recur (inc i)
+               (or (some-> (get tags-by-line i) last :level)
+                   current-level)
+               (conj result
+                     {:line i
+                      :column 1
+                      :level current-level
+                      :indent? true}))
+        result))))
 
 (defn tag->html :- Str
   "Returns an HTML string for the given tag description."
@@ -130,9 +129,9 @@
   "Returns a copy of the given string with html added."
   [s :- Str]
   (let [lines (split-lines-without-indent s)
-        tags (mapcat tag-list (read-all (join \newline lines)))
-        indent-tags (indent-list tags (count lines))
-        tags (concat indent-tags tags)
+        tags (sequence (comp (take-while some?) (mapcat tag-list))
+                       (read-forms (join \newline lines)))
+        tags (concat (indent-list tags (count lines)) tags)
         tags-by-line (group-by #(or (:line %) (:end-line %)) tags)
         lines (for [line-num (range (count lines))]
                 (let [tags-for-line (sort-by #(or (:column %) (:end-column %))
