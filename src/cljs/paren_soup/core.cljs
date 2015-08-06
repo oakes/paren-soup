@@ -157,13 +157,10 @@
         tags (concat (indent-list tags (count lines)) tags)
         get-line #(or (:line %) (:end-line %))
         tags-by-line (group-by get-line tags)]
-    (->> (zipmap (iterate inc 1) lines)
-         (map (fn [[i line]]
-                [i [line (get tags-by-line i)]]))
-         (apply concat)
-         (apply sorted-map)
-         vals
-         (map (partial apply add-html-to-line))
+    (->> (interleave (iterate inc 1) lines)
+         (sequence (comp (partition-all 2)
+                         (map (fn [[i line]]
+                                (add-html-to-line line (get tags-by-line i))))))
          (join "<br/>"))))
 
 (def rainbow-colors ["aqua" "brown" "cornflowerblue"  "fuchsia" "gold"
