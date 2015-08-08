@@ -1,0 +1,35 @@
+.paren-soup {
+	padding: 0px;
+	margin: 0px;
+	font-size: 16px;
+	color: lightgray;
+	background-color: #293134;
+}
+
+.paren-soup .symbol {
+	color: white;
+}
+
+.paren-soup .number {
+	color: yellow;
+}
+
+.paren-soup .string {
+	color: darksalmon;
+}
+
+.paren-soup .keyword {
+	color: dodgerblue;
+}
+
+.paren-soup .nil {
+	color: lightblue;
+}
+
+.paren-soup .boolean {
+	color: lightblue;
+}
+
+.paren-soup .error {
+	color: red;
+}
