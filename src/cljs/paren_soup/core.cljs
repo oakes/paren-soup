@@ -1,5 +1,6 @@
 (ns paren-soup.core
   (:require [cljs.core.async :refer [chan put! <!]]
+            [cljs.js :refer [empty-state eval js-eval]]
             [cljs.tools.reader :refer [read *wrap-value-and-add-metadata?*]]
             [cljs.tools.reader.reader-types :refer [indexing-push-back-reader]]
             [clojure.string :refer [split-lines join replace triml]]
@@ -13,9 +14,10 @@
 
 (defn read-safe :- (maybe (either Any js/Error))
   "Returns either a form or an exception object, or nil if EOF is reached."
-  [reader :- js/Object]
+  [reader :- js/Object
+   wrap-value? :- Bool]
   (try
-    (binding [*wrap-value-and-add-metadata?* true]
+    (binding [*wrap-value-and-add-metadata?* wrap-value?]
       (read reader false nil))
     (catch js/Error e e)))
 
@@ -149,7 +151,7 @@
   (let [lines (split-lines-without-indent s)
         reader (indexing-push-back-reader (join \newline lines))
         tags (sequence (comp (take-while some?) (mapcat tag-list))
-                       (repeatedly (partial read-safe reader)))
+                       (repeatedly (partial read-safe reader true)))
         tags (concat (indent-list tags (count lines)) tags)
         get-line #(or (:line %) (:end-line %))
         tags-by-line (group-by get-line tags)]
@@ -158,6 +160,37 @@
                          (map (fn [[i line]]
                                 (add-html-to-line line (get tags-by-line i))))))
          (join "<br/>"))))
+
+(defn eval-forms
+  "Evals all the supplied forms."
+  ([forms cb]
+    (let [state (empty-state)
+          opts {:eval js-eval
+                :source-map true
+                :context :expr}
+          results (atom [])]
+      (eval state '(ns cljs.user) opts (fn [_]))
+      (eval-forms forms cb state opts results)))
+  ([forms cb state opts results]
+    (if (seq forms)
+      (let [[[form] forms] (split-at 1 forms)
+            new-ns (when (and (list? form) (= 'ns (first form)))
+                     (second form))]
+        (eval state
+              form
+              opts
+              (fn [res]
+                (let [opts (if new-ns (assoc opts :ns new-ns) opts)]
+                  (swap! results conj res)
+                  (eval-forms forms cb state opts results)))))
+      (cb @results))))
+
+(defn eval-all
+  "Evals the string."
+  [s :- Str]
+  (let [reader (indexing-push-back-reader s)
+        forms (take-while some? (repeatedly (partial read-safe reader false)))]
+    (eval-forms forms #(.log js/console (pr-str %)))))
 
 (def rainbow-colors ["aqua" "brown" "cornflowerblue"  "fuchsia" "gold"
                      "hotpink" "lime" "orange" "plum" "tomato"])
@@ -183,6 +216,7 @@
    advance-caret? :- Bool]
   (let [sel (-> js/rangy .getSelection (.saveCharacterRanges editor))]
     (set! (.-innerHTML editor) (add-html (.-innerText editor)))
+    (eval-all (.-innerText editor))
     (when advance-caret?
       (let [range (.-characterRange (aget sel 0))
             text (.-innerText editor)
