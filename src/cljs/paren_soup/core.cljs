@@ -192,7 +192,7 @@
         forms (take-while some? (repeatedly (partial read-safe reader false)))]
     (eval-forms forms #(.log js/console (pr-str %)))))
 
-(def rainbow-colors ["aqua" "brown" "cornflowerblue"  "fuchsia" "gold"
+(def rainbow-colors ["aqua" "brown" "cornflowerblue"  "fuchsia" "orange"
                      "hotpink" "lime" "orange" "plum" "tomato"])
 
 (defn rainbow-delimiters :- {js/Element Str}
@@ -210,40 +210,51 @@
              :else
              {}))))
 
+(defn add-line-numbers!
+  "Adds line numbers to the gutter."
+  [gutter :- js/Element
+   line-count :- Int]
+  (set! (.-innerHTML gutter) (join (for [i (range line-count)]
+                                     (str "<div>" (inc i) "</div>")))))
+
 (defn refresh!
-  "Refreshes the contents of the editor."
-  [editor :- js/Element
+  "Refreshes the contents."
+  [gutter :- js/Element
+   content :- js/Element
    advance-caret? :- Bool]
-  (let [sel (-> js/rangy .getSelection (.saveCharacterRanges editor))]
-    (set! (.-innerHTML editor) (add-html (.-innerText editor)))
-    (eval-all (.-innerText editor))
+  (let [sel (-> js/rangy .getSelection (.saveCharacterRanges content))
+        line-count (-> (.-innerText content) split-lines count)]
+    (set! (.-innerHTML content) (add-html (.-innerText content)))
+    (eval-all (.-innerText content))
+    (add-line-numbers! gutter line-count)
     (when advance-caret?
       (let [range (.-characterRange (aget sel 0))
-            text (.-innerText editor)
+            text (.-innerText content)
             position (loop [i (.-start range)]
                        (if (= " " (aget text i))
                          (recur (inc i))
                          i))]
         (set! (.-start range) position)
         (set! (.-end range) position)))
-    (-> js/rangy .getSelection (.restoreCharacterRanges editor sel)))
-  (doseq [[elem color] (rainbow-delimiters editor -1)]
+    (-> js/rangy .getSelection (.restoreCharacterRanges content sel)))
+  (doseq [[elem color] (rainbow-delimiters content -1)]
     (set! (-> elem .-style .-color) color)))
 
 (defn init! []
   (.init js/rangy)
-  (let [editor (.querySelector js/document ".paren-soup")
+  (let [gutter (.querySelector js/document ".paren-soup-gutter")
+        content (.querySelector js/document ".paren-soup-content")
         changes (chan)]
-    (set! (.-spellcheck editor) false)
-    (refresh! editor false)
-    (events/removeAll editor)
-    (events/listen editor "keydown" #(put! changes %))
+    (set! (.-spellcheck content) false)
+    (refresh! gutter content false)
+    (events/removeAll content)
+    (events/listen content "keydown" #(put! changes %))
     (go (while true
           (let [event (<! changes)
-                editor (.-currentTarget event)
+                content (.-currentTarget event)
                 code (.-keyCode event)]
             (when-not (contains? #{37 38 39 40} code)
-              (refresh! editor (= 13 code))))))))
+              (refresh! gutter content (= 13 code))))))))
 
 (defn init-with-validation! []
   (with-fn-validation (init!)))

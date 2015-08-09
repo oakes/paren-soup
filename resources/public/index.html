@@ -1,11 +1,13 @@
 <!doctype html>
 <html>
-  <head>
-    <title>paren-soup</title>
-    <link rel="stylesheet" type="text/css" href="paren-soup-light.css">
-  </head>
-  <body>
-    <pre contenteditable="true" class="paren-soup">(ns hello_world.core)
+	<head>
+		<title>paren-soup</title>
+		<link rel="stylesheet" type="text/css" href="paren-soup-light.css">
+	</head>
+	<body>
+	<div class="paren-soup">
+		<div class="paren-soup-gutter"></div>
+		<pre contenteditable="true" class="paren-soup-content">(ns hello_world.core)
 
 (defn main
   "I don't do a whole lot ... yet."
@@ -34,6 +36,7 @@
           false)))))
 
 (def ^:const hello #{1 2 3})</pre>
-    <script type="text/javascript" src="main.js"></script>
-  </body>
+	</div>
+	<script type="text/javascript" src="main.js"></script>
+	</body>
 </html>

@@ -1,34 +1,47 @@
 .paren-soup {
-	padding: 0px;
-	margin: 0px;
 	font-size: 16px;
+	font-family: monospace;
 	color: gray;
 }
 
-.paren-soup .symbol {
+.paren-soup-gutter {
+	float: left;
+	padding: 0px 5px;
+	border-right: 1px solid gray;
+	text-align: right;
+}
+
+.paren-soup-content {
+	margin: 0px;
+	padding: 0px 5px;
+	display: inline-block;
+	outline: 0px solid transparent;
+}
+
+.paren-soup-content .symbol {
 	color: black;
 }
 
-.paren-soup .number {
-	color: yellow;
+.paren-soup-content .number {
+	color: gold;
 }
 
-.paren-soup .string {
+.paren-soup-content .string {
 	color: red;
 }
 
-.paren-soup .keyword {
+.paren-soup-content .keyword {
 	color: blue;
 }
 
-.paren-soup .nil {
+.paren-soup-content .nil {
 	color: lightblue;
 }
 
-.paren-soup .boolean {
+.paren-soup-content .boolean {
 	color: lightblue;
 }
 
-.paren-soup .error {
+.paren-soup-content .error {
 	color: red;
 }
