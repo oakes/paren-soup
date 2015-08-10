@@ -176,13 +176,17 @@
       (let [[[form] forms] (split-at 1 forms)
             new-ns (when (and (list? form) (= 'ns (first form)))
                      (second form))]
-        (eval state
-              form
-              opts
-              (fn [res]
-                (let [opts (if new-ns (assoc opts :ns new-ns) opts)]
-                  (swap! results conj res)
-                  (eval-forms forms cb state opts results)))))
+        (try
+          (eval state
+                form
+                opts
+                (fn [res]
+                  (let [opts (if new-ns (assoc opts :ns new-ns) opts)]
+                    (swap! results conj res)
+                    (eval-forms forms cb state opts results))))
+          (catch js/Error e
+            (swap! results conj e)
+            (eval-forms forms cb state opts results))))
       (cb @results))))
 
 (defn eval-all
