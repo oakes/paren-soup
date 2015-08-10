@@ -250,8 +250,8 @@
 
 (defn refresh!
   "Refreshes the contents."
-  [instarepl :- js/Element
-   numbers :- js/Element
+  [instarepl :- (maybe js/Element)
+   numbers :- (maybe js/Element)
    content :- js/Element
    advance-caret? :- Bool]
   (let [sel (-> js/rangy .getSelection (.saveCharacterRanges content))
