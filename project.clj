@@ -6,10 +6,8 @@
                  [org.clojure/clojurescript "1.7.48"
                   :exclusions [org.clojure/tools.reader]]
                  [org.clojure/core.async "0.1.346.0-17112a-alpha"]
-                 [prismatic/schema "0.4.3"]
-                 [ring "1.4.0"]]
+                 [prismatic/schema "0.4.3"]]
   :hooks [leiningen.cljsbuild]
-  :source-paths ["src/clj"]
   :javac-options ["-target" "1.6" "-source" "1.6" "-Xlint:-options"]
   :cljsbuild { 
     :builds {
@@ -23,6 +21,4 @@
                                   {:file "src/js/rangy-textrange.js"
                                    :provides ["rangy.textrange"]}]}
         :jar true}}}
-  :aot [paren-soup.core]
-  :main paren-soup.core
-  :ring {:handler paren-soup.core/app})
+  :main paren-soup.core)

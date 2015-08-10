@@ -1,5 +1,5 @@
 (set-env!
-  :source-paths   #{"src/clj" "src/cljs"}
+  :source-paths   #{"src/cljs"}
   :resource-paths #{"resources"}
   :dependencies '[
     [adzerk/boot-cljs          "0.0-3308-0"      :scope "test"]
@@ -8,12 +8,11 @@
     [pandeiro/boot-http        "0.6.3-SNAPSHOT"  :scope "test"]
     [org.clojars.oakes/tools.reader "0.10.0-SNAPSHOT"
      :exclusions [org.clojure/clojure]]
-    [org.clojure/clojure       "1.7.0"]
+    [org.clojure/clojure "1.7.0"]
     [org.clojure/clojurescript "1.7.48"
      :exclusions [org.clojure/tools.reader]]
     [org.clojure/core.async "0.1.346.0-17112a-alpha"]
-    [prismatic/schema "0.4.3"]
-    [ring "1.4.0"]])
+    [prismatic/schema "0.4.3"]])
 
 (require
   '[adzerk.boot-cljs      :refer [cljs]]
@@ -22,7 +21,7 @@
   '[pandeiro.boot-http    :refer [serve]])
 
 (deftask dev []
-  (set-env! :source-paths #{"src/clj" "src/cljs" "test"})
+  (set-env! :source-paths #{"src/cljs" "test"})
   (comp (serve :dir "target/public")
         (watch)
         ;(speak)
@@ -31,7 +30,7 @@
         (cljs :source-map true :optimizations :none)))
 
 (deftask build []
-  (set-env! :source-paths #{"src/clj" "src/cljs"})
+  (set-env! :source-paths #{"src/cljs"})
   (comp
     (cljs :optimizations :advanced)
     (aot :namespace '#{paren-soup.core})
