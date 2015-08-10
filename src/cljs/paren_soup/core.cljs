@@ -256,15 +256,18 @@
    content :- js/Element
    advance-caret? :- Bool]
   (let [sel (-> js/rangy .getSelection (.saveCharacterRanges content))
-        line-count (-> (.-innerText content) split-lines count)]
-    (set! (.-innerHTML content) (add-html (.-innerText content)))
-    (set! (.-innerHTML numbers) (line-numbers line-count))
-    (instarepl! instarepl content)
+        old-text (.-innerText content)
+        new-html (add-html old-text)]
+    (set! (.-innerHTML content) new-html)
+    (when numbers
+      (set! (.-innerHTML numbers) (-> old-text split-lines count line-numbers)))
+    (when instarepl
+      (instarepl! instarepl content))
     (when advance-caret?
       (let [range (.-characterRange (aget sel 0))
-            text (.-innerText content)
+            new-text (.-innerText content)
             position (loop [i (.-start range)]
-                       (if (= " " (aget text i))
+                       (if (= " " (aget new-text i))
                          (recur (inc i))
                          i))]
         (set! (.-start range) position)
@@ -275,20 +278,22 @@
 
 (defn init! []
   (.init js/rangy)
-  (let [instarepl (.querySelector js/document ".paren-soup-instarepl")
-        numbers (.querySelector js/document ".paren-soup-numbers")
-        content (.querySelector js/document ".paren-soup-content")
-        changes (chan)]
-    (set! (.-spellcheck content) false)
-    (refresh! instarepl numbers content false)
-    (events/removeAll content)
-    (events/listen content "keydown" #(put! changes %))
-    (go (while true
-          (let [event (<! changes)
-                content (.-currentTarget event)
-                code (.-keyCode event)]
-            (when-not (contains? #{37 38 39 40} code)
-              (refresh! instarepl numbers content (= 13 code))))))))
+  (doseq [elem (-> js/document (.querySelectorAll ".paren-soup") array-seq)]
+    (let [instarepl (.querySelector elem ".paren-soup-instarepl")
+          numbers (.querySelector elem ".paren-soup-numbers")
+          content (.querySelector elem ".paren-soup-content")
+          changes (chan)]
+      (set! (.-spellcheck elem) false)
+      (when content
+        (refresh! instarepl numbers content false)
+        (events/removeAll content)
+        (events/listen content "keydown" #(put! changes %))
+        (go (while true
+              (let [event (<! changes)
+                    content (.-currentTarget event)
+                    code (.-keyCode event)]
+                (when-not (contains? #{37 38 39 40} code)
+                  (refresh! instarepl numbers content (= 13 code))))))))))
 
 (defn init-with-validation! []
   (with-fn-validation (init!)))
