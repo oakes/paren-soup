@@ -5,10 +5,22 @@
 	background-color: #293134;
 }
 
-.paren-soup-gutter {
+.paren-soup-instarepl {
 	float: left;
 	padding: 0px 5px;
-	border-right: 1px solid lightgray;
+	text-align: right;
+	width: 200px;
+}
+
+.paren-soup-instarepl-item {
+	position: relative;
+	overflow: scroll;
+	background-color: darkgreen;
+}
+
+.paren-soup-numbers {
+	float: left;
+	padding: 0px 5px;
 	text-align: right;
 }
 

@@ -1,7 +1,7 @@
 (ns paren-soup.core
   (:require [cljs.core.async :refer [chan put! <!]]
             [cljs.js :refer [empty-state eval js-eval]]
-            [cljs.tools.reader :refer [read *wrap-value-and-add-metadata?*]]
+            [cljs.tools.reader :refer [read read-string *wrap-value-and-add-metadata?*]]
             [cljs.tools.reader.reader-types :refer [indexing-push-back-reader]]
             [clojure.string :refer [split-lines join replace triml]]
             [clojure.walk :refer [postwalk]]
@@ -189,12 +189,41 @@
             (eval-forms forms cb state opts results))))
       (cb @results))))
 
-(defn eval-all
-  "Evals the string."
-  [s :- Str]
-  (let [reader (indexing-push-back-reader s)
-        forms (take-while some? (repeatedly (partial read-safe reader false)))]
-    (eval-forms forms #(.log js/console (pr-str %)))))
+(defn instarepl!
+  "Evals the forms from content and puts the results in the instarepl."
+  [instarepl :- js/Element
+   content :- js/Element]
+  (let [elems (vec (for [elem (-> content .-children array-seq)
+                         :let [classes (.-classList elem)]
+                         :when (or (.contains classes "collection")
+                                   (.contains classes "symbol"))]
+                     elem))
+        forms (for [elem elems]
+                (->> elem .-innerText read-string))
+        instarepl-top (-> instarepl .getBoundingClientRect .-top)
+        cb (fn [results]
+             (set! (.-innerHTML instarepl)
+                   (loop [i 0
+                          offset 0
+                          evals []]
+                     (if-let [elem (get elems i)]
+                       (let [top (-> elem .getBoundingClientRect
+                                   .-top (- instarepl-top))
+                             height (-> elem .getBoundingClientRect
+                                      .-bottom (- instarepl-top)
+                                      (- top))]
+                         (recur (inc i)
+                                (+ offset height)
+                                (conj evals
+                                      (str "<div class='paren-soup-instarepl-item' style='top: "
+                                           (- top offset)
+                                           "px; height: "
+                                           height
+                                           "px;'>"
+                                           (get results i)
+                                           "</div>"))))
+                       (join evals)))))]
+    (eval-forms forms cb)))
 
 (def rainbow-colors ["aqua" "brown" "cornflowerblue"  "fuchsia" "orange"
                      "hotpink" "lime" "orange" "plum" "tomato"])
@@ -214,23 +243,23 @@
              :else
              {}))))
 
-(defn add-line-numbers!
-  "Adds line numbers to the gutter."
-  [gutter :- js/Element
-   line-count :- Int]
-  (set! (.-innerHTML gutter) (join (for [i (range line-count)]
-                                     (str "<div>" (inc i) "</div>")))))
+(defn line-numbers :- Str
+  "Adds line numbers to the numbers."
+  [line-count :- Int]
+  (join (for [i (range line-count)]
+          (str "<div>" (inc i) "</div>"))))
 
 (defn refresh!
   "Refreshes the contents."
-  [gutter :- js/Element
+  [instarepl :- js/Element
+   numbers :- js/Element
    content :- js/Element
    advance-caret? :- Bool]
   (let [sel (-> js/rangy .getSelection (.saveCharacterRanges content))
         line-count (-> (.-innerText content) split-lines count)]
     (set! (.-innerHTML content) (add-html (.-innerText content)))
-    (eval-all (.-innerText content))
-    (add-line-numbers! gutter line-count)
+    (set! (.-innerHTML numbers) (line-numbers line-count))
+    (instarepl! instarepl content)
     (when advance-caret?
       (let [range (.-characterRange (aget sel 0))
             text (.-innerText content)
@@ -246,11 +275,12 @@
 
 (defn init! []
   (.init js/rangy)
-  (let [gutter (.querySelector js/document ".paren-soup-gutter")
+  (let [instarepl (.querySelector js/document ".paren-soup-instarepl")
+        numbers (.querySelector js/document ".paren-soup-numbers")
         content (.querySelector js/document ".paren-soup-content")
         changes (chan)]
     (set! (.-spellcheck content) false)
-    (refresh! gutter content false)
+    (refresh! instarepl numbers content false)
     (events/removeAll content)
     (events/listen content "keydown" #(put! changes %))
     (go (while true
@@ -258,7 +288,7 @@
                 content (.-currentTarget event)
                 code (.-keyCode event)]
             (when-not (contains? #{37 38 39 40} code)
-              (refresh! gutter content (= 13 code))))))))
+              (refresh! instarepl numbers content (= 13 code))))))))
 
 (defn init-with-validation! []
   (with-fn-validation (init!)))
