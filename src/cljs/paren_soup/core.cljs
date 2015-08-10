@@ -14,10 +14,9 @@
 
 (defn read-safe :- (maybe (either Any js/Error))
   "Returns either a form or an exception object, or nil if EOF is reached."
-  [reader :- js/Object
-   wrap-value? :- Bool]
+  [reader :- js/Object]
   (try
-    (binding [*wrap-value-and-add-metadata?* wrap-value?]
+    (binding [*wrap-value-and-add-metadata?* true]
       (read reader false nil))
     (catch js/Error e e)))
 
@@ -151,7 +150,7 @@
   (let [lines (split-lines-without-indent s)
         reader (indexing-push-back-reader (join \newline lines))
         tags (sequence (comp (take-while some?) (mapcat tag-list))
-                       (repeatedly (partial read-safe reader true)))
+                       (repeatedly (partial read-safe reader)))
         tags (concat (indent-list tags (count lines)) tags)
         get-line #(or (:line %) (:end-line %))
         tags-by-line (group-by get-line tags)]
@@ -159,7 +158,7 @@
          (sequence (comp (partition-all 2)
                          (map (fn [[i line]]
                                 (add-html-to-line line (get tags-by-line i))))))
-         (join "<br/>"))))
+         (join \newline))))
 
 (defn eval-forms
   "Evals all the supplied forms."
@@ -199,7 +198,7 @@
                                    (.contains classes "symbol"))]
                      elem))
         forms (for [elem elems]
-                (->> elem .-innerText read-string))
+                (->> elem .-textContent read-string))
         instarepl-top (-> instarepl .getBoundingClientRect .-top)
         cb (fn [results]
              (set! (.-innerHTML instarepl)
@@ -256,7 +255,7 @@
    content :- js/Element
    advance-caret? :- Bool]
   (let [sel (-> js/rangy .getSelection (.saveCharacterRanges content))
-        old-text (.-innerText content)
+        old-text (.-textContent content)
         new-html (add-html old-text)]
     (set! (.-innerHTML content) new-html)
     (when numbers
@@ -265,7 +264,7 @@
       (instarepl! instarepl content))
     (when advance-caret?
       (let [range (.-characterRange (aget sel 0))
-            new-text (.-innerText content)
+            new-text (.-textContent content)
             position (loop [i (.-start range)]
                        (if (= " " (aget new-text i))
                          (recur (inc i))
