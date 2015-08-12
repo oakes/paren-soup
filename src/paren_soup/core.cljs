@@ -189,8 +189,8 @@
 
 (defn instarepl!
   "Evals the forms from content and puts the results in the instarepl."
-  [instarepl :- js/Element
-   content :- js/Element]
+  [instarepl :- js/Object
+   content :- js/Object]
   (let [elems (vec (for [elem (-> content .-children array-seq)
                          :let [classes (.-classList elem)]
                          :when (or (.contains classes "collection")
@@ -226,9 +226,9 @@
 (def rainbow-colors ["aqua" "brown" "cornflowerblue"  "fuchsia" "orange"
                      "hotpink" "lime" "orange" "plum" "tomato"])
 
-(defn rainbow-delimiters :- {js/Element Str}
+(defn rainbow-delimiters :- {js/Object Str}
   "Returns a map of elements and colors."
-  [parent :- js/Element
+  [parent :- js/Object
    level :- Int]
   (apply merge
          {}
@@ -249,9 +249,9 @@
 
 (defn refresh!
   "Refreshes the contents."
-  [instarepl :- (maybe js/Element)
-   numbers :- (maybe js/Element)
-   content :- js/Element
+  [instarepl :- (maybe js/Object)
+   numbers :- (maybe js/Object)
+   content :- js/Object
    advance-caret? :- Bool]
   (let [sel (-> js/rangy .getSelection (.saveCharacterRanges content))
         old-html (.-innerHTML content)
@@ -309,4 +309,4 @@
 (defn init-with-validation! []
   (with-fn-validation (init!)))
 
-#_(init!)
+(set! (.-onload js/window) init!)

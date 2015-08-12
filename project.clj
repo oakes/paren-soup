@@ -12,9 +12,9 @@
   :cljsbuild { 
     :builds {
       :main {
-        :source-paths ["src/cljs"]
+        :source-paths ["src"]
         :compiler {:output-to "resources/public/main.js"
-                   :optimizations :advanced
+                   :optimizations :simple
                    :pretty-print false
                    :foreign-libs [{:file "src/js/rangy-core.js"
                                    :provides ["rangy.core"]}

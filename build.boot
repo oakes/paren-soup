@@ -1,5 +1,5 @@
 (set-env!
-  :source-paths   #{"src/cljs"}
+  :source-paths   #{"src"}
   :resource-paths #{"resources"}
   :dependencies '[
     [adzerk/boot-cljs          "0.0-3308-0"      :scope "test"]
@@ -21,7 +21,7 @@
   '[pandeiro.boot-http    :refer [serve]])
 
 (deftask dev []
-  (set-env! :source-paths #{"src/cljs" "test"})
+  (set-env! :source-paths #{"src" "test"})
   (comp (serve :dir "target/public")
         (watch)
         ;(speak)
@@ -30,11 +30,5 @@
         (cljs :source-map true :optimizations :none)))
 
 (deftask build []
-  (set-env! :source-paths #{"src/cljs"})
-  (comp
-    (cljs :optimizations :advanced)
-    (aot :namespace '#{paren-soup.core})
-    (pom :project 'paren-soup
-         :version "1.0.0")
-    (uber)
-    (jar :main 'paren-soup.core)))
+  (set-env! :source-paths #{"src"})
+  (comp (cljs :optimizations :simple)))
