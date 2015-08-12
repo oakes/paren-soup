@@ -116,9 +116,10 @@
   "Splits the string into lines while removing all indentation."
   [s :- Str]
   (let [lines (map triml (split-lines (str s " ")))
-        last-line (last lines)]
+        last-line (last lines)
+        last-line-len (max 0 (dec (count last-line)))]
     (conj (vec (butlast lines))
-          (subs last-line 0 (dec (count last-line))))))
+          (subs last-line 0 last-line-len))))
 
 (defn add-html-to-line :- Str
   "Returns the given line with html added."
@@ -144,21 +145,19 @@
                      (map join (conj segments current-segment))))]
     (join (interleave segments (concat html-per-column (repeat ""))))))
 
-(defn add-html :- Str
-  "Returns the given string with html added."
-  [s :- Str]
-  (let [lines (split-lines-without-indent s)
-        reader (indexing-push-back-reader (join \newline lines))
+(defn add-html-to-lines :- [Str]
+  "Returns the given lines with html added."
+  [lines :- [Str]]
+  (let [reader (indexing-push-back-reader (join \newline lines))
         tags (sequence (comp (take-while some?) (mapcat tag-list))
                        (repeatedly (partial read-safe reader)))
         tags (concat (indent-list tags (count lines)) tags)
         get-line #(or (:line %) (:end-line %))
         tags-by-line (group-by get-line tags)]
-    (->> (interleave (iterate inc 1) lines)
-         (sequence (comp (partition-all 2)
-                         (map (fn [[i line]]
-                                (add-html-to-line line (get tags-by-line i))))))
-         (join \newline))))
+    (sequence (comp (partition-all 2)
+                    (map (fn [[i line]]
+                           (add-html-to-line line (get tags-by-line i)))))
+              (interleave (iterate inc 1) lines))))
 
 (defn eval-forms
   "Evals all the supplied forms."
@@ -255,17 +254,20 @@
    content :- js/Element
    advance-caret? :- Bool]
   (let [sel (-> js/rangy .getSelection (.saveCharacterRanges content))
+        old-html (.-innerHTML content)
         _ (set! (.-innerHTML content)
-                (-> (.-innerHTML content)
-                    (replace "<br>" \newline)
-                    (replace "</br>" "")
-                    (replace "<div>" \newline)
-                    (replace "</div>" "")))
-        old-text (.-textContent content)
-        new-html (add-html old-text)]
+                (if (>= (.indexOf old-html "<br>") 0)
+                  (-> old-html
+                      (replace "<br>" \newline)
+                      (replace "</br>" ""))
+                  (-> old-html
+                      (replace "<div>" \newline)
+                      (replace "</div>" ""))))
+        lines (split-lines-without-indent (.-textContent content))
+        new-html (join \newline (add-html-to-lines lines))]
     (set! (.-innerHTML content) new-html)
     (when numbers
-      (set! (.-innerHTML numbers) (-> old-text split-lines count line-numbers)))
+      (set! (.-innerHTML numbers) (line-numbers (dec (count lines)))))
     (when instarepl
       (instarepl! instarepl content))
     (when advance-caret?
@@ -288,6 +290,9 @@
     (let [instarepl (.querySelector elem ".paren-soup-instarepl")
           numbers (.querySelector elem ".paren-soup-numbers")
           content (.querySelector elem ".paren-soup-content")
+          orig-text (.-textContent content)
+          _ (when (-> orig-text seq last (not= \newline))
+              (set! (.-textContent content) (str orig-text \newline)))
           changes (chan)]
       (set! (.-spellcheck elem) false)
       (when content
