@@ -165,27 +165,22 @@
     (let [state (empty-state)
           opts {:eval js-eval
                 :source-map true
-                :context :expr}
-          results (atom [])]
-      (eval state '(ns cljs.user) opts (fn [_]))
-      (eval-forms forms cb state opts results)))
+                :context :expr}]
+      (eval state '(ns cljs.user) opts
+            #(eval-forms forms cb state opts []))))
   ([forms cb state opts results]
     (if (seq forms)
       (let [[[form] forms] (split-at 1 forms)
             new-ns (when (and (list? form) (= 'ns (first form)))
                      (second form))]
         (try
-          (eval state
-                form
-                opts
+          (eval state form opts
                 (fn [res]
                   (let [opts (if new-ns (assoc opts :ns new-ns) opts)]
-                    (swap! results conj res)
-                    (eval-forms forms cb state opts results))))
+                    (eval-forms forms cb state opts (conj results res)))))
           (catch js/Error e
-            (swap! results conj e)
-            (eval-forms forms cb state opts results))))
-      (cb @results))))
+            (eval-forms forms cb state opts (conj results e)))))
+      (cb results))))
 
 (defn instarepl!
   "Evals the forms from content and puts the results in the instarepl."
