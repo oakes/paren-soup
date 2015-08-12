@@ -256,7 +256,11 @@
    advance-caret? :- Bool]
   (let [sel (-> js/rangy .getSelection (.saveCharacterRanges content))
         _ (set! (.-innerHTML content)
-                (replace (.-innerHTML content) "<br>" \newline))
+                (-> (.-innerHTML content)
+                    (replace "<br>" \newline)
+                    (replace "</br>" "")
+                    (replace "<div>" \newline)
+                    (replace "</div>" "")))
         old-text (.-textContent content)
         new-html (add-html old-text)]
     (set! (.-innerHTML content) new-html)
