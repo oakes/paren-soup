@@ -255,6 +255,8 @@
    content :- js/Element
    advance-caret? :- Bool]
   (let [sel (-> js/rangy .getSelection (.saveCharacterRanges content))
+        _ (set! (.-innerHTML content)
+                (replace (.-innerHTML content) "<br>" \newline))
         old-text (.-textContent content)
         new-html (add-html old-text)]
     (set! (.-innerHTML content) new-html)
@@ -263,14 +265,15 @@
     (when instarepl
       (instarepl! instarepl content))
     (when advance-caret?
-      (let [range (.-characterRange (aget sel 0))
-            new-text (.-textContent content)
-            position (loop [i (.-start range)]
-                       (if (= " " (aget new-text i))
-                         (recur (inc i))
-                         i))]
-        (set! (.-start range) position)
-        (set! (.-end range) position)))
+      (when-let [first-sel (aget sel 0)]
+        (let [range (.-characterRange first-sel)
+              new-text (.-textContent content)
+              position (loop [i (.-start range)]
+                         (if (= " " (aget new-text i))
+                           (recur (inc i))
+                           i))]
+          (set! (.-start range) position)
+          (set! (.-end range) position))))
     (-> js/rangy .getSelection (.restoreCharacterRanges content sel)))
   (doseq [[elem color] (rainbow-delimiters content -1)]
     (set! (-> elem .-style .-color) color)))
