@@ -247,8 +247,9 @@
   [instarepl :- (maybe js/Object)
    numbers :- (maybe js/Object)
    content :- js/Object
-   advance-caret? :- Bool]
-  (let [sel (-> js/rangy .getSelection (.saveCharacterRanges content))
+   char-code :- Int]
+  (let [sel (.getSelection js/rangy)
+        ranges (.saveCharacterRanges sel content)
         old-html (.-innerHTML content)
         _ (set! (.-innerHTML content)
                 (if (>= (.indexOf old-html "<br>") 0)
@@ -265,17 +266,37 @@
       (set! (.-innerHTML numbers) (line-numbers (dec (count lines)))))
     (when instarepl
       (instarepl! instarepl content))
-    (when advance-caret?
-      (when-let [first-sel (aget sel 0)]
-        (let [range (.-characterRange first-sel)
+    (case char-code
+      13 ; return
+      (when-let [first-range (get ranges 0)]
+        (let [range (.-characterRange first-range)
               new-text (.-textContent content)
-              position (loop [i (.-start range)]
-                         (if (= " " (aget new-text i))
-                           (recur (inc i))
-                           i))]
-          (set! (.-start range) position)
-          (set! (.-end range) position))))
-    (-> js/rangy .getSelection (.restoreCharacterRanges content sel)))
+              old-position (.-start range)
+              new-position (loop [i old-position]
+                             (if (= " " (get new-text i))
+                               (recur (inc i))
+                               i))]
+          (set! (.-start range) new-position)
+          (set! (.-end range) new-position)))
+      8 ; backspace
+      (when-let [first-range (get ranges 0)]
+        (let [range (.-characterRange first-range)
+              new-text (.-textContent content)
+              end-position (.-start range)
+              start-position (loop [i end-position]
+                               (case (get new-text i)
+                                 " " (recur (dec i))
+                                 \newline i
+                                 nil))]
+          (when start-position
+            (set! (.-start range) start-position)
+            (set! (.-end range) start-position)
+            (let [range (.createRange js/rangy)]
+              (.selectCharacters range content start-position end-position)
+              (.deleteContents range))
+            (refresh! instarepl numbers content -1))))
+      nil)
+    (.restoreCharacterRanges sel content ranges))
   (doseq [[elem color] (rainbow-delimiters content -1)]
     (set! (-> elem .-style .-color) color)))
 
@@ -291,7 +312,7 @@
           changes (chan)]
       (set! (.-spellcheck elem) false)
       (when content
-        (refresh! instarepl numbers content false)
+        (refresh! instarepl numbers content -1)
         (events/removeAll content)
         (events/listen content "keydown" #(put! changes %))
         (go (while true
@@ -299,7 +320,7 @@
                     content (.-currentTarget event)
                     code (.-keyCode event)]
                 (when-not (contains? #{37 38 39 40} code)
-                  (refresh! instarepl numbers content (= 13 code))))))))))
+                  (refresh! instarepl numbers content code)))))))))
 
 (defn init-with-validation! []
   (with-fn-validation (init!)))
