@@ -3,7 +3,7 @@
             [cljs.js :refer [empty-state eval js-eval]]
             [cljs.tools.reader :refer [read read-string *wrap-value-and-add-metadata?*]]
             [cljs.tools.reader.reader-types :refer [indexing-push-back-reader]]
-            [clojure.string :refer [split-lines join replace triml]]
+            [clojure.string :refer [split-lines join replace trim triml]]
             [clojure.walk :refer [postwalk]]
             [goog.events :as events]
             [rangy.core]
@@ -111,15 +111,6 @@
                     :else "<span>"))
     (:end-line tag) "</span>"
     :else "<span>"))
-
-(defn split-lines-without-indent :- [Str]
-  "Splits the string into lines while removing all indentation."
-  [s :- Str]
-  (let [lines (map triml (split-lines (str s " ")))
-        last-line (last lines)
-        last-line-len (max 0 (dec (count last-line)))]
-    (conj (vec (butlast lines))
-          (subs last-line 0 last-line-len))))
 
 (defn add-html-to-line :- Str
   "Returns the given line with html added."
@@ -242,6 +233,18 @@
   (join (for [i (range line-count)]
           (str "<div>" (inc i) "</div>"))))
 
+(defn split-lines-without-indent :- [Str]
+  "Splits the string into lines while removing all indentation."
+  [s :- Str]
+  (let [s (if-not (= \newline (last s))
+            (str s "\n ")
+            (str s " "))
+        lines (map triml (split-lines s))
+        last-line (last lines)
+        last-line-len (max 0 (dec (count last-line)))]
+    (conj (vec (butlast lines))
+          (subs last-line 0 last-line-len))))
+
 (defn refresh!
   "Refreshes the contents."
   [instarepl :- (maybe js/Object)
@@ -250,52 +253,51 @@
    char-code :- Int]
   (let [sel (.getSelection js/rangy)
         ranges (.saveCharacterRanges sel content)
-        old-html (.-innerHTML content)
-        _ (set! (.-innerHTML content)
-                (if (>= (.indexOf old-html "<br>") 0)
-                  (-> old-html
-                      (replace "<br>" \newline)
-                      (replace "</br>" ""))
-                  (-> old-html
-                      (replace "<div>" \newline)
-                      (replace "</div>" ""))))
-        lines (split-lines-without-indent (.-textContent content))
-        new-html (join \newline (add-html-to-lines lines))]
-    (set! (.-innerHTML content) new-html)
-    (when numbers
-      (set! (.-innerHTML numbers) (line-numbers (dec (count lines)))))
-    (when instarepl
-      (instarepl! instarepl content))
-    (case char-code
-      13 ; return
-      (when-let [first-range (get ranges 0)]
-        (let [range (.-characterRange first-range)
-              new-text (.-textContent content)
-              old-position (.-start range)
-              new-position (loop [i old-position]
-                             (if (= " " (get new-text i))
+        html (.-innerHTML content)]
+    (set! (.-innerHTML content)
+          (if (>= (.indexOf html "<br>") 0)
+            (-> html
+                (replace "<br>" \newline)
+                (replace "</br>" ""))
+            (-> html
+                (replace "<div>" \newline)
+                (replace "</div>" ""))))
+    (let [lines (split-lines-without-indent (.-textContent content))]
+      (set! (.-innerHTML content) (join \newline (add-html-to-lines lines)))
+      (when numbers
+        (set! (.-innerHTML numbers) (line-numbers (dec (count lines)))))
+      (when instarepl
+        (instarepl! instarepl content)))
+    (when-let [char-range (some-> ranges (get 0) .-characterRange)]
+      (let [text (.-textContent content)
+            caret-position (.-start char-range)
+            ; get the character before the caret (not including spaces)
+            prev-position (loop [i (dec caret-position)]
+                            (if (= " " (get text i))
+                              (recur (dec i))
+                              i))
+            prev-char (get text prev-position)
+            ; get the character after the caret (not including spaces)
+            next-position (loop [i caret-position]
+                             (if (= " " (get text i))
                                (recur (inc i))
-                               i))]
-          (set! (.-start range) new-position)
-          (set! (.-end range) new-position)))
-      8 ; backspace
-      (when-let [first-range (get ranges 0)]
-        (let [range (.-characterRange first-range)
-              new-text (.-textContent content)
-              end-position (.-start range)
-              start-position (loop [i end-position]
-                               (case (get new-text i)
-                                 " " (recur (dec i))
-                                 \newline i
-                                 nil))]
-          (when start-position
-            (set! (.-start range) start-position)
-            (set! (.-end range) start-position)
+                               i))
+            next-char (get text next-position)]
+        (case char-code
+          13 ; return
+          (when (not= next-position caret-position)
+            (set! (.-start char-range) next-position)
+            (set! (.-end char-range) next-position))
+          8 ; backspace
+          (when (and (not= prev-position (dec caret-position))
+                     (= prev-char \newline))
+            (set! (.-start char-range) prev-position)
+            (set! (.-end char-range) prev-position)
             (let [range (.createRange js/rangy)]
-              (.selectCharacters range content start-position end-position)
+              (.selectCharacters range content prev-position caret-position)
               (.deleteContents range))
-            (refresh! instarepl numbers content -1))))
-      nil)
+            (refresh! instarepl numbers content -1))
+          nil)))
     (.restoreCharacterRanges sel content ranges))
   (doseq [[elem color] (rainbow-delimiters content -1)]
     (set! (-> elem .-style .-color) color)))
@@ -306,9 +308,6 @@
     (let [instarepl (.querySelector elem ".paren-soup-instarepl")
           numbers (.querySelector elem ".paren-soup-numbers")
           content (.querySelector elem ".paren-soup-content")
-          orig-text (.-textContent content)
-          _ (when (-> orig-text seq last (not= \newline))
-              (set! (.-textContent content) (str orig-text \newline)))
           changes (chan)]
       (set! (.-spellcheck elem) false)
       (when content
