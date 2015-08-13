@@ -16,6 +16,7 @@
         :compiler {:output-to "resources/public/main.js"
                    :optimizations :simple
                    :pretty-print false
+                   :static-fns true
                    :foreign-libs [{:file "src/js/rangy-core.js"
                                    :provides ["rangy.core"]}
                                   {:file "src/js/rangy-textrange.js"

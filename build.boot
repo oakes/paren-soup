@@ -27,8 +27,8 @@
         ;(speak)
         (reload :on-jsload 'paren-soup.core/init-with-validation!)
         (cljs-repl)
-        (cljs :source-map true :optimizations :none)))
+        (cljs :source-map true :optimizations :none :static-fns true)))
 
 (deftask build []
   (set-env! :source-paths #{"src"})
-  (comp (cljs :optimizations :simple)))
+  (comp (cljs :optimizations :simple :static-fns true)))
