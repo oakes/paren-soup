@@ -31,4 +31,4 @@
 
 (deftask build []
   (set-env! :source-paths #{"src"})
-  (comp (cljs :optimizations :simple :static-fns true)))
+  (comp (cljs :optimizations :simple :static-fns true :optimize-constants true)))

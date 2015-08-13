@@ -17,6 +17,7 @@
                    :optimizations :simple
                    :pretty-print false
                    :static-fns true
+                   :optimize-constants true
                    :foreign-libs [{:file "src/js/rangy-core.js"
                                    :provides ["rangy.core"]}
                                   {:file "src/js/rangy-textrange.js"
