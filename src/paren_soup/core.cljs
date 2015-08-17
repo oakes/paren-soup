@@ -293,7 +293,10 @@
                      (= prev-char \newline))
             (set! (.-start char-range) prev-position)
             (set! (.-end char-range) prev-position)
-            (let [range (.createRange js/rangy)]
+            (let [range (.createRange js/rangy)
+                  caret-position (if (contains? #{\) \] \} \newline} next-char)
+                                   (inc caret-position)
+                                   caret-position)]
               (.selectCharacters range content prev-position caret-position)
               (.deleteContents range))
             (refresh! instarepl numbers content -1))
