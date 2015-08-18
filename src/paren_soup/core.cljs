@@ -78,19 +78,19 @@
         tags-by-line (group-by #(or (:line %) (:end-line %)) tags)]
     (loop [i 1
            current-level 0
-           result []]
+           result (transient [])]
       (if (<= i line-count)
         (recur (inc i)
                (or (some-> (get tags-by-line i) last :level)
                    current-level)
                (if (contains? string-lines i)
                  result
-                 (conj result
-                       {:line i
-                        :column 1
-                        :level current-level
-                        :indent? true})))
-        result))))
+                 (conj! result
+                        {:line i
+                         :column 1
+                         :level current-level
+                         :indent? true})))
+        (persistent! result)))))
 
 (defn tag->html :- Str
   "Returns an HTML string for the given tag description."
@@ -129,17 +129,20 @@
                                   tags-for-line)
         columns (set (map get-column tags-for-line))
         segments (loop [i 0
-                        segments []
-                        current-segment []]
+                        segments (transient [])
+                        current-segment (transient [])]
                    (if-let [c (get line i)]
                      (if (contains? columns (inc i))
                        (recur (inc i)
-                              (conj segments current-segment)
-                              [c])
+                              (conj! segments (persistent! current-segment))
+                              (transient [c]))
                        (recur (inc i)
                               segments
-                              (conj current-segment c)))
-                     (map join (conj segments current-segment))))]
+                              (conj! current-segment c)))
+                     (->> (persistent! current-segment)
+                          (conj! segments)
+                          persistent!
+                          (map join))))]
     (join (interleave segments (concat html-per-column (repeat ""))))))
 
 (defn add-html-to-lines :- [Str]
@@ -164,7 +167,7 @@
                 :source-map true
                 :context :expr}]
       (eval state '(ns cljs.user) opts
-            #(eval-forms forms cb state opts []))))
+            #(eval-forms forms cb state opts (transient [])))))
   ([forms cb state opts results]
     (if (seq forms)
       (let [[[form] forms] (split-at 1 forms)
@@ -174,10 +177,10 @@
           (eval state form opts
                 (fn [res]
                   (let [opts (if new-ns (assoc opts :ns new-ns) opts)]
-                    (eval-forms forms cb state opts (conj results res)))))
+                    (eval-forms forms cb state opts (conj! results res)))))
           (catch js/Error e
-            (eval-forms forms cb state opts (conj results e)))))
-      (cb results))))
+            (eval-forms forms cb state opts (conj! results e)))))
+      (cb (persistent! results)))))
 
 (defn instarepl!
   "Evals the forms from content and puts the results in the instarepl."
@@ -195,7 +198,7 @@
              (set! (.-innerHTML instarepl)
                    (loop [i 0
                           offset 0
-                          evals []]
+                          evals (transient [])]
                      (if-let [elem (get elems i)]
                        (let [top (-> elem .getBoundingClientRect
                                    .-top (- instarepl-top))
@@ -204,15 +207,15 @@
                                       (- top))]
                          (recur (inc i)
                                 (+ offset height)
-                                (conj evals
-                                      (str "<div class='paren-soup-instarepl-item' style='top: "
-                                           (- top offset)
-                                           "px; height: "
-                                           height
-                                           "px;'>"
-                                           (get results i)
-                                           "</div>"))))
-                       (join evals)))))]
+                                (conj! evals
+                                       (str "<div class='paren-soup-instarepl-item' style='top: "
+                                            (- top offset)
+                                            "px; height: "
+                                            height
+                                            "px;'>"
+                                            (get results i)
+                                            "</div>"))))
+                       (join (persistent! evals))))))]
     (eval-forms forms cb)))
 
 (def rainbow-colors ["aqua" "brown" "cornflowerblue"  "fuchsia" "orange"
@@ -331,6 +334,6 @@
                   (refresh! instarepl numbers content code)))))))))
 
 (defn init-with-validation! []
-  (with-fn-validation (init!)))
+  (.log js/console (with-out-str (time (with-fn-validation (init!))))))
 
 (set! (.-onload js/window) init!)
