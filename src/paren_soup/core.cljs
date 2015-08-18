@@ -44,7 +44,8 @@
         (let [{:keys [line column end-line end-column wrapped?]} (meta token)
               value (if wrapped? (first token) token)]
           [; begin tag
-           {:line line :column column :value value}
+           {:line line :column column :value value
+            :line-range (range (inc line) (inc end-line))}
            (if (coll? value)
              (let [delimiter-size (if (set? value) 2 1)
                    new-level (+ parent-level
@@ -71,7 +72,10 @@
   "Returns a list of maps describing each indent tag."
   [tags :- [{Keyword Any}]
    line-count :- Int]
-  (let [tags-by-line (group-by #(or (:line %) (:end-line %)) tags)]
+  (let [string-lines (set (sequence (comp (filter #(string? (:value %)))
+                                          (mapcat :line-range))
+                                    tags))
+        tags-by-line (group-by #(or (:line %) (:end-line %)) tags)]
     (loop [i 1
            current-level 0
            result []]
@@ -79,11 +83,13 @@
         (recur (inc i)
                (or (some-> (get tags-by-line i) last :level)
                    current-level)
-               (conj result
-                     {:line i
-                      :column 1
-                      :level current-level
-                      :indent? true}))
+               (if (contains? string-lines i)
+                 result
+                 (conj result
+                       {:line i
+                        :column 1
+                        :level current-level
+                        :indent? true})))
         result))))
 
 (defn tag->html :- Str
