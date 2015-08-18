@@ -12,7 +12,7 @@
 	width: 200px;
 }
 
-.paren-soup-instarepl-item {
+.paren-soup-instarepl .result {
 	position: relative;
 	overflow: scroll;
 	background-color: darkgreen;
@@ -58,5 +58,13 @@
 }
 
 .paren-soup-content .error {
-	color: red;
+	background-color: red;
+	display: inline-block;
+	width: 1em;
+	height: 1em;
+}
+
+.error-text {
+	position: fixed;
+	background-color: white;
 }

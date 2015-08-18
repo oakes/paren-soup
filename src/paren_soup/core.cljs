@@ -100,8 +100,9 @@
                         (join (repeat (:level tag) " "))
                         "</span>")
     (:delimiter? tag) "<span class='delimiter'>"
-    (:error? tag) (or (.log js/console (:message tag))
-                      "<span class='error'></span>")
+    (:error? tag) (str "<span class='error' data-message='"
+                       (:message tag)
+                       "'></span>")
     (:line tag) (let [value (:value tag)]
                   (cond
                     (symbol? value) "<span class='symbol'>"
@@ -118,7 +119,7 @@
     (:end-line tag) "</span>"
     :else "<span>"))
 
-(defn add-html-to-line :- Str
+(defn line->html :- Str
   "Returns the given line with html added."
   [line :- Str
    tags-for-line :- [{Keyword Any}]]
@@ -145,8 +146,8 @@
                           (map join))))]
     (join (interleave segments (concat html-per-column (repeat ""))))))
 
-(defn add-html-to-lines :- [Str]
-  "Returns the given lines with html added."
+(defn lines->html :- [Str]
+  "Returns the lines with html added."
   [lines :- [Str]]
   (let [reader (indexing-push-back-reader (join \newline lines))
         tags (sequence (comp (take-while some?) (mapcat tag-list))
@@ -156,7 +157,7 @@
         tags-by-line (group-by get-line tags)]
     (sequence (comp (partition-all 2)
                     (map (fn [[i line]]
-                           (add-html-to-line line (get tags-by-line i)))))
+                           (line->html line (get tags-by-line i)))))
               (interleave (iterate inc 1) lines))))
 
 (defn eval-forms
@@ -201,14 +202,13 @@
                           evals (transient [])]
                      (if-let [elem (get elems i)]
                        (let [top (-> elem .getBoundingClientRect
-                                   .-top (- instarepl-top))
+                                     .-top (- instarepl-top))
                              height (-> elem .getBoundingClientRect
-                                      .-bottom (- instarepl-top)
-                                      (- top))]
+                                        .-bottom (- instarepl-top) (- top))]
                          (recur (inc i)
                                 (+ offset height)
                                 (conj! evals
-                                       (str "<div class='paren-soup-instarepl-item' style='top: "
+                                       (str "<div class='result' style='top: "
                                             (- top offset)
                                             "px; height: "
                                             height
@@ -259,7 +259,8 @@
   [instarepl :- (maybe js/Object)
    numbers :- (maybe js/Object)
    content :- js/Object
-   char-code :- Int]
+   char-code :- Int
+   events-chan :- Any]
   (let [sel (.getSelection js/rangy)
         ranges (.saveCharacterRanges sel content)
         html (.-innerHTML content)]
@@ -271,8 +272,12 @@
             (-> html
                 (replace "<div>" \newline)
                 (replace "</div>" ""))))
-    (let [lines (split-lines-without-indent (.-textContent content))]
-      (set! (.-innerHTML content) (join \newline (add-html-to-lines lines)))
+    (let [lines (split-lines-without-indent (.-textContent content))
+          hovers (chan)]
+      (set! (.-innerHTML content) (join \newline (lines->html lines)))
+      (doseq [elem (-> content (.querySelectorAll ".error") array-seq)]
+        (events/listen elem "mouseenter" #(put! events-chan %))
+        (events/listen elem "mouseleave" #(put! events-chan %)))
       (when numbers
         (set! (.-innerHTML numbers) (line-numbers (dec (count lines)))))
       (when instarepl
@@ -320,18 +325,37 @@
     (let [instarepl (.querySelector elem ".paren-soup-instarepl")
           numbers (.querySelector elem ".paren-soup-numbers")
           content (.querySelector elem ".paren-soup-content")
-          changes (chan)]
+          events-chan (chan)]
       (set! (.-spellcheck elem) false)
       (when content
-        (refresh! instarepl numbers content -1)
+        (refresh! instarepl numbers content -1 events-chan)
         (events/removeAll content)
-        (events/listen content "keydown" #(put! changes %))
+        (events/listen content "keydown" #(put! events-chan %))
         (go (while true
-              (let [event (<! changes)
-                    content (.-currentTarget event)
-                    code (.-keyCode event)]
-                (when-not (contains? #{37 38 39 40} code)
-                  (refresh! instarepl numbers content code)))))))))
+              (let [event (<! events-chan)]
+                (case (.-type event)
+                  "keydown"
+                  (let [content (.-currentTarget event)
+                        code (.-keyCode event)]
+                    (when-not (contains? #{37 38 39 40} code)
+                      (refresh! instarepl numbers content code events-chan)))
+                  
+                  "mouseenter"
+                  (let [elem (.-target event)
+                        x (.-clientX event)
+                        y (.-clientY event)]
+                    (let [popup (.createElement js/document "div")]
+                      (aset popup "textContent" (-> elem .-dataset .-message))
+                      (aset (.-style popup) "top" (str y "px"))
+                      (aset (.-style popup) "left" (str x "px"))
+                      (aset popup "className" "error-text")
+                      (.appendChild (.-body js/document) popup)))
+                  
+                  "mouseleave"
+                  (doseq [elem (-> js/document .-body (.querySelectorAll ".error-text") array-seq)]
+                    (-> js/document .-body (.removeChild elem)))
+                  
+                  nil))))))))
 
 (defn init-with-validation! []
   (.log js/console (with-out-str (time (with-fn-validation (init!))))))
