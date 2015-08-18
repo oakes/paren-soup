@@ -29,6 +29,8 @@
 	padding: 0px 5px;
 	outline: 0px solid transparent;
 	white-space: pre;
+	word-wrap: normal;
+	overflow: scroll;
 }
 
 .paren-soup-content .symbol {
