@@ -171,13 +171,15 @@
             #(eval-forms forms cb state opts (transient [])))))
   ([forms cb state opts results]
     (if (seq forms)
-      (let [[[form] forms] (split-at 1 forms)
+      (let [[form & forms] forms
             new-ns (when (and (list? form) (= 'ns (first form)))
                      (second form))]
         (try
           (eval state form opts
                 (fn [res]
-                  (let [opts (if new-ns (assoc opts :ns new-ns) opts)]
+                  (let [error? (instance? js/Error (:error res))
+                        res (if error? (:error res) res)
+                        opts (if (and new-ns (not error?)) (assoc opts :ns new-ns) opts)]
                     (eval-forms forms cb state opts (conj! results res)))))
           (catch js/Error e
             (eval-forms forms cb state opts (conj! results e)))))
@@ -213,7 +215,7 @@
                                             "px; height: "
                                             height
                                             "px;'>"
-                                            (get results i)
+                                            (pr-str (get results i))
                                             "</div>"))))
                        (join (persistent! evals))))))]
     (eval-forms forms cb)))
