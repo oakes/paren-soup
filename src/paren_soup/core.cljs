@@ -185,45 +185,49 @@
             (eval-forms forms cb state opts (conj! results e)))))
       (cb (persistent! results)))))
 
-(defn instarepl!
-  "Evals the forms from content and puts the results in the instarepl."
-  [instarepl :- js/Object
-   content :- js/Object]
-  (let [elems (vec (for [elem (-> content .-children array-seq)
+(defn results->html :- Str
+  "Returns HTML for the given eval results."
+  [elems :- [js/Object]
+   top-offset :- Int
+   results :- [Any]]
+  (loop [i 0
+         offset 0
+         evals (transient [])]
+    (if-let [elem (get elems i)]
+      (let [top (-> elem .getBoundingClientRect .-top (- top-offset))
+            height (-> elem .getBoundingClientRect .-bottom (- top-offset) (- top))
+            res (get results i)]
+        (recur (inc i)
+               (+ offset height)
+               (conj! evals
+                      (str "<div class='result"
+                           (when (instance? js/Error res)
+                             " error")
+                           "' "
+                           "style='top: "
+                           (- top offset)
+                           "px; height: "
+                           height
+                           "px;'>"
+                           (pr-str res)
+                           "</div>"))))
+      (join (persistent! evals)))))
+
+(defn eval-elems
+  "Evals the elements and gives the results to the callback."
+  [elems :- [js/Object]
+   top-offset :- Int
+   cb :- Any]
+  (let [elems (vec (for [elem elems
                          :let [classes (.-classList elem)]
                          :when (or (.contains classes "collection")
                                    (.contains classes "symbol"))]
                      elem))
         forms (for [elem elems]
-                (->> elem .-textContent read-string))
-        instarepl-top (-> instarepl .getBoundingClientRect .-top)
-        cb (fn [results]
-             (set! (.-innerHTML instarepl)
-                   (loop [i 0
-                          offset 0
-                          evals (transient [])]
-                     (if-let [elem (get elems i)]
-                       (let [top (-> elem .getBoundingClientRect
-                                     .-top (- instarepl-top))
-                             height (-> elem .getBoundingClientRect
-                                        .-bottom (- instarepl-top) (- top))
-                             res (get results i)]
-                         (recur (inc i)
-                                (+ offset height)
-                                (conj! evals
-                                       (str "<div class='result"
-                                            (when (instance? js/Error res)
-                                              " error")
-                                            "' "
-                                            "style='top: "
-                                            (- top offset)
-                                            "px; height: "
-                                            height
-                                            "px;'>"
-                                            (pr-str res)
-                                            "</div>"))))
-                       (join (persistent! evals))))))]
-    (eval-forms forms cb)))
+                (->> elem .-textContent read-string))]
+    (eval-forms forms
+                (fn [results]
+                  (cb (results->html elems top-offset results))))))
 
 (def rainbow-colors ["aqua" "brown" "cornflowerblue"  "fuchsia" "orange"
                      "hotpink" "lime" "orange" "plum" "tomato"])
@@ -280,7 +284,9 @@
     (when numbers
       (set! (.-innerHTML numbers) (line-numbers (dec (count lines)))))
     (when instarepl
-      (instarepl! instarepl content)))
+      (eval-elems (-> content .-children array-seq)
+                  (-> instarepl .getBoundingClientRect .-top)
+                  #(set! (.-innerHTML instarepl) %))))
   (doseq [[elem color] (rainbow-delimiters content -1)]
     (set! (-> elem .-style .-color) color)))
 
