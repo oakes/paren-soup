@@ -18,6 +18,10 @@
 	background-color: darkgreen;
 }
 
+.paren-soup-instarepl .error {
+	background-color: darkred;
+}
+
 .paren-soup-numbers {
 	float: left;
 	padding: 0px 5px;

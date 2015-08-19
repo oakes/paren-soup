@@ -206,16 +206,21 @@
                        (let [top (-> elem .getBoundingClientRect
                                      .-top (- instarepl-top))
                              height (-> elem .getBoundingClientRect
-                                        .-bottom (- instarepl-top) (- top))]
+                                        .-bottom (- instarepl-top) (- top))
+                             res (get results i)]
                          (recur (inc i)
                                 (+ offset height)
                                 (conj! evals
-                                       (str "<div class='result' style='top: "
+                                       (str "<div class='result"
+                                            (when (instance? js/Error res)
+                                              " error")
+                                            "' "
+                                            "style='top: "
                                             (- top offset)
                                             "px; height: "
                                             height
                                             "px;'>"
-                                            (pr-str (get results i))
+                                            (pr-str res)
                                             "</div>"))))
                        (join (persistent! evals))))))]
     (eval-forms forms cb)))
