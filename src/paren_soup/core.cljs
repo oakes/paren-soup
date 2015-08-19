@@ -266,64 +266,60 @@
   [instarepl :- (maybe js/Object)
    numbers :- (maybe js/Object)
    content :- js/Object
-   char-code :- Int
    events-chan :- Any]
-  (let [sel (.getSelection js/rangy)
-        ranges (.saveCharacterRanges sel content)
-        html (.-innerHTML content)]
+  (let [html (.-innerHTML content)]
     (set! (.-innerHTML content)
           (if (>= (.indexOf html "<br>") 0)
-            (-> html
-                (replace "<br>" \newline)
-                (replace "</br>" ""))
-            (-> html
-                (replace "<div>" \newline)
-                (replace "</div>" ""))))
-    (let [lines (split-lines-without-indent (.-textContent content))]
-      (set! (.-innerHTML content) (join \newline (lines->html lines)))
-      (doseq [elem (-> content (.querySelectorAll ".error") array-seq)]
-        (events/listen elem "mouseenter" #(put! events-chan %))
-        (events/listen elem "mouseleave" #(put! events-chan %)))
-      (when numbers
-        (set! (.-innerHTML numbers) (line-numbers (dec (count lines)))))
-      (when instarepl
-        (instarepl! instarepl content)))
-    (when-let [char-range (some-> ranges (get 0) .-characterRange)]
-      (let [text (.-textContent content)
-            caret-position (.-start char-range)
-            ; get the character before the caret (not including spaces)
-            prev-position (loop [i (dec caret-position)]
-                            (if (= " " (get text i))
-                              (recur (dec i))
-                              i))
-            prev-char (get text prev-position)
-            ; get the character after the caret (not including spaces)
-            next-position (loop [i caret-position]
-                             (if (= " " (get text i))
-                               (recur (inc i))
-                               i))
-            next-char (get text next-position)]
-        (case char-code
-          13 ; return
-          (when (not= next-position caret-position)
-            (set! (.-start char-range) next-position)
-            (set! (.-end char-range) next-position))
-          8 ; backspace
-          (when (and (not= prev-position (dec caret-position))
-                     (= prev-char \newline))
-            (set! (.-start char-range) prev-position)
-            (set! (.-end char-range) prev-position)
-            (let [range (.createRange js/rangy)
-                  caret-position (if (contains? #{\) \] \} \newline} next-char)
-                                   (inc caret-position)
-                                   caret-position)]
-              (.selectCharacters range content prev-position caret-position)
-              (.deleteContents range))
-            (refresh! instarepl numbers content -1))
-          nil)))
-    (.restoreCharacterRanges sel content ranges))
+            (-> html (replace "<br>" \newline) (replace "</br>" ""))
+            (-> html (replace "<div>" \newline) (replace "</div>" "")))))
+  (let [lines (split-lines-without-indent (.-textContent content))]
+    (set! (.-innerHTML content) (join \newline (lines->html lines)))
+    (doseq [elem (-> content (.querySelectorAll ".error") array-seq)]
+      (events/listen elem "mouseenter" #(put! events-chan %))
+      (events/listen elem "mouseleave" #(put! events-chan %)))
+    (when numbers
+      (set! (.-innerHTML numbers) (line-numbers (dec (count lines)))))
+    (when instarepl
+      (instarepl! instarepl content)))
   (doseq [[elem color] (rainbow-delimiters content -1)]
     (set! (-> elem .-style .-color) color)))
+
+(defn move-caret!
+  "Moves the caret as necessary."
+  [content :- js/Object
+   char-range :- js/Object
+   char-code :- Int]
+  (let [text (.-textContent content)
+        caret-position (.-start char-range)
+        ; get the character before the caret (not including spaces)
+        prev-position (loop [i (dec caret-position)]
+                        (if (= " " (get text i))
+                          (recur (dec i))
+                          i))
+        prev-char (get text prev-position)
+        ; get the character after the caret (not including spaces)
+        next-position (loop [i caret-position]
+                        (if (= " " (get text i))
+                          (recur (inc i))
+                          i))
+        next-char (get text next-position)]
+    (case char-code
+      13 ; return
+      (when (not= next-position caret-position)
+        (set! (.-start char-range) next-position)
+        (set! (.-end char-range) next-position))
+      8 ; backspace
+      (when (and (not= prev-position (dec caret-position))
+                 (= prev-char \newline))
+        (set! (.-start char-range) prev-position)
+        (set! (.-end char-range) prev-position)
+        (let [range (.createRange js/rangy)
+              caret-position (if (contains? #{\) \] \} \newline} next-char)
+                               (inc caret-position)
+                               caret-position)]
+          (.selectCharacters range content prev-position caret-position)
+          (.deleteContents range)))
+      nil)))
 
 (defn init! []
   (.init js/rangy)
@@ -334,18 +330,27 @@
           events-chan (chan)]
       (set! (.-spellcheck elem) false)
       (when content
-        (refresh! instarepl numbers content -1 events-chan)
+        (refresh! instarepl numbers content events-chan)
         (events/removeAll content)
         (events/listen content "keydown" #(put! events-chan %))
+        (events/listen content "DOMCharacterDataModified" #(put! events-chan %))
         (go (while true
               (let [event (<! events-chan)]
                 (case (.-type event)
+                  "DOMCharacterDataModified"
+                  (let [sel (.getSelection js/rangy)
+                        ranges (.saveCharacterRanges sel content)]
+                    (refresh! instarepl numbers content events-chan)
+                    (.restoreCharacterRanges sel content ranges))
                   "keydown"
-                  (let [content (.-currentTarget event)
-                        code (.-keyCode event)]
-                    (when-not (contains? #{37 38 39 40} code)
-                      (refresh! instarepl numbers content code events-chan)))
-                  
+                  (let [char-code (.-keyCode event)]
+                    (when (contains? #{8 13} char-code)
+                      (let [sel (.getSelection js/rangy)
+                            ranges (.saveCharacterRanges sel content)]
+                        (refresh! instarepl numbers content events-chan)
+                        (when-let [char-range (some-> ranges (get 0) .-characterRange)]
+                          (move-caret! content char-range char-code))
+                        (.restoreCharacterRanges sel content ranges))))
                   "mouseenter"
                   (let [elem (.-target event)
                         x (.-clientX event)
@@ -356,11 +361,9 @@
                       (aset (.-style popup) "left" (str x "px"))
                       (aset popup "className" "error-text")
                       (.appendChild (.-body js/document) popup)))
-                  
                   "mouseleave"
                   (doseq [elem (-> js/document .-body (.querySelectorAll ".error-text") array-seq)]
                     (-> js/document .-body (.removeChild elem)))
-                  
                   nil))))))))
 
 (defn init-with-validation! []
