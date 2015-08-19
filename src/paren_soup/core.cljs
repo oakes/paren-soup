@@ -329,42 +329,43 @@
           content (.querySelector elem ".paren-soup-content")
           events-chan (chan)]
       (set! (.-spellcheck elem) false)
-      (when content
-        (refresh! instarepl numbers content events-chan)
-        (events/removeAll content)
-        (events/listen content "keydown" #(put! events-chan %))
-        (events/listen content "DOMCharacterDataModified" #(put! events-chan %))
-        (go (while true
-              (let [event (<! events-chan)]
-                (case (.-type event)
-                  "DOMCharacterDataModified"
-                  (let [sel (.getSelection js/rangy)
-                        ranges (.saveCharacterRanges sel content)]
-                    (refresh! instarepl numbers content events-chan)
-                    (.restoreCharacterRanges sel content ranges))
-                  "keydown"
-                  (let [char-code (.-keyCode event)]
-                    (when (contains? #{8 13} char-code)
-                      (let [sel (.getSelection js/rangy)
-                            ranges (.saveCharacterRanges sel content)]
-                        (refresh! instarepl numbers content events-chan)
-                        (when-let [char-range (some-> ranges (get 0) .-characterRange)]
-                          (move-caret! content char-range char-code))
-                        (.restoreCharacterRanges sel content ranges))))
-                  "mouseenter"
-                  (let [elem (.-target event)
-                        x (.-clientX event)
-                        y (.-clientY event)]
-                    (let [popup (.createElement js/document "div")]
-                      (aset popup "textContent" (-> elem .-dataset .-message))
-                      (aset (.-style popup) "top" (str y "px"))
-                      (aset (.-style popup) "left" (str x "px"))
-                      (aset popup "className" "error-text")
-                      (.appendChild (.-body js/document) popup)))
-                  "mouseleave"
-                  (doseq [elem (-> js/document .-body (.querySelectorAll ".error-text") array-seq)]
-                    (-> js/document .-body (.removeChild elem)))
-                  nil))))))))
+      (when-not content
+        (throw (js/Error. "Can't find a div with class paren-soup-content")))
+      (refresh! instarepl numbers content events-chan)
+      (events/removeAll content)
+      (events/listen content "keydown" #(put! events-chan %))
+      (events/listen content "DOMCharacterDataModified" #(put! events-chan %))
+      (go (while true
+            (let [event (<! events-chan)]
+              (case (.-type event)
+                "DOMCharacterDataModified"
+                (let [sel (.getSelection js/rangy)
+                      ranges (.saveCharacterRanges sel content)]
+                  (refresh! instarepl numbers content events-chan)
+                  (.restoreCharacterRanges sel content ranges))
+                "keydown"
+                (let [char-code (.-keyCode event)]
+                  (when (contains? #{8 13} char-code)
+                    (let [sel (.getSelection js/rangy)
+                          ranges (.saveCharacterRanges sel content)]
+                      (refresh! instarepl numbers content events-chan)
+                      (when-let [char-range (some-> ranges (get 0) .-characterRange)]
+                        (move-caret! content char-range char-code))
+                      (.restoreCharacterRanges sel content ranges))))
+                "mouseenter"
+                (let [elem (.-target event)
+                      x (.-clientX event)
+                      y (.-clientY event)]
+                  (let [popup (.createElement js/document "div")]
+                    (aset popup "textContent" (-> elem .-dataset .-message))
+                    (aset (.-style popup) "top" (str y "px"))
+                    (aset (.-style popup) "left" (str x "px"))
+                    (aset popup "className" "error-text")
+                    (.appendChild (.-body js/document) popup)))
+                "mouseleave"
+                (doseq [elem (-> js/document .-body (.querySelectorAll ".error-text") array-seq)]
+                  (-> js/document .-body (.removeChild elem)))
+                nil)))))))
 
 (defn init-with-validation! []
   (.log js/console (with-out-str (time (with-fn-validation (init!))))))
