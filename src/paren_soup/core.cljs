@@ -3,7 +3,7 @@
             [cljs.js :refer [empty-state eval js-eval]]
             [cljs.tools.reader :refer [read read-string *wrap-value-and-add-metadata?*]]
             [cljs.tools.reader.reader-types :refer [indexing-push-back-reader]]
-            [clojure.string :refer [split-lines join replace trim triml]]
+            [clojure.string :refer [escape split-lines join replace trim triml]]
             [clojure.walk :refer [postwalk]]
             [goog.events :as events]
             [rangy.core]
@@ -101,7 +101,7 @@
                         "</span>")
     (:delimiter? tag) "<span class='delimiter'>"
     (:error? tag) (str "<span class='error' data-message='"
-                       (:message tag)
+                       (some-> (:message tag) (escape {\' "&apos;"}))
                        "'></span>")
     (:line tag) (let [value (:value tag)]
                   (cond
