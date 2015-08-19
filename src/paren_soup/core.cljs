@@ -272,8 +272,7 @@
             (-> html
                 (replace "<div>" \newline)
                 (replace "</div>" ""))))
-    (let [lines (split-lines-without-indent (.-textContent content))
-          hovers (chan)]
+    (let [lines (split-lines-without-indent (.-textContent content))]
       (set! (.-innerHTML content) (join \newline (lines->html lines)))
       (doseq [elem (-> content (.querySelectorAll ".error") array-seq)]
         (events/listen elem "mouseenter" #(put! events-chan %))
