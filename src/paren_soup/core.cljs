@@ -203,8 +203,7 @@
                       (str "<div class='result"
                            (when (instance? js/Error res)
                              " error")
-                           "' "
-                           "style='top: "
+                           "' style='top: "
                            (- top offset)
                            "px; height: "
                            height
@@ -265,31 +264,6 @@
     (conj (vec (butlast lines))
           (subs last-line 0 last-line-len))))
 
-(defn refresh!
-  "Refreshes the contents."
-  [instarepl :- (maybe js/Object)
-   numbers :- (maybe js/Object)
-   content :- js/Object
-   events-chan :- Any]
-  (let [html (.-innerHTML content)]
-    (set! (.-innerHTML content)
-          (if (>= (.indexOf html "<br>") 0)
-            (-> html (replace "<br>" \newline) (replace "</br>" ""))
-            (-> html (replace "<div>" \newline) (replace "</div>" "")))))
-  (let [lines (split-lines-without-indent (.-textContent content))]
-    (set! (.-innerHTML content) (join \newline (lines->html lines)))
-    (doseq [elem (-> content (.querySelectorAll ".error") array-seq)]
-      (events/listen elem "mouseenter" #(put! events-chan %))
-      (events/listen elem "mouseleave" #(put! events-chan %)))
-    (when numbers
-      (set! (.-innerHTML numbers) (line-numbers (dec (count lines)))))
-    (when instarepl
-      (eval-elems (-> content .-children array-seq)
-                  (-> instarepl .getBoundingClientRect .-top)
-                  #(set! (.-innerHTML instarepl) %))))
-  (doseq [[elem color] (rainbow-delimiters content -1)]
-    (set! (-> elem .-style .-color) color)))
-
 (defn move-caret!
   "Moves the caret as necessary."
   [content :- js/Object
@@ -326,6 +300,31 @@
           (.selectCharacters range content prev-position caret-position)
           (.deleteContents range)))
       nil)))
+
+(defn refresh!
+  "Refreshes the contents."
+  [instarepl :- (maybe js/Object)
+   numbers :- (maybe js/Object)
+   content :- js/Object
+   events-chan :- Any]
+  (let [html (.-innerHTML content)]
+    (set! (.-innerHTML content)
+          (if (>= (.indexOf html "<br>") 0)
+            (-> html (replace "<br>" \newline) (replace "</br>" ""))
+            (-> html (replace "<div>" \newline) (replace "</div>" "")))))
+  (let [lines (split-lines-without-indent (.-textContent content))]
+    (set! (.-innerHTML content) (join \newline (lines->html lines)))
+    (doseq [elem (-> content (.querySelectorAll ".error") array-seq)]
+      (events/listen elem "mouseenter" #(put! events-chan %))
+      (events/listen elem "mouseleave" #(put! events-chan %)))
+    (when numbers
+      (set! (.-innerHTML numbers) (line-numbers (dec (count lines)))))
+    (when instarepl
+      (eval-elems (-> content .-children array-seq)
+                  (-> instarepl .getBoundingClientRect .-top)
+                  #(set! (.-innerHTML instarepl) %))))
+  (doseq [[elem color] (rainbow-delimiters content -1)]
+    (set! (-> elem .-style .-color) color)))
 
 (defn init! []
   (.init js/rangy)
