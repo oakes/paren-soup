@@ -188,8 +188,8 @@
 (defn results->html :- Str
   "Returns HTML for the given eval results."
   [elems :- [js/Object]
-   top-offset :- Int
-   results :- [Any]]
+   results :- [Any]
+   top-offset :- Int]
   (loop [i 0
          offset 0
          evals (transient [])]
@@ -212,21 +212,14 @@
                            "</div>"))))
       (join (persistent! evals)))))
 
-(defn eval-elems
-  "Evals the elements and gives the results to the callback."
-  [elems :- [js/Object]
-   top-offset :- Int
-   cb :- Any]
-  (let [elems (vec (for [elem elems
-                         :let [classes (.-classList elem)]
-                         :when (or (.contains classes "collection")
-                                   (.contains classes "symbol"))]
-                     elem))
-        forms (for [elem elems]
-                (->> elem .-textContent read-string))]
-    (eval-forms forms
-                (fn [results]
-                  (cb (results->html elems top-offset results))))))
+(defn get-collections :- [js/Object]
+  "Returns collections from the given DOM node."
+  [content :- js/Object]
+  (vec (for [elem (-> content .-children array-seq)
+             :let [classes (.-classList elem)]
+             :when (or (.contains classes "collection")
+                       (.contains classes "symbol"))]
+         elem)))
 
 (def ^:const rainbow-count 10)
 
@@ -300,30 +293,60 @@
           (.deleteContents range)))
       nil)))
 
-(defn refresh!
+(defn refresh-content!
   "Refreshes the contents."
+  [content :- js/Object
+   events-chan :- Any
+   lines :- [Str]]
+  (set! (.-innerHTML content) (join \newline (lines->html lines)))
+  (doseq [elem (-> content (.querySelectorAll ".error") array-seq)]
+    (events/listen elem "mouseenter" #(put! events-chan %))
+    (events/listen elem "mouseleave" #(put! events-chan %)))
+  (doseq [[elem class-name] (rainbow-delimiters content -1)]
+    (set! (.-className elem) class-name)))
+
+(defn refresh-numbers!
+  "Refreshes the line numbers."
+  [numbers :- (maybe js/Object)
+   line-count :- Int]
+  (when numbers
+    (set! (.-innerHTML numbers) (line-numbers (dec line-count)))))
+
+(defn refresh-instarepl!
+  "Refreshes the InstaREPL."
+  [instarepl :- (maybe js/Object)
+   content :- js/Object
+   events-chan :- Any
+   form->result :- Any]
+  (when instarepl
+    (let [elems (get-collections content)
+          forms (map #(-> % .-textContent read-string) elems)
+          elem->form (zipmap elems forms)
+          forms (remove #(contains? @form->result %) forms)
+          top-offset (-> instarepl .getBoundingClientRect .-top)]
+      (eval-forms forms
+                  (fn [results]
+                    (let [form->result (swap! form->result merge (zipmap forms results))
+                          results (mapv #(-> % elem->form form->result) elems)]
+                      (set! (.-innerHTML instarepl)
+                            (results->html elems results top-offset))))))))
+
+(defn refresh!
+  "Refreshes everything."
   [instarepl :- (maybe js/Object)
    numbers :- (maybe js/Object)
    content :- js/Object
-   events-chan :- Any]
+   events-chan :- Any
+   form->result :- Any]
   (let [html (.-innerHTML content)]
     (set! (.-innerHTML content)
           (if (>= (.indexOf html "<br>") 0)
             (-> html (replace "<br>" \newline) (replace "</br>" ""))
             (-> html (replace "<div>" \newline) (replace "</div>" "")))))
   (let [lines (split-lines-without-indent (.-textContent content))]
-    (set! (.-innerHTML content) (join \newline (lines->html lines)))
-    (doseq [elem (-> content (.querySelectorAll ".error") array-seq)]
-      (events/listen elem "mouseenter" #(put! events-chan %))
-      (events/listen elem "mouseleave" #(put! events-chan %)))
-    (when numbers
-      (set! (.-innerHTML numbers) (line-numbers (dec (count lines)))))
-    (when instarepl
-      (eval-elems (-> content .-children array-seq)
-                  (-> instarepl .getBoundingClientRect .-top)
-                  #(set! (.-innerHTML instarepl) %))))
-  (doseq [[elem class-name] (rainbow-delimiters content -1)]
-    (set! (.-className elem) class-name)))
+    (refresh-content! content events-chan lines)
+    (refresh-numbers! numbers (count lines))
+    (refresh-instarepl! instarepl content events-chan form->result)))
 
 (defn init! []
   (.init js/rangy)
@@ -331,30 +354,27 @@
     (let [instarepl (.querySelector paren-soup ".instarepl")
           numbers (.querySelector paren-soup ".numbers")
           content (.querySelector paren-soup ".content")
-          events-chan (chan)]
+          events-chan (chan)
+          form->result (atom {})]
       (set! (.-spellcheck paren-soup) false)
       (when-not content
         (throw (js/Error. "Can't find a div with class 'content'")))
-      (refresh! instarepl numbers content events-chan)
+      (refresh! instarepl numbers content events-chan form->result)
       (events/removeAll content)
       (events/listen content "keydown" #(put! events-chan %))
-      (events/listen content "DOMCharacterDataModified" #(put! events-chan %))
       (go (while true
             (let [event (<! events-chan)]
               (case (.-type event)
-                "DOMCharacterDataModified"
-                (let [sel (.getSelection js/rangy)
-                      ranges (.saveCharacterRanges sel content)]
-                  (refresh! instarepl numbers content events-chan)
-                  (.restoreCharacterRanges sel content ranges))
                 "keydown"
                 (let [char-code (.-keyCode event)]
-                  (when (contains? #{8 13} char-code)
+                  (when-not (contains? #{37 38 39 40} char-code)
                     (let [sel (.getSelection js/rangy)
                           ranges (.saveCharacterRanges sel content)]
-                      (refresh! instarepl numbers content events-chan)
-                      (when-let [char-range (some-> ranges (get 0) .-characterRange)]
-                        (move-caret! content char-range char-code))
+                      (refresh! instarepl numbers content events-chan form->result)
+                      (when (contains? #{8 13} char-code)
+                        (when-let [char-range (some-> ranges (get 0) .-characterRange)]
+                          (move-caret! content char-range char-code)
+                          (refresh-instarepl! instarepl content events-chan form->result)))
                       (.restoreCharacterRanges sel content ranges))))
                 "mouseenter"
                 (let [elem (.-target event)
