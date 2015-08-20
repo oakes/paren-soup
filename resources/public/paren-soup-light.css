@@ -4,30 +4,36 @@
 	color: gray;
 }
 
-.paren-soup-instarepl {
+.paren-soup .error-text {
+	position: fixed;
+	background-color: white;
+	padding-left: 10px;
+}
+
+.paren-soup .instarepl {
 	float: left;
 	padding: 0px 5px;
 	text-align: right;
 	width: 200px;
 }
 
-.paren-soup-instarepl .result {
+.paren-soup .instarepl .result {
 	position: relative;
 	overflow: scroll;
 	background-color: lightgreen;
 }
 
-.paren-soup-instarepl .error {
+.paren-soup .instarepl .error {
 	background-color: pink;
 }
 
-.paren-soup-numbers {
+.paren-soup .numbers {
 	float: left;
 	padding: 0px 5px;
 	text-align: right;
 }
 
-.paren-soup-content {
+.paren-soup .content {
 	margin: 0px;
 	padding: 0px 5px;
 	outline: 0px solid transparent;
@@ -36,31 +42,31 @@
 	overflow: scroll;
 }
 
-.paren-soup-content .symbol {
+.paren-soup .content .symbol {
 	color: black;
 }
 
-.paren-soup-content .number {
+.paren-soup .content .number {
 	color: gold;
 }
 
-.paren-soup-content .string {
+.paren-soup .content .string {
 	color: red;
 }
 
-.paren-soup-content .keyword {
+.paren-soup .content .keyword {
 	color: blue;
 }
 
-.paren-soup-content .nil {
+.paren-soup .content .nil {
 	color: lightblue;
 }
 
-.paren-soup-content .boolean {
+.paren-soup .content .boolean {
 	color: lightblue;
 }
 
-.paren-soup-content .error {
+.paren-soup .content .error {
 	display: inline-block;
 	width: 1em;
 	height: 1em;
@@ -68,7 +74,7 @@
 	border-radius: 0.3em;
 }
 
-.paren-soup-content .error::before {
+.paren-soup .content .error::before {
 	position: relative;
     display: block;
     content: "";
@@ -84,7 +90,7 @@
     border-right-color: transparent;
 }
 
-.paren-soup-content .error::after {
+.paren-soup .content .error::after {
 	position: relative;
     display: block;
     content: "";
@@ -96,10 +102,42 @@
     border-radius: 0.13em;
 }
 
-.error-text {
-	position: fixed;
-	background-color: white;
-	font-family: monospace;
-	font-size: 16px;
-	padding-left: 10px;
+.paren-soup .content .rainbow-0 {
+	color: aqua;
+}
+
+.paren-soup .content .rainbow-1 {
+	color: brown;
+}
+
+.paren-soup .content .rainbow-2 {
+	color: cornflowerblue;
+}
+
+.paren-soup .content .rainbow-3 {
+	color: fuchsia;
+}
+
+.paren-soup .content .rainbow-4 {
+	color: orange;
+}
+
+.paren-soup .content .rainbow-5 {
+	color: hotpink;
+}
+
+.paren-soup .content .rainbow-6 {
+	color: lime;
+}
+
+.paren-soup .content .rainbow-7 {
+	color: orange;
+}
+
+.paren-soup .content .rainbow-8 {
+	color: plum;
+}
+
+.paren-soup .content .rainbow-9 {
+	color: tomato;
 }

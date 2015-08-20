@@ -228,11 +228,10 @@
                 (fn [results]
                   (cb (results->html elems top-offset results))))))
 
-(def rainbow-colors ["aqua" "brown" "cornflowerblue"  "fuchsia" "orange"
-                     "hotpink" "lime" "orange" "plum" "tomato"])
+(def ^:const rainbow-count 10)
 
 (defn rainbow-delimiters :- {js/Object Str}
-  "Returns a map of elements and colors."
+  "Returns a map of elements and class names."
   [parent :- js/Object
    level :- Int]
   (apply merge
@@ -240,7 +239,7 @@
          (for [elem (-> parent .-children array-seq)]
            (cond
              (-> elem .-classList (.contains "delimiter"))
-             {elem (get rainbow-colors (mod level (count rainbow-colors)))}
+             {elem (str "rainbow-" (mod level rainbow-count))}
              (-> elem .-classList (.contains "collection"))
              (apply merge {} (rainbow-delimiters elem (inc level)))
              :else
@@ -323,19 +322,19 @@
       (eval-elems (-> content .-children array-seq)
                   (-> instarepl .getBoundingClientRect .-top)
                   #(set! (.-innerHTML instarepl) %))))
-  (doseq [[elem color] (rainbow-delimiters content -1)]
-    (set! (-> elem .-style .-color) color)))
+  (doseq [[elem class-name] (rainbow-delimiters content -1)]
+    (set! (.-className elem) class-name)))
 
 (defn init! []
   (.init js/rangy)
-  (doseq [elem (-> js/document (.querySelectorAll ".paren-soup") array-seq)]
-    (let [instarepl (.querySelector elem ".paren-soup-instarepl")
-          numbers (.querySelector elem ".paren-soup-numbers")
-          content (.querySelector elem ".paren-soup-content")
+  (doseq [paren-soup (-> js/document (.querySelectorAll ".paren-soup") array-seq)]
+    (let [instarepl (.querySelector paren-soup ".instarepl")
+          numbers (.querySelector paren-soup ".numbers")
+          content (.querySelector paren-soup ".content")
           events-chan (chan)]
-      (set! (.-spellcheck elem) false)
+      (set! (.-spellcheck paren-soup) false)
       (when-not content
-        (throw (js/Error. "Can't find a div with class paren-soup-content")))
+        (throw (js/Error. "Can't find a div with class 'content'")))
       (refresh! instarepl numbers content events-chan)
       (events/removeAll content)
       (events/listen content "keydown" #(put! events-chan %))
@@ -366,10 +365,10 @@
                     (aset (.-style popup) "top" (str y "px"))
                     (aset (.-style popup) "left" (str x "px"))
                     (aset popup "className" "error-text")
-                    (.appendChild (.-body js/document) popup)))
+                    (.appendChild paren-soup popup)))
                 "mouseleave"
-                (doseq [elem (-> js/document .-body (.querySelectorAll ".error-text") array-seq)]
-                  (-> js/document .-body (.removeChild elem)))
+                (doseq [elem (-> paren-soup (.querySelectorAll ".error-text") array-seq)]
+                  (.removeChild paren-soup elem))
                 nil)))))))
 
 (defn init-with-validation! []
