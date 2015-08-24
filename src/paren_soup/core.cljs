@@ -322,7 +322,7 @@
     (let [elems (get-collections content)
           forms (map #(-> % .-textContent read-string) elems)
           elem->form (zipmap elems forms)
-          forms (remove #(contains? @form->result %) forms)
+          ;forms (remove #(contains? @form->result %) forms)
           top-offset (-> instarepl .getBoundingClientRect .-top)]
       (eval-forms forms
                   (fn [results]
