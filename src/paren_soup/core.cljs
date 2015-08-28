@@ -316,28 +316,23 @@
   "Refreshes the InstaREPL."
   [instarepl :- (maybe js/Object)
    content :- js/Object
-   events-chan :- Any
-   form->result :- Any]
+   events-chan :- Any]
   (when instarepl
     (let [elems (get-collections content)
           forms (map #(-> % .-textContent read-string) elems)
           elem->form (zipmap elems forms)
-          ;forms (remove #(contains? @form->result %) forms)
           top-offset (-> instarepl .getBoundingClientRect .-top)]
       (eval-forms forms
                   (fn [results]
-                    (let [form->result (swap! form->result merge (zipmap forms results))
-                          results (mapv #(-> % elem->form form->result) elems)]
-                      (set! (.-innerHTML instarepl)
-                            (results->html elems results top-offset))))))))
+                    (set! (.-innerHTML instarepl)
+                          (results->html elems results top-offset)))))))
 
 (defn refresh!
   "Refreshes everything."
   [instarepl :- (maybe js/Object)
    numbers :- (maybe js/Object)
    content :- js/Object
-   events-chan :- Any
-   form->result :- Any]
+   events-chan :- Any]
   (let [html (.-innerHTML content)]
     (set! (.-innerHTML content)
           (if (>= (.indexOf html "<br>") 0)
@@ -346,7 +341,7 @@
   (let [lines (split-lines-without-indent (.-textContent content))]
     (refresh-content! content events-chan lines)
     (refresh-numbers! numbers (count lines))
-    (refresh-instarepl! instarepl content events-chan form->result)))
+    (refresh-instarepl! instarepl content events-chan)))
 
 (defn init! []
   (.init js/rangy)
@@ -354,12 +349,11 @@
     (let [instarepl (.querySelector paren-soup ".instarepl")
           numbers (.querySelector paren-soup ".numbers")
           content (.querySelector paren-soup ".content")
-          events-chan (chan)
-          form->result (atom {})]
+          events-chan (chan)]
       (set! (.-spellcheck paren-soup) false)
       (when-not content
         (throw (js/Error. "Can't find a div with class 'content'")))
-      (refresh! instarepl numbers content events-chan form->result)
+      (refresh! instarepl numbers content events-chan)
       (events/removeAll content)
       (events/listen content "keydown" #(put! events-chan %))
       (go (while true
@@ -370,11 +364,11 @@
                   (when-not (contains? #{37 38 39 40} char-code)
                     (let [sel (.getSelection js/rangy)
                           ranges (.saveCharacterRanges sel content)]
-                      (refresh! instarepl numbers content events-chan form->result)
+                      (refresh! instarepl numbers content events-chan)
                       (when (contains? #{8 13} char-code)
                         (when-let [char-range (some-> ranges (get 0) .-characterRange)]
                           (move-caret! content char-range char-code)
-                          (refresh-instarepl! instarepl content events-chan form->result)))
+                          (refresh-instarepl! instarepl content events-chan)))
                       (.restoreCharacterRanges sel content ranges))))
                 "mouseenter"
                 (let [elem (.-target event)
