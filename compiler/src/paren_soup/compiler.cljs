@@ -21,9 +21,10 @@
                 (fn [res]
                   (let [error? (instance? js/Error (:error res))
                         res (if error?
-                              {:error? true
-                               :str (-> res :error .-message)}
-                              {:str (pr-str res)})
+                              (array (-> res :error .-message)
+                                     (-> res :error .-fileName)
+                                     (-> res :error .-lineNumber))
+                              (pr-str res))
                         opts (if (and new-ns (not error?)) (assoc opts :ns new-ns) opts)]
                     (eval-forms forms cb state opts (conj results res)))))
           (catch js/Error e
@@ -33,4 +34,5 @@
 (set! (.-onmessage js/self)
       (fn [e]
         (let [[counter forms] (.-data e)]
-          (eval-forms (read-string forms) #(.postMessage js/self (array counter (pr-str %)))))))
+          (eval-forms (read-string forms)
+                      #(.postMessage js/self (array counter (clj->js %)))))))

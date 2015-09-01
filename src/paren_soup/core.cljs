@@ -176,14 +176,14 @@
                (+ offset height)
                (conj! evals
                       (str "<div class='result"
-                           (when (:error? res)
+                           (when (array? res)
                              " error")
                            "' style='top: "
                            (- top offset)
                            "px; height: "
                            height
                            "px;'>"
-                           (:str res)
+                           (if (array? res) (first res) res)
                            "</div>"))))
       (join (persistent! evals)))))
 
@@ -300,10 +300,10 @@
           top-offset (-> instarepl .getBoundingClientRect .-top)]
       (set! (.-onmessage eval-worker)
             (fn [e]
-              (let [[counter forms] (.-data e)]
+              (let [[counter results] (.-data e)]
                 (when (= counter @eval-worker-counter)
                   (set! (.-innerHTML instarepl)
-                        (results->html elems (read-string forms) top-offset))))))
+                        (results->html elems results top-offset))))))
       (.postMessage eval-worker (array (swap! eval-worker-counter inc)
                                        (pr-str forms))))))
 
