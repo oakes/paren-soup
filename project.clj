@@ -13,11 +13,9 @@
     :builds {
       :main {
         :source-paths ["src"]
-        :compiler {:output-to "resources/public/main.js"
+        :compiler {:output-to "resources/public/paren-soup.js"
                    :optimizations :simple
                    :pretty-print false
-                   :static-fns true
-                   :optimize-constants true
                    :foreign-libs [{:file "src/js/rangy-core.js"
                                    :provides ["rangy.core"]}
                                   {:file "src/js/rangy-textrange.js"

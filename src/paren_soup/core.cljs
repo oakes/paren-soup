@@ -1,7 +1,7 @@
 (ns paren-soup.core
   (:require [cljs.core.async :refer [chan put! <!]]
-            [cljs.js :refer [empty-state eval js-eval]]
-            [cljs.tools.reader :refer [read read-string *wrap-value-and-add-metadata?*]]
+            [cljs.reader :refer [read-string]]
+            [cljs.tools.reader :refer [read *wrap-value-and-add-metadata?*]]
             [cljs.tools.reader.reader-types :refer [indexing-push-back-reader]]
             [clojure.string :refer [escape split-lines join replace trim triml]]
             [clojure.walk :refer [postwalk]]
@@ -160,31 +160,6 @@
                            (line->html line (get tags-by-line i)))))
               (interleave (iterate inc 1) lines))))
 
-(defn eval-forms
-  "Evals all the supplied forms."
-  ([forms cb]
-    (let [state (empty-state)
-          opts {:eval js-eval
-                :source-map true
-                :context :expr}]
-      (eval state '(ns cljs.user) opts
-            #(eval-forms forms cb state opts (transient [])))))
-  ([forms cb state opts results]
-    (if (seq forms)
-      (let [[form & forms] forms
-            new-ns (when (and (list? form) (= 'ns (first form)))
-                     (second form))]
-        (try
-          (eval state form opts
-                (fn [res]
-                  (let [error? (instance? js/Error (:error res))
-                        res (if error? (:error res) res)
-                        opts (if (and new-ns (not error?)) (assoc opts :ns new-ns) opts)]
-                    (eval-forms forms cb state opts (conj! results res)))))
-          (catch js/Error e
-            (eval-forms forms cb state opts (conj! results e)))))
-      (cb (persistent! results)))))
-
 (defn results->html :- Str
   "Returns HTML for the given eval results."
   [elems :- [js/Object]
@@ -201,14 +176,14 @@
                (+ offset height)
                (conj! evals
                       (str "<div class='result"
-                           (when (instance? js/Error res)
+                           (when (:error? res)
                              " error")
                            "' style='top: "
                            (- top offset)
                            "px; height: "
                            height
                            "px;'>"
-                           (pr-str res)
+                           (:str res)
                            "</div>"))))
       (join (persistent! evals)))))
 
@@ -316,23 +291,30 @@
   "Refreshes the InstaREPL."
   [instarepl :- (maybe js/Object)
    content :- js/Object
-   events-chan :- Any]
+   events-chan :- Any
+   eval-worker :- js/Object
+   eval-worker-counter :- Any]
   (when instarepl
     (let [elems (get-collections content)
           forms (map #(-> % .-textContent read-string) elems)
-          elem->form (zipmap elems forms)
           top-offset (-> instarepl .getBoundingClientRect .-top)]
-      (eval-forms forms
-                  (fn [results]
-                    (set! (.-innerHTML instarepl)
-                          (results->html elems results top-offset)))))))
+      (set! (.-onmessage eval-worker)
+            (fn [e]
+              (let [[counter forms] (.-data e)]
+                (when (= counter @eval-worker-counter)
+                  (set! (.-innerHTML instarepl)
+                        (results->html elems (read-string forms) top-offset))))))
+      (.postMessage eval-worker (array (swap! eval-worker-counter inc)
+                                       (pr-str forms))))))
 
 (defn refresh!
   "Refreshes everything."
   [instarepl :- (maybe js/Object)
    numbers :- (maybe js/Object)
    content :- js/Object
-   events-chan :- Any]
+   events-chan :- Any
+   eval-worker :- js/Object
+   eval-worker-counter :- Any]
   (let [html (.-innerHTML content)]
     (set! (.-innerHTML content)
           (if (>= (.indexOf html "<br>") 0)
@@ -341,7 +323,7 @@
   (let [lines (split-lines-without-indent (.-textContent content))]
     (refresh-content! content events-chan lines)
     (refresh-numbers! numbers (count lines))
-    (refresh-instarepl! instarepl content events-chan)))
+    (refresh-instarepl! instarepl content events-chan eval-worker eval-worker-counter)))
 
 (defn init! []
   (.init js/rangy)
@@ -349,11 +331,13 @@
     (let [instarepl (.querySelector paren-soup ".instarepl")
           numbers (.querySelector paren-soup ".numbers")
           content (.querySelector paren-soup ".content")
-          events-chan (chan)]
+          events-chan (chan)
+          eval-worker (js/Worker. "paren-soup-compiler.js")
+          eval-worker-counter (atom 0)]
       (set! (.-spellcheck paren-soup) false)
       (when-not content
         (throw (js/Error. "Can't find a div with class 'content'")))
-      (refresh! instarepl numbers content events-chan)
+      (refresh! instarepl numbers content events-chan eval-worker eval-worker-counter)
       (events/removeAll content)
       (events/listen content "keydown" #(put! events-chan %))
       (go (while true
@@ -364,11 +348,11 @@
                   (when-not (contains? #{37 38 39 40} char-code)
                     (let [sel (.getSelection js/rangy)
                           ranges (.saveCharacterRanges sel content)]
-                      (refresh! instarepl numbers content events-chan)
+                      (refresh! instarepl numbers content events-chan eval-worker eval-worker-counter)
                       (when (contains? #{8 13} char-code)
                         (when-let [char-range (some-> ranges (get 0) .-characterRange)]
                           (move-caret! content char-range char-code)
-                          (refresh-instarepl! instarepl content events-chan)))
+                          (refresh-instarepl! instarepl content events-chan eval-worker eval-worker-counter)))
                       (.restoreCharacterRanges sel content ranges))))
                 "mouseenter"
                 (let [elem (.-target event)
