@@ -296,7 +296,7 @@
    eval-worker-counter :- Any]
   (when instarepl
     (let [elems (get-collections content)
-          forms (map #(-> % .-textContent read-string) elems)
+          forms (map #(-> % .-textContent read-string (try (catch js/Error _))) elems)
           top-offset (-> instarepl .getBoundingClientRect .-top)
           {:keys [last-sent]} (swap! eval-worker-counter update :last-sent inc)]
       (set! (.-onmessage eval-worker)
