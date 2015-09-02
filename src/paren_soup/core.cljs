@@ -297,17 +297,14 @@
   (when instarepl
     (let [elems (get-collections content)
           forms (map #(-> % .-textContent read-string (try (catch js/Error _))) elems)
-          top-offset (-> instarepl .getBoundingClientRect .-top)
-          {:keys [last-sent]} (swap! eval-worker-counter update :last-sent inc)]
+          top-offset (-> instarepl .getBoundingClientRect .-top)]
       (set! (.-onmessage eval-worker)
             (fn [e]
-              (let [[counter results] (.-data e)
-                    {:keys [last-recv]} @eval-worker-counter]
-                (when (> counter last-recv)
-                  (swap! eval-worker-counter assoc :last-recv counter)
+              (let [[counter results] (.-data e)]
+                (when (= counter @eval-worker-counter)
                   (set! (.-innerHTML instarepl)
                         (results->html elems results top-offset))))))
-      (.postMessage eval-worker (array last-sent (pr-str forms))))))
+      (.postMessage eval-worker (array (swap! eval-worker-counter inc) (pr-str forms))))))
 
 (defn refresh!
   "Refreshes everything."
@@ -335,7 +332,7 @@
           content (.querySelector paren-soup ".content")
           events-chan (chan)
           eval-worker (js/Worker. "paren-soup-compiler.js")
-          eval-worker-counter (atom {:last-sent 0 :last-recv 0})]
+          eval-worker-counter (atom 0)]
       (set! (.-spellcheck paren-soup) false)
       (when-not content
         (throw (js/Error. "Can't find a div with class 'content'")))
