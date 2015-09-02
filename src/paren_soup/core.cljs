@@ -300,7 +300,8 @@
       (set! (.-onmessage eval-worker)
             (fn [e]
               (let [[counter results] (.-data e)]
-                (when (= counter @eval-worker-counter)
+                (when (and (.-parentNode (first elems))
+                           (= counter @eval-worker-counter))
                   (set! (.-innerHTML instarepl)
                         (results->html elems results top-offset))))))
       (.postMessage eval-worker (array (swap! eval-worker-counter inc) forms)))))
