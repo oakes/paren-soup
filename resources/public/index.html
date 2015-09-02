@@ -22,10 +22,15 @@
 		<div class="instarepl"></div>
 		<div class="numbers"></div>
 		<div class="content" contenteditable="true">(def s "Hello, world!")
-		
 (subs s 0 5)
 
-(map inc [1 2 3 4 5])</div>
+(map inc [0 1 2 3 4])
+
+(def my-transducer (comp (map inc) (filter odd?)))
+(sequence my-transducer (range 10))
+
+; try uncommenting this! infinite loops should safely time out.
+;(while true)</div>
 	</div>
 	<br/>
 	Below is a much larger document. As you can see, editing is very slow, and there are some errors. This editor is a work in progress.

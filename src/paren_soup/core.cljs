@@ -91,6 +91,13 @@
                          :indent? true})))
         (persistent! result)))))
 
+(defn escape-html :- Str
+  [s :- Str]
+  (escape s {\< "&lt;"
+             \> "&gt;"
+             \& "&amp;"
+             \' "&apos;"}))
+
 (defn tag->html :- Str
   "Returns an HTML string for the given tag description."
   [tag :- {Keyword Any}]
@@ -100,7 +107,7 @@
                         "</span>")
     (:delimiter? tag) "<span class='delimiter'>"
     (:error? tag) (str "<span class='error' data-message='"
-                       (some-> (:message tag) (escape {\' "&apos;"}))
+                       (some-> (:message tag) escape-html)
                        "'></span>")
     (:line tag) (let [value (:value tag)]
                   (cond
@@ -182,7 +189,7 @@
                            "px; height: "
                            height
                            "px;'>"
-                           (if (array? res) (first res) res)
+                           (escape-html (if (array? res) (first res) res))
                            "</div>"))))
       (join (persistent! evals)))))
 
