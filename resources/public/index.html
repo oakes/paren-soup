@@ -3,13 +3,37 @@
 	<head>
 	<title>paren-soup</title>
 	<link rel="stylesheet" type="text/css" href="paren-soup-light.css">
+		<script type="text/javascript">
+		function changeCSS(cssFile, cssLinkIndex) {
+			var oldlink = document.getElementsByTagName("link").item(cssLinkIndex);
+			var newlink = document.createElement("link");
+			newlink.setAttribute("rel", "stylesheet");
+			newlink.setAttribute("type", "text/css");
+			newlink.setAttribute("href", cssFile);
+			document.getElementsByTagName("head").item(0).replaceChild(newlink, oldlink);
+		}
+    </script>
 	</head>
 	<body>
+	Try switching between the <a href="#" onclick="changeCSS('paren-soup-light.css', 0);">light theme</a> and the
+    <a href="#" onclick="changeCSS('paren-soup-dark.css', 0);">dark theme</a>.
+    <br/><br/>
+	<div class="paren-soup">
+		<div class="instarepl"></div>
+		<div class="numbers"></div>
+		<div class="content" contenteditable="true">(def s "Hello, world!")
+		
+(subs s 0 5)
+
+(map inc [1 2 3 4 5])</div>
+	</div>
+	<br/>
+	Below is a much larger document. As you can see, editing is very slow, and there are some errors. This editor is a work in progress.
+	<br/><br/>
 	<div class="paren-soup">
 		<div class="instarepl"></div>
 		<div class="numbers"></div>
 		<div class="content" contenteditable="true">;; This sample code is based on https://github.com/swannodette/lt-cljs-tutorial
-;; Some lines are commented out because they aren't yet supported in this editor.
 
 ;; Declaring a namespaces
 ;; ----------------------------------------------------------------------------
@@ -145,7 +169,7 @@ lt-cljs-tutorial/x
 ;; But ClojureScript also supports JavaScript data literals via the `#js`
 ;; reader literal.
 
-;(def another-array #js [1 2 3])
+(def another-array #js [1 2 3])
 
 ;; Similarly, you can create simple JavaScript objects with `js-obj`.
 
@@ -153,7 +177,7 @@ lt-cljs-tutorial/x
 
 ;; But again you can save a few characters with `#js`.
 
-;(def another-object #js {"foo" "bar"})
+(def another-object #js {"foo" "bar"})
 
 ;; It's important to note that `#js` is shallow, the contents of `#js` will be
 ;; ClojureScript data unless preceded by `#js`.
@@ -161,7 +185,7 @@ lt-cljs-tutorial/x
 ;; This is a mutable JavaScript object with an immutable ClojureScript vector
 ;; inside.
 
-;(def shallow #js {"foo" [1 2 3]})
+(def shallow #js {"foo" [1 2 3]})
 
 
 ;; Constructing a type
@@ -174,11 +198,11 @@ lt-cljs-tutorial/x
 
 (def a-date (js/Date.))
 
-;(def another-date #inst "2014-01-15")
+(def another-date #inst "2014-01-15")
 
 ;; Note the above returns an `#inst` data literal.
 
-;(def another-regexp (js/RegExp. "\\d{3}-?\\d{3}-?\\d{4}"))
+(def another-regexp (js/RegExp. "\\d{3}-?\\d{3}-?\\d{4}"))
 
 ;; Handy
 
@@ -1167,7 +1191,7 @@ x
   number
   (awesome [_] "I'm an awesome number!"))
 
-;(awesome #inst "2014")
+(awesome #inst "2014")
 (awesome 5)
 
 
@@ -1197,11 +1221,11 @@ x
 
 ;; We can then selectively make JavaScript objects work with `get`.
 
-;(get (->lookup #js {"foo" "bar"}) :foo)
+(get (->lookup #js {"foo" "bar"}) :foo)
 
 ;; But this also means we get destructuring on JavaScript objects.
 
-;(def some-object #js {"foo" "bar" "baz" "woz"})
+(def some-object #js {"foo" "bar" "baz" "woz"})
 
 (let [{:keys [foo baz]} (->lookup some-object)]
   [foo baz])
@@ -1370,15 +1394,15 @@ x
 ;; If you need to use the previous value of a nested field for calculating the
 ;; new one, you can use 'update-in', like with maps.
 
-;(update-in (contact "Bob" "Smith" "bob.smith@acme.com")
-;           [:person :first] #(string/replace %1 #"Bob" %2) "Robert")
+(update-in (contact "Bob" "Smith" "bob.smith@acme.com")
+           [:person :first] #(string/replace %1 #"Bob" %2) "Robert")
 
 ;; As said, the main difference with the majority of OO languages is that your
 ;; instances of deftypes/defrecords are immutable.
 
 (def bob (contact "Bob" "Smith" "bob.smith@acme.com"))
 
-;(update-in bob [:person :first] #(string/replace %1 #"Bob" %2) "Robert")
+(update-in bob [:person :first] #(string/replace %1 #"Bob" %2) "Robert")
 
 (get-in bob [:person :first])
 
@@ -1425,19 +1449,19 @@ x
 
 ;; You can access an element of an array with `aget`.
 
-;(aget #js ["one" "two" "three"] 1)
+(aget #js ["one" "two" "three"] 1)
 
 ;; You can access nested arrays with `aget`.
 
-;(aget #js [#js ["one" "two" "three"]] 0 1)
+(aget #js [#js ["one" "two" "three"]] 0 1)
 
 ;; You can set the contents of an array with aset.
 
-;(def yucky-stuff #js [1 2 3])
+(def yucky-stuff #js [1 2 3])
 
-;(aset yucky-stuff 1 4)
+(aset yucky-stuff 1 4)
 
-;yucky-stuff</div>
+yucky-stuff</div>
 	</div>
 	<script type="text/javascript" src="paren-soup.js"></script>
 	</body>

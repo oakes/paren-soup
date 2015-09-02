@@ -3,6 +3,7 @@
 	font-family: monospace;
 	color: lightgray;
 	background-color: #293134;
+	outline: 1px solid;
 }
 
 .paren-soup .error-text {
@@ -13,7 +14,7 @@
 
 .paren-soup .instarepl {
 	float: left;
-	padding: 0px 5px;
+	padding-right: 5px;
 	text-align: right;
 	width: 200px;
 }
