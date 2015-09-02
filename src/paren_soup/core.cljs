@@ -291,7 +291,7 @@
   [numbers :- (maybe js/Object)
    line-count :- Int]
   (when numbers
-    (set! (.-innerHTML numbers) (line-numbers (dec line-count)))))
+    (set! (.-innerHTML numbers) (line-numbers line-count))))
 
 (defn refresh-instarepl!
   "Refreshes the InstaREPL."
@@ -328,7 +328,7 @@
             (-> html (replace "<div>" \newline) (replace "</div>" "")))))
   (let [lines (split-lines-without-indent (.-textContent content))]
     (refresh-content! content events-chan lines)
-    (refresh-numbers! numbers (count lines))
+    (refresh-numbers! numbers (dec (count lines)))
     (refresh-instarepl! instarepl content events-chan eval-worker eval-worker-counter)))
 
 (defn init! []
@@ -358,6 +358,7 @@
                       (when (contains? #{8 13} char-code)
                         (when-let [char-range (some-> ranges (get 0) .-characterRange)]
                           (move-caret! content char-range char-code)
+                          (refresh-numbers! numbers (-> (.-textContent content) split-lines-without-indent count dec))
                           (refresh-instarepl! instarepl content events-chan eval-worker eval-worker-counter)))
                       (.restoreCharacterRanges sel content ranges))))
                 "mouseenter"
