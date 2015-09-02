@@ -35,4 +35,4 @@
       (fn [e]
         (let [[counter forms] (.-data e)]
           (eval-forms (read-string forms)
-                      #(.postMessage js/self (array counter (clj->js %)))))))
+                      #(.postMessage js/self (array counter (into-array %)))))))
