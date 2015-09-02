@@ -169,8 +169,8 @@
          offset 0
          evals (transient [])]
     (if-let [elem (get elems i)]
-      (let [top (-> elem .getBoundingClientRect .-top (- top-offset))
-            height (-> elem .getBoundingClientRect .-bottom (- top-offset) (- top))
+      (let [top (-> elem .getBoundingClientRect .-top (- top-offset) (+ (.-scrollY js/window)))
+            height (-> elem .getBoundingClientRect .-bottom (- top-offset) (+ (.-scrollY js/window)) (- top))
             res (get results i)]
         (recur (inc i)
                (+ offset height)
@@ -297,7 +297,7 @@
   (when instarepl
     (let [elems (get-collections content)
           forms (map #(-> % .-textContent read-string (try (catch js/Error _))) elems)
-          top-offset (-> instarepl .getBoundingClientRect .-top)]
+          top-offset (-> instarepl .getBoundingClientRect .-top (+ (.-scrollY js/window)))]
       (set! (.-onmessage eval-worker)
             (fn [e]
               (let [[counter results] (.-data e)]
