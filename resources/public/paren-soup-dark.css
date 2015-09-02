@@ -22,6 +22,12 @@
 	position: relative;
 	overflow: scroll;
 	background-color: darkgreen;
+	outline: 1px solid;
+}
+
+.paren-soup .instarepl .result:hover {
+	width: 500px;
+	text-align: left;
 }
 
 .paren-soup .instarepl .error {
