@@ -1,6 +1,5 @@
 (ns paren-soup.core
   (:require [cljs.core.async :refer [chan put! <!]]
-            [cljs.reader :refer [read-string]]
             [cljs.tools.reader :refer [read *wrap-value-and-add-metadata?*]]
             [cljs.tools.reader.reader-types :refer [indexing-push-back-reader]]
             [clojure.string :refer [escape split-lines join replace trim triml]]
@@ -296,7 +295,7 @@
    eval-worker-counter :- Any]
   (when instarepl
     (let [elems (get-collections content)
-          forms (map #(-> % .-textContent read-string (try (catch js/Error _))) elems)
+          forms (into-array (map #(.-textContent %) elems))
           top-offset (-> instarepl .getBoundingClientRect .-top (+ (.-scrollY js/window)))]
       (set! (.-onmessage eval-worker)
             (fn [e]
@@ -304,7 +303,7 @@
                 (when (= counter @eval-worker-counter)
                   (set! (.-innerHTML instarepl)
                         (results->html elems results top-offset))))))
-      (.postMessage eval-worker (array (swap! eval-worker-counter inc) (pr-str forms))))))
+      (.postMessage eval-worker (array (swap! eval-worker-counter inc) forms)))))
 
 (defn refresh!
   "Refreshes everything."

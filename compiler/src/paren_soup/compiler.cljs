@@ -2,8 +2,10 @@
   (:require [cljs.js :refer [empty-state eval js-eval]]
             [cljs.reader :refer [read-string]]))
 
+(defn error->array [e]
+  (array (.-message e) (.-fileName e) (.-lineNumber e)))
+
 (defn eval-forms
-  "Evals all the supplied forms."
   ([forms cb]
     (let [state (empty-state)
           opts {:eval js-eval
@@ -21,18 +23,16 @@
                 (fn [res]
                   (let [error? (instance? js/Error (:error res))
                         res (if error?
-                              (array (-> res :error .-message)
-                                     (-> res :error .-fileName)
-                                     (-> res :error .-lineNumber))
+                              (error->array (:error res))
                               (pr-str res))
                         opts (if (and new-ns (not error?)) (assoc opts :ns new-ns) opts)]
                     (eval-forms forms cb state opts (conj results res)))))
           (catch js/Error e
-            (eval-forms forms cb state opts (conj results {:error? true :str (.-message e)})))))
+            (eval-forms forms cb state opts (conj results (error->array e))))))
       (cb results))))
 
 (set! (.-onmessage js/self)
       (fn [e]
         (let [[counter forms] (.-data e)]
-          (eval-forms (read-string forms)
+          (eval-forms (map #(try (read-string %) (catch js/Error _)) forms)
                       #(.postMessage js/self (array counter (into-array %)))))))
