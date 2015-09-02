@@ -51,19 +51,13 @@
 ;; REPL, but which you do not normally want to be included in the compiled
 ;; source.
 
-;; For example, try placing your cursor after the last `)` below and type
-;; Command-ENTER:
-
 (comment
 
   (string/upper-case "This is only a test...")
 
   )
 
-;; The `comment` macro makes the whole form return `nil`. Now go back and
-;; highlight just the middle line, then type Command-ENTER. In this way
-;; you can include code samples or quick tests in-line with the rest of
-;; your code.
+;; The `comment` macro makes the whole form return `nil`.
 
 
 ;; Definitions
@@ -380,8 +374,6 @@ a-map
 ;; in your source.
 
 (identity {:user/foo ::foo})
-
-;; Namespaced keywords are essential to Light Table's modularity.
 
 
 ;; Sets
@@ -1213,18 +1205,6 @@ x
 
 (let [{:keys [foo baz]} (->lookup some-object)]
   [foo baz])
-
-
-;; specify
-;; ----------------------------------------------------------------------------
-
-;; Light Table ships with a older version of ClojureScript and does not yet
-;; support specify
-
-
-;; Macros
-;; ============================================================================
-
 
 ;; Types & Records
 ;; ============================================================================
