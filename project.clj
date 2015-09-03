@@ -1,5 +1,8 @@
 (defproject paren-soup "0.0.1-SNAPSHOT"
-  :description "FIXME: write this!"
+  :description "A viewer and editor for ClojureScript"
+  :url "https://github.com/oakes/paren-soup"
+  :license {:name "Public Domain"
+            :url "http://unlicense.org/UNLICENSE"}
   :dependencies [[org.clojars.oakes/tools.reader "0.10.0-SNAPSHOT"
                   :exclusions [org.clojure/clojure]]
                  [org.clojure/clojure "1.7.0"]
