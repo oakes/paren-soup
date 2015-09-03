@@ -10,7 +10,7 @@
                   :exclusions [org.clojure/tools.reader]]
                  [org.clojure/core.async "0.1.346.0-17112a-alpha"]
                  [prismatic/schema "0.4.3"]]
-  :hooks [leiningen.cljsbuild]
+  :profiles {:uberjar {:prep-tasks ["compile" ["cljsbuild" "once"]]}}
   :javac-options ["-target" "1.6" "-source" "1.6" "-Xlint:-options"]
   :plugins [[lein-cljsbuild "1.1.0"]]
   :cljsbuild { 
