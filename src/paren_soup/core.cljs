@@ -346,6 +346,7 @@
       (refresh! instarepl numbers content events-chan eval-worker eval-worker-counter)
       (events/removeAll content)
       (events/listen content "keydown" #(put! events-chan %))
+      (events/listen content "paste" #(put! events-chan %))
       (go (while true
             (let [event (<! events-chan)]
               (case (.-type event)
@@ -361,6 +362,11 @@
                           (refresh-numbers! numbers (-> (.-textContent content) split-lines-without-indent count dec))
                           (refresh-instarepl! instarepl content events-chan eval-worker eval-worker-counter)))
                       (.restoreCharacterRanges sel content ranges))))
+                "paste"
+                (let [sel (.getSelection js/rangy)
+                      ranges (.saveCharacterRanges sel content)]
+                  (refresh! instarepl numbers content events-chan eval-worker eval-worker-counter)
+                  (.restoreCharacterRanges sel content ranges))
                 "mouseenter"
                 (let [elem (.-target event)
                       x (.-clientX event)
