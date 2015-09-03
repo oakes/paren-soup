@@ -7,7 +7,7 @@ A library providing a ClojureScript viewer and editor that you can embed in any 
 * Automatic indentation
 * InstaREPL (à la Light Table)
 
-[Try the demo](http://oakes.github.io/paren-soup). To use paren-soup in your own website, just go to the releases section and download the files. In your HTML, link to one of the CSS files and use the following markup:
+[Try the demo](http://oakes.github.io/paren-soup). To use paren-soup in your own website, just go to [the releases section](https://github.com/oakes/paren-soup/releases) and download the latest files. In your HTML, link to one of the CSS files and use the following markup:
 ```html
 <div class="paren-soup">
   <div class="instarepl"></div>
@@ -23,7 +23,9 @@ If you just want a viewer, not an editor, leave out the `contenteditable` attrib
 
 ## Build Instructions
 
-Run `boot dev` in the project root. This will build the editor and run a server on http://localhost:3000. To build a release version, run `boot build`.
+I use [Boot](http://boot-clj.com/). To build the editor and run a server on http://localhost:3000, run `boot dev`. To build a release version, run `boot build`. I included a project.clj for Leiningen users, but haven't thoroughly tested it.
+
+A prebuilt copy of the compiler is already in the `resources` directory. You can built that project yourself using `boot build`, but you will need to build your own copy of ClojureScript until a version is released with [this patch](https://github.com/clojure/clojurescript/commit/1b7390450243693d0b24e8d3ad085c6da4eef204).
 
 ## Licensing
 
