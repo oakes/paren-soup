@@ -22,6 +22,9 @@ A library providing a ClojureScript viewer and editor that you can embed in any 
 <script type=”text/javascript” src=”paren-soup.js”></script>
 If you just want a viewer, not an editor, leave out the contenteditable attribute. If you don’t want the instaREPL or line numbers, remove the relevant divs and they will not appear. To get the code out of the content element via JavaScript or ClojureScript, read its `textContent` property. There is no API to learn!
 
+## Build Instructions
+
+First, build the compiler by running `boot build` in the `compiler` directory. Then move the `paren-soup-compiler.js` file to `resources/public`. Then run `boot dev` in the project root. This will build the editor and run a server on http://localhost:3000.
 
 ## Licensing
 
