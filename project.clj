@@ -12,6 +12,7 @@
                  [prismatic/schema "0.4.3"]]
   :hooks [leiningen.cljsbuild]
   :javac-options ["-target" "1.6" "-source" "1.6" "-Xlint:-options"]
+  :plugins [[lein-cljsbuild "1.1.0"]]
   :cljsbuild { 
     :builds {
       :main {

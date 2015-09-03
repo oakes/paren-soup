@@ -24,7 +24,7 @@ If you just want a viewer, not an editor, leave out the contenteditable attribut
 
 ## Build Instructions
 
-First, build the compiler by running `boot build` in the `compiler` directory. Then move the `paren-soup-compiler.js` file to `resources/public`. Then run `boot dev` in the project root. This will build the editor and run a server on http://localhost:3000.
+Run `boot dev` in the project root. This will build the editor and run a server on http://localhost:3000. To build a release version, run `boot build`.
 
 ## Licensing
 
