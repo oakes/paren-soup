@@ -376,7 +376,7 @@
                   (.removeChild paren-soup elem))
                 nil)))))))
 
-(defn init-with-validation! []
+(defn init-debug! []
   (.log js/console (with-out-str (time (with-fn-validation (init!))))))
 
 (set! (.-onload js/window) init!)

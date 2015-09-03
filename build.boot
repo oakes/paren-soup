@@ -24,7 +24,7 @@
   (set-env! :source-paths #{"src" "test"})
   (comp (serve :dir "target/public")
         (watch)
-        (reload :on-jsload 'paren-soup.core/init-with-validation!)
+        (reload :on-jsload 'paren-soup.core/init-debug!)
         (cljs-repl)
         (cljs :source-map true :optimizations :none)))
 
