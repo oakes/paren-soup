@@ -358,7 +358,7 @@
                       (when-let [text (case char-code
                                         57 ")"
                                         219 (if (.-shiftKey event) "}" "]")
-                                        222 (if (.-shiftKey event) "\"" "")
+                                        222 (when (.-shiftKey event) "\"")
                                         nil)]
                         (.insertNode (.getRangeAt sel 0)
                           (.createTextNode js/document text)))
