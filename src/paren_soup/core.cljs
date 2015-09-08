@@ -245,13 +245,13 @@
   (let [text (.-textContent content)
         caret-position (.-start char-range)
         ; get the character before the caret (not including spaces)
-        prev-position (loop [i (dec caret-position)]
+        prev-position (loop [i caret-position]
                         (if (= " " (get text i))
                           (recur (dec i))
                           i))
         prev-char (get text prev-position)
         ; get the character after the caret (not including spaces)
-        next-position (loop [i caret-position]
+        next-position (loop [i (inc caret-position)]
                         (if (= " " (get text i))
                           (recur (inc i))
                           i))
