@@ -355,12 +355,13 @@
                   (when-not (contains? #{37 38 39 40} char-code)
                     (let [sel (.getSelection js/rangy)
                           ranges (.saveCharacterRanges sel content)]
-                      (when (contains? #{57 219} char-code)
+                      (when-let [text (case char-code
+                                        57 ")"
+                                        219 (if (.-shiftKey event) "}" "]")
+                                        222 (if (.-shiftKey event) "\"" "")
+                                        nil)]
                         (.insertNode (.getRangeAt sel 0)
-                          (.createTextNode js/document
-                            (case char-code
-                              57 ")"
-                              219 (if (.-shiftKey event) "}" "]")))))
+                          (.createTextNode js/document text)))
                       (refresh! instarepl numbers content events-chan eval-worker eval-worker-counter)
                       (when (contains? #{8 13} char-code)
                         (when-let [char-range (some-> ranges (get 0) .-characterRange)]
