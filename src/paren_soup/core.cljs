@@ -245,13 +245,13 @@
   (let [text (.-textContent content)
         caret-position (.-start char-range)
         ; get the character before the caret (not including spaces)
-        prev-position (loop [i caret-position]
+        prev-position (loop [i (dec caret-position)]
                         (if (= " " (get text i))
                           (recur (dec i))
                           i))
         prev-char (get text prev-position)
         ; get the character after the caret (not including spaces)
-        next-position (loop [i (inc caret-position)]
+        next-position (loop [i caret-position]
                         (if (= " " (get text i))
                           (recur (inc i))
                           i))
@@ -263,14 +263,12 @@
         (set! (.-end char-range) next-position))
       8 ; backspace
       (when (and (not= prev-position (dec caret-position))
+                 (even? (- caret-position prev-position))
                  (= prev-char \newline))
         (set! (.-start char-range) prev-position)
         (set! (.-end char-range) prev-position)
-        (let [range (.createRange js/rangy)
-              caret-position (if (contains? #{\) \] \} \newline} next-char)
-                               (inc caret-position)
-                               caret-position)]
-          (.selectCharacters range content prev-position caret-position)
+        (let [range (.createRange js/rangy)]
+          (.selectCharacters range content prev-position next-position)
           (.deleteContents range)))
       nil)))
 
@@ -356,6 +354,7 @@
                     (let [sel (.getSelection js/rangy)
                           ranges (.saveCharacterRanges sel content)]
                       (when-let [text (case char-code
+                                        51 (when (.-shiftKey event) "{}")
                                         57 ")"
                                         219 (if (.-shiftKey event) "}" "]")
                                         222 (when (.-shiftKey event) "\"")
