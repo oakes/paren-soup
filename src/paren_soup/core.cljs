@@ -300,11 +300,11 @@
    eval-worker-counter :- Any]
   (when instarepl
     (let [elems (get-collections content)
-          forms (into-array (map #(.-textContent %) elems))
-          top-offset (-> instarepl .getBoundingClientRect .-top (+ (.-scrollY js/window)))]
+          forms (into-array (map #(.-textContent %) elems))]
       (set! (.-onmessage eval-worker)
             (fn [e]
-              (let [[counter results] (.-data e)]
+              (let [[counter results] (.-data e)
+                    top-offset (-> instarepl .getBoundingClientRect .-top (+ (.-scrollY js/window)))]
                 (when (and (.-parentNode (first elems))
                            (= counter @eval-worker-counter))
                   (set! (.-innerHTML instarepl)
