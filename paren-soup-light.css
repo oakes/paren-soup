@@ -20,7 +20,7 @@
 
 .paren-soup .instarepl .result {
 	position: relative;
-	overflow: scroll;
+	overflow: hidden;
 	background-color: lightgreen;
 	outline: 1px solid;
 }
