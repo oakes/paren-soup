@@ -75,7 +75,7 @@
                                     eval-cb
                                     state))
               init-cb (fn [results]
-                        (eval-forms (map wrap-macroexpand forms) read-cb (empty-state)))]
+                        (eval-forms (map wrap-macroexpand forms) read-cb state))]
           (eval-forms ['(ns cljs.user)
                        '(def ^:private ps-last-time (atom 0))
                        '(defn ^:private ps-reset-timeout! []

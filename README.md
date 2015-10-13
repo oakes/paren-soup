@@ -25,7 +25,7 @@ If you just want a viewer, not an editor, leave out the `contenteditable` attrib
 
 I use [Boot](http://boot-clj.com/). To build the editor and run a server on http://localhost:3000, run `boot dev`. To build a release version, run `boot build`. I included a project.clj for Leiningen users, but haven't thoroughly tested it.
 
-A prebuilt copy of the compiler is already in the `resources` directory. You can built that project yourself using `boot build`, but you will need to build your own copy of ClojureScript until a version is released with [this patch](https://github.com/clojure/clojurescript/commit/1b7390450243693d0b24e8d3ad085c6da4eef204).
+A prebuilt copy of the compiler is already in the `resources` directory. If you want to build it yourself, go in the `compiler` directory and run `boot build`.
 
 ## Licensing
 
