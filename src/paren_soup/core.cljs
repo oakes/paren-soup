@@ -336,7 +336,7 @@
           numbers (.querySelector paren-soup ".numbers")
           content (.querySelector paren-soup ".content")
           events-chan (chan)
-          eval-worker (js/Worker. "paren-soup-compiler.js")
+          eval-worker (when instarepl (js/Worker. "paren-soup-compiler.js"))
           eval-worker-counter (atom 0)]
       (set! (.-spellcheck paren-soup) false)
       (when-not content
