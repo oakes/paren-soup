@@ -355,7 +355,7 @@
                           ranges (.saveCharacterRanges sel content)]
                       (when-let [text (case char-code
                                         51 (when (.-shiftKey event) "{}")
-                                        57 ")"
+                                        57 (when (.-shiftKey event) ")")
                                         219 (if (.-shiftKey event) "}" "]")
                                         222 (when (.-shiftKey event) "\"")
                                         nil)]
