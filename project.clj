@@ -3,16 +3,17 @@
   :url "https://github.com/oakes/paren-soup"
   :license {:name "Public Domain"
             :url "http://unlicense.org/UNLICENSE"}
-  :dependencies [[org.clojars.oakes/tools.reader "0.10.1-SNAPSHOT"
+  :dependencies [[org.clojars.oakes/tools.reader "1.0.0-SNAPSHOT"
                   :exclusions [org.clojure/clojure]]
-                 [org.clojure/clojure "1.7.0"]
+                 [org.clojure/clojure "1.8.0"]
                  [org.clojure/clojurescript "1.7.170"
                   :exclusions [org.clojure/tools.reader]]
-                 [org.clojure/core.async "0.1.346.0-17112a-alpha"]
+                 [org.clojure/core.async "0.2.374"
+                  :exclusions [org.clojure/tools.reader]]
                  [prismatic/schema "0.4.3"]]
   :profiles {:uberjar {:prep-tasks ["compile" ["cljsbuild" "once"]]}}
   :javac-options ["-target" "1.6" "-source" "1.6" "-Xlint:-options"]
-  :plugins [[lein-cljsbuild "1.1.0"]]
+  :plugins [[lein-cljsbuild "1.1.2"]]
   :cljsbuild { 
     :builds {
       :main {
