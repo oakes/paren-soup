@@ -59,9 +59,10 @@
     (array (.-message form) (.-fileName form) (.-lineNumber form))
     (pr-str form)))
 
+(defonce state (empty-state))
+
 (defn read-and-eval-forms [forms cb]
   (let [forms (mapv str->form forms)
-        state (empty-state)
         eval-cb (fn [results]
                   (cb (map form->serializable results)))
         read-cb (fn [results]
@@ -82,8 +83,8 @@
 
 (set! (.-onmessage js/self)
       (fn [e]
-        (let [[counter forms] (.-data e)]
+        (let [forms (.-data e)]
           (read-and-eval-forms
             forms
             (fn [results]
-              (.postMessage js/self (array counter (into-array results))))))))
+              (.postMessage js/self (into-array results)))))))

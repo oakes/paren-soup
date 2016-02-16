@@ -18,16 +18,16 @@
   '[adzerk.boot-cljs-repl :refer [cljs-repl start-repl]]
   '[pandeiro.boot-http :refer [serve]])
 
+(task-options!
+  cljs {:compiler-options {:static-fns true
+                           :optimize-constants true}})
+
 (deftask run []
   (comp (serve :dir "target/public")
         (watch)
         (cljs-repl)
-        (cljs :optimizations :none
-              :compiler-options {:static-fns true
-                                 :optimize-constants true})))
+        (cljs :optimizations :none)))
 
 (deftask build []
   (set-env! :source-paths #{"src"})
-  (comp (cljs :optimizations :simple
-              :compiler-options {:static-fns true
-                                 :optimize-constants true})))
+  (comp (cljs :optimizations :simple)))

@@ -296,20 +296,18 @@
   [instarepl :- (maybe js/Object)
    content :- js/Object
    events-chan :- Any
-   eval-worker :- js/Object
-   eval-worker-counter :- Any]
+   eval-worker :- js/Object]
   (when instarepl
     (let [elems (get-collections content)
           forms (into-array (map #(.-textContent %) elems))]
       (set! (.-onmessage eval-worker)
             (fn [e]
-              (let [[counter results] (.-data e)
+              (let [results (.-data e)
                     top-offset (-> instarepl .getBoundingClientRect .-top (+ (.-scrollY js/window)))]
-                (when (and (.-parentNode (first elems))
-                           (= counter @eval-worker-counter))
+                (when (.-parentNode (first elems))
                   (set! (.-innerHTML instarepl)
                         (results->html elems results top-offset))))))
-      (.postMessage eval-worker (array (swap! eval-worker-counter inc) forms)))))
+      (.postMessage eval-worker forms))))
 
 (defn refresh!
   "Refreshes everything."
@@ -317,8 +315,7 @@
    numbers :- (maybe js/Object)
    content :- js/Object
    events-chan :- Any
-   eval-worker :- js/Object
-   eval-worker-counter :- Any]
+   eval-worker :- js/Object]
   (let [html (.-innerHTML content)]
     (set! (.-innerHTML content)
           (if (>= (.indexOf html "<br>") 0)
@@ -327,7 +324,7 @@
   (let [lines (split-lines-without-indent (.-textContent content))]
     (refresh-content! content events-chan lines)
     (refresh-numbers! numbers (dec (count lines)))
-    (refresh-instarepl! instarepl content events-chan eval-worker eval-worker-counter)))
+    (refresh-instarepl! instarepl content events-chan eval-worker)))
 
 (defn init! []
   (.init js/rangy)
@@ -336,12 +333,11 @@
           numbers (.querySelector paren-soup ".numbers")
           content (.querySelector paren-soup ".content")
           events-chan (chan)
-          eval-worker (when instarepl (js/Worker. "paren-soup-compiler.js"))
-          eval-worker-counter (atom 0)]
+          eval-worker (when instarepl (js/Worker. "paren-soup-compiler.js"))]
       (set! (.-spellcheck paren-soup) false)
       (when-not content
         (throw (js/Error. "Can't find a div with class 'content'")))
-      (refresh! instarepl numbers content events-chan eval-worker eval-worker-counter)
+      (refresh! instarepl numbers content events-chan eval-worker)
       (events/removeAll content)
       (events/listen content "keydown" #(put! events-chan %))
       (events/listen content "paste" #(put! events-chan %))
@@ -361,17 +357,17 @@
                                         nil)]
                         (.insertNode (.getRangeAt sel 0)
                           (.createTextNode js/document text)))
-                      (refresh! instarepl numbers content events-chan eval-worker eval-worker-counter)
+                      (refresh! instarepl numbers content events-chan eval-worker)
                       (when (contains? #{8 13} char-code)
                         (when-let [char-range (some-> ranges (get 0) .-characterRange)]
                           (move-caret! content char-range char-code)
                           (refresh-numbers! numbers (-> (.-textContent content) split-lines-without-indent count dec))
-                          (refresh-instarepl! instarepl content events-chan eval-worker eval-worker-counter)))
+                          (refresh-instarepl! instarepl content events-chan eval-worker)))
                       (.restoreCharacterRanges sel content ranges))))
                 "paste"
                 (let [sel (.getSelection js/rangy)
                       ranges (.saveCharacterRanges sel content)]
-                  (refresh! instarepl numbers content events-chan eval-worker eval-worker-counter)
+                  (refresh! instarepl numbers content events-chan eval-worker)
                   (.restoreCharacterRanges sel content ranges))
                 "mouseenter"
                 (let [elem (.-target event)
