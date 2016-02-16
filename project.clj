@@ -6,7 +6,7 @@
   :dependencies [[org.clojars.oakes/tools.reader "1.0.0-SNAPSHOT"
                   :exclusions [org.clojure/clojure]]
                  [org.clojure/clojure "1.8.0"]
-                 [org.clojure/clojurescript "1.7.170"
+                 [org.clojure/clojurescript "1.7.228"
                   :exclusions [org.clojure/tools.reader]]
                  [org.clojure/core.async "0.2.374"
                   :exclusions [org.clojure/tools.reader]]

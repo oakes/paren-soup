@@ -17,14 +17,13 @@
           (try
             (let [form (first @forms)]
               (if (instance? js/Error form)
-                (put! channel [form])
-                (eval state form opts
-                      (fn [result]
-                        (put! channel [(or (:error result) result)])))))
-            (catch js/Error e (put! channel [e])))
+                (put! channel {:error form})
+                (eval state form opts #(put! channel %))))
+            (catch js/Error e (put! channel {:error e})))
           (swap! forms rest)
-          (swap! results conj (first (<! channel))))
-        (cb @results))))
+          (swap! results conj (<! channel)))
+        (cb (mapv #(or (:error %) (:value %))
+                  @results)))))
 
 (defn str->form [s]
   (try
@@ -60,28 +59,31 @@
     (array (.-message form) (.-fileName form) (.-lineNumber form))
     (pr-str form)))
 
+(defn read-and-eval-forms [forms cb]
+  (let [forms (mapv str->form forms)
+        state (empty-state)
+        eval-cb (fn [results]
+                  (cb (map form->serializable results)))
+        read-cb (fn [results]
+                  (eval-forms (add-timeouts-if-necessary forms results)
+                              eval-cb
+                              state))
+        init-cb (fn [results]
+                  (eval-forms (map wrap-macroexpand forms) read-cb state))]
+    (eval-forms ['(ns cljs.user)
+                 '(def ^:private ps-last-time (atom 0))
+                 '(defn ^:private ps-reset-timeout! []
+                    (reset! ps-last-time (.getTime (js/Date.))))
+                 '(defn ^:private ps-check-for-timeout! []
+                    (when (> (- (.getTime (js/Date.)) @ps-last-time) 2000)
+                      (throw (js/Error. "Execution timed out."))))]
+                init-cb
+                state)))
+
 (set! (.-onmessage js/self)
       (fn [e]
-        (let [[counter forms] (.-data e)
-              forms (mapv str->form forms)
-              state (empty-state)
-              eval-cb (fn [results]
-                        (->> (map form->serializable results)
-                             into-array
-                             (array counter)
-                             (.postMessage js/self)))
-              read-cb (fn [results]
-                        (eval-forms (add-timeouts-if-necessary forms results)
-                                    eval-cb
-                                    state))
-              init-cb (fn [results]
-                        (eval-forms (map wrap-macroexpand forms) read-cb state))]
-          (eval-forms ['(ns cljs.user)
-                       '(def ^:private ps-last-time (atom 0))
-                       '(defn ^:private ps-reset-timeout! []
-                          (reset! ps-last-time (.getTime (js/Date.))))
-                       '(defn ^:private ps-check-for-timeout! []
-                          (when (> (- (.getTime (js/Date.)) @ps-last-time) 2000)
-                            (throw (js/Error. "Execution timed out."))))]
-                      init-cb
-                      state))))
+        (let [[counter forms] (.-data e)]
+          (read-and-eval-forms
+            forms
+            (fn [results]
+              (.postMessage js/self (array counter (into-array results))))))))
