@@ -19,6 +19,26 @@
       (read reader false nil))
     (catch js/Error e e)))
 
+(defn show-error!
+  "Shows a popup with an error message."
+  [parent-elem :- js/Object
+   event :- js/Object]
+  (let [elem (.-target event)
+        x (.-clientX event)
+        y (.-clientY event)]
+    (let [popup (.createElement js/document "div")]
+      (aset popup "textContent" (-> elem .-dataset .-message))
+      (aset (.-style popup) "top" (str y "px"))
+      (aset (.-style popup) "left" (str x "px"))
+      (aset popup "className" "error-text")
+      (.appendChild parent-elem popup))))
+
+(defn hide-errors!
+  "Hides all error popups."
+  [parent-elem :- js/Object]
+  (doseq [elem (-> parent-elem (.querySelectorAll ".error-text") array-seq)]
+    (.removeChild parent-elem elem)))
+
 (defn tag-list :- [{Keyword Any}]
   "Returns a list of maps describing each tag."
   ([token :- Any]
@@ -265,22 +285,33 @@
                         (results->html elems results top-offset))))))
       (.postMessage eval-worker forms))))
 
-(defn pos->row-col :- [Int]
+(defn index->row-col :- [Int]
+  "Converts an index to a row and column number."
   [content :- Str
-   position :- Int]
-  (let [s (subs content 0 position)
+   index :- Int]
+  (let [s (subs content 0 index)
         last-newline (.lastIndexOf s \newline)
-        col (- position last-newline)
+        col (- index last-newline)
         row (count (re-seq #"\n" s))]
     [row (dec col)]))
 
-(defn row-col->pos :- Int
+(defn row-col->index :- Int
+  "Converts a row and column number to an index."
   [content :- Str
    row :- Int
    col :- Int]
   (let [s (join \newline (take row (split content #"\n")))
-        pos (+ (count s) (inc col))]
-    pos))
+        index (+ (count s) (inc col))]
+    index))
+
+(defn br->newline!
+  "Replaces <br> tags with newline chars."
+  [content :- js/Object]
+  (let [html (.-innerHTML content)]
+    (set! (.-innerHTML content)
+          (if (>= (.indexOf html "<br>") 0)
+            (-> html (replace "<br>" \newline) (replace "</br>" ""))
+            (-> html (replace "<div>" \newline) (replace "</div>" ""))))))
 
 (defn refresh!
   "Refreshes everything."
@@ -289,20 +320,19 @@
    content :- js/Object
    events-chan :- Any
    eval-worker :- js/Object
-   & [char-code char-range]]
-  (let [html (.-innerHTML content)]
-    (set! (.-innerHTML content)
-          (if (>= (.indexOf html "<br>") 0)
-            (-> html (replace "<br>" \newline) (replace "</br>" ""))
-            (-> html (replace "<div>" \newline) (replace "</div>" "")))))
-  (let [text (.-textContent content)
+   paren-mode? :- Bool]
+  (let [sel (.getSelection js/rangy)
+        ranges (.saveCharacterRanges sel content)
+        char-range (some-> ranges (get 0) .-characterRange)
+        _ (br->newline! content)
+        text (.-textContent content)
         [row col] (if char-range
-                    (pos->row-col text (.-start char-range))
+                    (index->row-col text (.-start char-range))
                     [0 0])
         opts (when char-range
                #js {:cursorLine row
                     :cursorX col})
-        result (if (= char-code 13)
+        result (if paren-mode?
                  (.parenMode js/parinfer text opts)
                  (.indentMode js/parinfer text opts))
         lines (custom-split-lines (.-text result))]
@@ -310,9 +340,10 @@
     (refresh-numbers! numbers (dec (count lines)))
     (refresh-instarepl! instarepl content events-chan eval-worker)
     (when char-range
-      (move-caret! char-range (row-col->pos (.-textContent content) row col)))
-    (when (= char-code 13)
-      (indent-caret! content char-range))))
+      (move-caret! char-range (row-col->index (.-textContent content) row col)))
+    (when (and paren-mode? char-range)
+      (indent-caret! content char-range))
+    (.restoreCharacterRanges sel content ranges)))
 
 (defn init! []
   (.init js/rangy)
@@ -325,9 +356,7 @@
       (set! (.-spellcheck paren-soup) false)
       (when-not content
         (throw (js/Error. "Can't find a div with class 'content'")))
-      (set! (.-textContent content)
-            (.-text (.parenMode js/parinfer (.-textContent content))))
-      (refresh! instarepl numbers content events-chan eval-worker)
+      (refresh! instarepl numbers content events-chan eval-worker true)
       (events/removeAll content)
       (events/listen content "keydown" #(put! events-chan %))
       (events/listen content "paste" #(put! events-chan %))
@@ -337,29 +366,13 @@
                 "keydown"
                 (let [char-code (.-keyCode event)]
                   (when-not (contains? #{37 38 39 40} char-code)
-                    (let [sel (.getSelection js/rangy)
-                          ranges (.saveCharacterRanges sel content)
-                          char-range (some-> ranges (get 0) .-characterRange)]
-                      (refresh! instarepl numbers content events-chan eval-worker char-code char-range)
-                      (.restoreCharacterRanges sel content ranges))))
+                    (refresh! instarepl numbers content events-chan eval-worker (= char-code 13))))
                 "paste"
-                (let [sel (.getSelection js/rangy)
-                      ranges (.saveCharacterRanges sel content)]
-                  (refresh! instarepl numbers content events-chan eval-worker)
-                  (.restoreCharacterRanges sel content ranges))
+                (refresh! instarepl numbers content events-chan eval-worker false)
                 "mouseenter"
-                (let [elem (.-target event)
-                      x (.-clientX event)
-                      y (.-clientY event)]
-                  (let [popup (.createElement js/document "div")]
-                    (aset popup "textContent" (-> elem .-dataset .-message))
-                    (aset (.-style popup) "top" (str y "px"))
-                    (aset (.-style popup) "left" (str x "px"))
-                    (aset popup "className" "error-text")
-                    (.appendChild paren-soup popup)))
+                (show-error! paren-soup event)
                 "mouseleave"
-                (doseq [elem (-> paren-soup (.querySelectorAll ".error-text") array-seq)]
-                  (.removeChild paren-soup elem))
+                (hide-errors! paren-soup)
                 nil)))))))
 
 (defn init-debug! []
