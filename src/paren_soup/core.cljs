@@ -2,12 +2,12 @@
   (:require [cljs.core.async :refer [chan put! <!]]
             [cljs.tools.reader :refer [read *wrap-value-and-add-metadata?*]]
             [cljs.tools.reader.reader-types :refer [indexing-push-back-reader]]
-            [clojure.string :refer [escape split-lines join replace trim triml]]
-            [clojure.walk :refer [postwalk]]
+            [clojure.string :refer [escape split-lines join replace split]]
             [goog.events :as events]
             [rangy.core]
             [rangy.textrange]
-            [schema.core :refer [maybe either Any Str Int Keyword Bool]])
+            [schema.core :refer [maybe either Any Str Int Keyword Bool]]
+            [parinfer.core])
   (:require-macros [schema.core :refer [defn with-fn-validation]]
                    [cljs.core.async.macros :refer [go]]))
 
@@ -67,30 +67,6 @@
            ; end tag
            {:end-line end-line :end-column end-column :level (+ parent-level parent-adjust parent-column)}])))))
 
-(defn indent-list :- [{Keyword Any}]
-  "Returns a list of maps describing each indent tag."
-  [tags :- [{Keyword Any}]
-   line-count :- Int]
-  (let [string-lines (set (sequence (comp (filter #(string? (:value %)))
-                                          (mapcat :line-range))
-                                    tags))
-        tags-by-line (group-by #(or (:line %) (:end-line %)) tags)]
-    (loop [i 1
-           current-level 0
-           result (transient [])]
-      (if (<= i line-count)
-        (recur (inc i)
-               (or (some-> (get tags-by-line i) last :level)
-                   current-level)
-               (if (contains? string-lines i)
-                 result
-                 (conj! result
-                        {:line i
-                         :column 1
-                         :level current-level
-                         :indent? true})))
-        (persistent! result)))))
-
 (defn escape-html :- Str
   [s :- Str]
   (escape s {\< "&lt;"
@@ -102,9 +78,6 @@
   "Returns an HTML string for the given tag description."
   [tag :- {Keyword Any}]
   (cond
-    (:indent? tag) (str "<span class='indent'>"
-                        (join (repeat (:level tag) " "))
-                        "</span>")
     (:delimiter? tag) "<span class='delimiter'>"
     (:error? tag) (str "<span class='error' data-message='"
                        (some-> (:message tag) escape-html)
@@ -158,7 +131,6 @@
   (let [reader (indexing-push-back-reader (join \newline lines))
         tags (sequence (comp (take-while some?) (mapcat tag-list))
                        (repeatedly (partial read-safe reader)))
-        tags (concat (indent-list tags (count lines)) tags)
         get-line #(or (:line %) (:end-line %))
         tags-by-line (group-by get-line tags)]
     (sequence (comp (partition-all 2)
@@ -225,52 +197,37 @@
   (join (for [i (range line-count)]
           (str "<div>" (inc i) "</div>"))))
 
-(defn split-lines-without-indent :- [Str]
-  "Splits the string into lines while removing all indentation."
+(defn custom-split-lines :- [Str]
+  "Splits the string into lines."
   [s :- Str]
   (let [s (if-not (= \newline (last s))
             (str s "\n ")
             (str s " "))
-        lines (map triml (split-lines s))
+        lines (split-lines s)
         last-line (last lines)
         last-line-len (max 0 (dec (count last-line)))]
     (conj (vec (butlast lines))
           (subs last-line 0 last-line-len))))
 
 (defn move-caret!
-  "Moves the caret as necessary."
+  "Moves the caret to the specified position."
+  [char-range :- js/Object
+   pos :- Int]
+  (set! (.-start char-range) pos)
+  (set! (.-end char-range) pos))
+
+(defn indent-caret!
+  "Moves the caret to the first non-space character of the line."
   [content :- js/Object
-   char-range :- js/Object
-   char-code :- Int]
+   char-range :- js/Object]
   (let [text (.-textContent content)
         caret-position (.-start char-range)
-        ; get the character before the caret (not including spaces)
-        prev-position (loop [i (dec caret-position)]
-                        (if (= " " (get text i))
-                          (recur (dec i))
-                          i))
-        prev-char (get text prev-position)
         ; get the character after the caret (not including spaces)
         next-position (loop [i caret-position]
                         (if (= " " (get text i))
                           (recur (inc i))
-                          i))
-        next-char (get text next-position)]
-    (case char-code
-      13 ; return
-      (when (not= next-position caret-position)
-        (set! (.-start char-range) next-position)
-        (set! (.-end char-range) next-position))
-      8 ; backspace
-      (when (and (not= prev-position (dec caret-position))
-                 (even? (- caret-position prev-position))
-                 (= prev-char \newline))
-        (set! (.-start char-range) prev-position)
-        (set! (.-end char-range) prev-position)
-        (let [range (.createRange js/rangy)]
-          (.selectCharacters range content prev-position next-position)
-          (.deleteContents range)))
-      nil)))
+                          i))]
+    (move-caret! char-range next-position)))
 
 (defn refresh-content!
   "Refreshes the contents."
@@ -282,7 +239,7 @@
     (events/listen elem "mouseenter" #(put! events-chan %))
     (events/listen elem "mouseleave" #(put! events-chan %)))
   (doseq [[elem class-name] (rainbow-delimiters content -1)]
-    (set! (.-className elem) class-name)))
+    (.add (.-classList elem) class-name)))
 
 (defn refresh-numbers!
   "Refreshes the line numbers."
@@ -309,22 +266,54 @@
                         (results->html elems results top-offset))))))
       (.postMessage eval-worker forms))))
 
+(defn pos->row-col :- [Int]
+  [content :- Str
+   position :- Int]
+  (let [s (subs content 0 position)
+        last-newline (.lastIndexOf s \newline)
+        col (- position last-newline)
+        row (count (re-seq #"\n" s))]
+    [row (dec col)]))
+
+(defn row-col->pos :- Int
+  [content :- Str
+   row :- Int
+   col :- Int]
+  (let [s (join \newline (take row (split content #"\n")))
+        pos (+ (count s) (inc col))]
+    pos))
+
 (defn refresh!
   "Refreshes everything."
   [instarepl :- (maybe js/Object)
    numbers :- (maybe js/Object)
    content :- js/Object
    events-chan :- Any
-   eval-worker :- js/Object]
+   eval-worker :- js/Object
+   & [char-code char-range]]
   (let [html (.-innerHTML content)]
     (set! (.-innerHTML content)
           (if (>= (.indexOf html "<br>") 0)
             (-> html (replace "<br>" \newline) (replace "</br>" ""))
             (-> html (replace "<div>" \newline) (replace "</div>" "")))))
-  (let [lines (split-lines-without-indent (.-textContent content))]
+  (let [text (.-textContent content)
+        [row col] (if char-range
+                    (pos->row-col text (.-start char-range))
+                    [0 0])
+        opts (when char-range
+               #js {:cursorLine row
+                    :cursorX col})
+        result (if (= char-code 13)
+                 (.parenMode js/parinfer text opts)
+                 (.indentMode js/parinfer text opts))
+        lines (custom-split-lines (.-text result))]
     (refresh-content! content events-chan lines)
     (refresh-numbers! numbers (dec (count lines)))
-    (refresh-instarepl! instarepl content events-chan eval-worker)))
+    (refresh-instarepl! instarepl content events-chan eval-worker)
+    (when char-range
+      (move-caret! char-range (row-col->pos (.-textContent content) row col)))
+    (when (= char-code 13)
+      (indent-caret! content char-range))))
 
 (defn init! []
   (.init js/rangy)
@@ -337,6 +326,8 @@
       (set! (.-spellcheck paren-soup) false)
       (when-not content
         (throw (js/Error. "Can't find a div with class 'content'")))
+      (set! (.-textContent content)
+            (.-text (.parenMode js/parinfer (.-textContent content))))
       (refresh! instarepl numbers content events-chan eval-worker)
       (events/removeAll content)
       (events/listen content "keydown" #(put! events-chan %))
@@ -348,21 +339,9 @@
                 (let [char-code (.-keyCode event)]
                   (when-not (contains? #{37 38 39 40} char-code)
                     (let [sel (.getSelection js/rangy)
-                          ranges (.saveCharacterRanges sel content)]
-                      (when-let [text (case char-code
-                                        51 (when (.-shiftKey event) "{}")
-                                        57 (when (.-shiftKey event) ")")
-                                        219 (if (.-shiftKey event) "}" "]")
-                                        222 (when (.-shiftKey event) "\"")
-                                        nil)]
-                        (.insertNode (.getRangeAt sel 0)
-                          (.createTextNode js/document text)))
-                      (refresh! instarepl numbers content events-chan eval-worker)
-                      (when (contains? #{8 13} char-code)
-                        (when-let [char-range (some-> ranges (get 0) .-characterRange)]
-                          (move-caret! content char-range char-code)
-                          (refresh-numbers! numbers (-> (.-textContent content) split-lines-without-indent count dec))
-                          (refresh-instarepl! instarepl content events-chan eval-worker)))
+                          ranges (.saveCharacterRanges sel content)
+                          char-range (some-> ranges (get 0) .-characterRange)]
+                      (refresh! instarepl numbers content events-chan eval-worker char-code char-range)
                       (.restoreCharacterRanges sel content ranges))))
                 "paste"
                 (let [sel (.getSelection js/rangy)

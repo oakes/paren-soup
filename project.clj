@@ -24,6 +24,8 @@
                    :foreign-libs [{:file "src/js/rangy-core.js"
                                    :provides ["rangy.core"]}
                                   {:file "src/js/rangy-textrange.js"
-                                   :provides ["rangy.textrange"]}]}
+                                   :provides ["rangy.textrange"]}
+                                  {:file "js/parinfer.js"
+                                   :provides ["parinfer.core"]}]}
         :jar true}}}
   :main paren-soup.core)
