@@ -217,12 +217,11 @@
   (set! (.-end char-range) pos))
 
 (defn indent-caret!
-  "Moves the caret to the first non-space character of the line."
+  "Moves the caret to the last non-space character of the line."
   [content :- js/Object
    char-range :- js/Object]
   (let [text (.-textContent content)
         caret-position (.-start char-range)
-        ; get the character after the caret (not including spaces)
         next-position (loop [i caret-position]
                         (if (= " " (get text i))
                           (recur (inc i))
@@ -256,7 +255,7 @@
    eval-worker :- js/Object]
   (when instarepl
     (let [elems (get-collections content)
-          forms (into-array (map #(.-textContent %) elems))]
+          forms (into-array (map #(-> % .-textContent (replace \u00a0 " ")) elems))]
       (set! (.-onmessage eval-worker)
             (fn [e]
               (let [results (.-data e)
