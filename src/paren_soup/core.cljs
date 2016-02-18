@@ -365,7 +365,12 @@
               (case (.-type event)
                 "keydown"
                 (let [char-code (.-keyCode event)]
-                  (when-not (contains? #{37 38 39 40} char-code)
+                  (when-not (contains? #{37 38 39 40 ; arrows
+                                         17 ; ctrl
+                                         18 ; alt
+                                         91 93 ; meta
+                                         }
+                                       char-code)
                     (refresh! instarepl numbers content events-chan eval-worker (= char-code 13))))
                 "paste"
                 (refresh! instarepl numbers content events-chan eval-worker false)
