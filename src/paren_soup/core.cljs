@@ -335,12 +335,13 @@
         result (if paren-mode?
                  (.parenMode js/parinfer text opts)
                  (.indentMode js/parinfer text opts))
-        lines (custom-split-lines (.-text result))]
+        text (.-text result)
+        lines (custom-split-lines text)]
     (refresh-content! content events-chan lines)
     (refresh-numbers! numbers (dec (count lines)))
     (refresh-instarepl! instarepl content events-chan eval-worker)
     (when char-range
-      (move-caret! char-range (row-col->index (.-textContent content) row col)))
+      (move-caret! char-range (row-col->index text row col)))
     (when (and paren-mode? char-range)
       (indent-caret! content char-range))
     (.restoreCharacterRanges sel content ranges)))
