@@ -229,36 +229,53 @@
     (conj (vec (butlast lines))
           (subs last-line 0 last-line-len))))
 
-(defn move-caret!
-  "Moves the caret to the specified position."
-  [char-range :- js/Object
-   pos :- Int]
-  (set! (.-start char-range) pos)
-  (set! (.-end char-range) pos))
+(defn get-selection :- js/Object
+  "Returns the objects related to selection for the given element."
+  [content :- js/Object]
+  (let [selection (.getSelection js/rangy)
+        ranges (.saveCharacterRanges selection content)
+        char-range (some-> ranges (get 0) .-characterRange)]
+    {:selection selection :ranges ranges :char-range char-range}))
 
-(defn indent-caret!
-  "Moves the caret to the last non-space character of the line."
+(defn get-cursor-index :- (maybe Int)
+  "Returns the index of the cursor position."
+  [content :- js/Object]
+  (some-> content get-selection :char-range .-start))
+
+(defn move-cursor!
+  "Moves the cursor to the specified position."
   [content :- js/Object
-   char-range :- js/Object]
-  (let [text (.-textContent content)
-        caret-position (.-start char-range)
-        next-position (loop [i caret-position]
-                        (if (= " " (get text i))
-                          (recur (inc i))
-                          i))]
-    (move-caret! char-range next-position)))
+   pos :- Int]
+  (let [{:keys [selection ranges char-range]} (get-selection content)]
+    (when (and selection ranges char-range)
+      (set! (.-start char-range) pos)
+      (set! (.-end char-range) pos)
+      (.restoreCharacterRanges selection content ranges))))
+
+(defn indent-cursor!
+  "Moves the cursor to the last non-space character of the line."
+  [content :- js/Object]
+  (when-let [cursor-position (get-cursor-index content)]
+    (let [text (.-textContent content)
+          next-position (loop [i cursor-position]
+                          (if (= " " (get text i))
+                            (recur (inc i))
+                            i))]
+      (move-cursor! content next-position))))
 
 (defn refresh-content!
   "Refreshes the contents."
   [content :- js/Object
    events-chan :- Any
-   lines :- [Str]]
+   lines :- [Str]
+   index :- Int]
   (set! (.-innerHTML content) (join \newline (lines->html lines)))
   (doseq [elem (-> content (.querySelectorAll ".error") array-seq)]
     (events/listen elem "mouseenter" #(put! events-chan %))
     (events/listen elem "mouseleave" #(put! events-chan %)))
   (doseq [[elem class-name] (rainbow-delimiters content -1)]
-    (.add (.-classList elem) class-name)))
+    (.add (.-classList elem) class-name))
+  (move-cursor! content index))
 
 (defn refresh-numbers!
   "Refreshes the line numbers."
@@ -313,6 +330,24 @@
             (-> html (replace "<br>" \newline) (replace "</br>" ""))
             (-> html (replace "<div>" \newline) (replace "</div>" ""))))))
 
+(defn update-edit-history!
+  "Updates the edit history atom."
+  [edit-history :- Any
+   index :- Int
+   lines :- [Str]]
+  (swap! edit-history update-in [:index] inc)
+  (swap! edit-history update-in [:state] subvec 0 (:index @edit-history))
+  (swap! edit-history update-in [:state] conj {:lines lines :cursor-index index}))
+
+(defn get-parinfer-opts :- js/Object
+  "Returns an options object for parinfer."
+  [text :- Str
+   index :- (maybe Int)]
+  (let [[row col] (if index
+                    (index->row-col text index)
+                    [0 0])]
+    #js {:cursorLine row :cursorX col}))
+
 (defn refresh!
   "Refreshes everything."
   [instarepl :- (maybe js/Object)
@@ -320,31 +355,23 @@
    content :- js/Object
    events-chan :- Any
    eval-worker :- js/Object
+   edit-history :- Any
    paren-mode? :- Bool]
-  (let [sel (.getSelection js/rangy)
-        ranges (.saveCharacterRanges sel content)
-        char-range (some-> ranges (get 0) .-characterRange)
+  (let [index (get-cursor-index content)
         _ (br->newline! content)
         text (.-textContent content)
-        [row col] (if char-range
-                    (index->row-col text (.-start char-range))
-                    [0 0])
-        opts (when char-range
-               #js {:cursorLine row
-                    :cursorX col})
+        opts (get-parinfer-opts text index)
         result (if paren-mode?
                  (.parenMode js/parinfer text opts)
                  (.indentMode js/parinfer text opts))
         text (.-text result)
-        lines (custom-split-lines text)]
-    (refresh-content! content events-chan lines)
+        lines (custom-split-lines text)
+        index (row-col->index text (.-cursorLine opts) (.-cursorX opts))]
+    (update-edit-history! edit-history index lines)
+    (refresh-content! content events-chan lines index)
     (refresh-numbers! numbers (dec (count lines)))
     (refresh-instarepl! instarepl content events-chan eval-worker)
-    (when char-range
-      (move-caret! char-range (row-col->index text row col)))
-    (when (and paren-mode? char-range)
-      (indent-caret! content char-range))
-    (.restoreCharacterRanges sel content ranges)))
+    (when paren-mode? (indent-cursor! content))))
 
 (defn init! []
   (.init js/rangy)
@@ -353,28 +380,48 @@
           numbers (.querySelector paren-soup ".numbers")
           content (.querySelector paren-soup ".content")
           events-chan (chan)
-          eval-worker (when instarepl (js/Worker. "paren-soup-compiler.js"))]
+          eval-worker (when instarepl (js/Worker. "paren-soup-compiler.js"))
+          edit-history (atom {:index -1 :state []})]
       (set! (.-spellcheck paren-soup) false)
       (when-not content
         (throw (js/Error. "Can't find a div with class 'content'")))
-      (refresh! instarepl numbers content events-chan eval-worker true)
+      (refresh! instarepl numbers content events-chan eval-worker edit-history true)
       (events/removeAll content)
-      (events/listen content "keydown" #(put! events-chan %))
+      (events/listen content "keydown" (fn [e]
+                                         (put! events-chan e)
+                                         (when (and (.-metaKey e) (= (.-keyCode e) 90))
+                                           (.preventDefault e))))
       (events/listen content "paste" #(put! events-chan %))
       (go (while true
             (let [event (<! events-chan)]
               (case (.-type event)
                 "keydown"
                 (let [char-code (.-keyCode event)]
-                  (when-not (contains? #{37 38 39 40 ; arrows
-                                         17 ; ctrl
-                                         18 ; alt
-                                         91 93 ; meta
-                                         }
-                                       char-code)
-                    (refresh! instarepl numbers content events-chan eval-worker (= char-code 13))))
+                  (cond
+                    (and (.-metaKey event) (= char-code 90))
+                    (let [{:keys [index state]} @edit-history]
+                      (if (.-shiftKey event)
+                        (when-let [new-state (get state (inc index))]
+                          (swap! edit-history update-in [:index] inc)
+                          (refresh-content! content events-chan (:lines new-state) (:cursor-index new-state))
+                          (refresh-numbers! numbers (dec (count (:lines new-state))))
+                          (refresh-instarepl! instarepl content events-chan eval-worker))
+                        (when-let [new-state (get state (dec index))]
+                          (swap! edit-history update-in [:index] dec)
+                          (refresh-content! content events-chan (:lines new-state) (:cursor-index new-state))
+                          (refresh-numbers! numbers (dec (count (:lines new-state))))
+                          (refresh-instarepl! instarepl content events-chan eval-worker))))
+                    
+                    (not (contains? #{37 38 39 40 ; arrows
+                                      16 ; shift
+                                      17 ; ctrl
+                                      18 ; alt
+                                      91 93 ; meta
+                                      }
+                                    char-code))
+                    (refresh! instarepl numbers content events-chan eval-worker edit-history (= char-code 13))))
                 "paste"
-                (refresh! instarepl numbers content events-chan eval-worker false)
+                (refresh! instarepl numbers content events-chan eval-worker edit-history false)
                 "mouseenter"
                 (show-error! paren-soup event)
                 "mouseleave"
