@@ -237,10 +237,10 @@
         char-range (some-> ranges (get 0) .-characterRange)]
     {:selection selection :ranges ranges :char-range char-range}))
 
-(defn get-cursor-index :- (maybe Int)
+(defn get-cursor-index :- Int
   "Returns the index of the cursor position."
   [content :- js/Object]
-  (some-> content get-selection :char-range .-start))
+  (or (some-> content get-selection :char-range .-start) -1))
 
 (defn move-cursor!
   "Moves the cursor to the specified position."
@@ -251,17 +251,6 @@
       (set! (.-start char-range) pos)
       (set! (.-end char-range) pos)
       (.restoreCharacterRanges selection content ranges))))
-
-(defn indent-cursor!
-  "Moves the cursor to the last non-space character of the line."
-  [content :- js/Object]
-  (when-let [cursor-position (get-cursor-index content)]
-    (let [text (.-textContent content)
-          next-position (loop [i cursor-position]
-                          (if (= " " (get text i))
-                            (recur (inc i))
-                            i))]
-      (move-cursor! content next-position))))
 
 (defn refresh-content!
   "Refreshes the contents."
@@ -304,9 +293,9 @@
 
 (defn index->row-col :- [Int]
   "Converts an index to a row and column number."
-  [content :- Str
+  [text :- Str
    index :- Int]
-  (let [s (subs content 0 index)
+  (let [s (subs text 0 index)
         last-newline (.lastIndexOf s \newline)
         col (- index last-newline)
         row (count (re-seq #"\n" s))]
@@ -314,10 +303,10 @@
 
 (defn row-col->index :- Int
   "Converts a row and column number to an index."
-  [content :- Str
+  [text :- Str
    row :- Int
    col :- Int]
-  (let [s (join \newline (take row (split content #"\n")))
+  (let [s (join \newline (take row (split text #"\n")))
         index (+ (count s) (inc col))]
     index))
 
@@ -342,10 +331,8 @@
 (defn get-parinfer-opts :- js/Object
   "Returns an options object for parinfer."
   [text :- Str
-   index :- (maybe Int)]
-  (let [[row col] (if index
-                    (index->row-col text index)
-                    [0 0])]
+   index :- Int]
+  (let [[row col] (index->row-col text index)]
     #js {:cursorLine row :cursorX col}))
 
 (defn refresh!
@@ -366,12 +353,11 @@
                  (.indentMode js/parinfer text opts))
         text (.-text result)
         lines (custom-split-lines text)
-        index (row-col->index text (.-cursorLine opts) (.-cursorX opts))]
+        index (row-col->index text (.-cursorLine opts) (.-cursorX result))]
     (update-edit-history! edit-history index lines)
     (refresh-content! content events-chan lines index)
     (refresh-numbers! numbers (dec (count lines)))
-    (refresh-instarepl! instarepl content events-chan eval-worker)
-    (when paren-mode? (indent-cursor! content))))
+    (refresh-instarepl! instarepl content events-chan eval-worker)))
 
 (defn init! []
   (.init js/rangy)
