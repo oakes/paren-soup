@@ -322,9 +322,9 @@
   "Updates the edit history atom."
   [edit-history :- Any
    state :- {Keyword Any}]
-  (swap! edit-history update-in [:index] inc)
-  (swap! edit-history update-in [:state] subvec 0 (:index @edit-history))
-  (swap! edit-history update-in [:state] conj state))
+  (swap! edit-history update-in [:current-state] inc)
+  (swap! edit-history update-in [:states] subvec 0 (:current-state @edit-history))
+  (swap! edit-history update-in [:states] conj state))
 
 (defn get-parinfer-opts :- js/Object
   "Returns an options object for parinfer."
@@ -372,7 +372,7 @@
           content (.querySelector paren-soup ".content")
           events-chan (chan)
           eval-worker (when instarepl (js/Worker. "paren-soup-compiler.js"))
-          edit-history (atom {:index -1 :state []})]
+          edit-history (atom {:current-state -1 :states []})]
       (set! (.-spellcheck paren-soup) false)
       (when-not content
         (throw (js/Error. "Can't find a div with class 'content'")))
@@ -390,17 +390,17 @@
                 (let [char-code (.-keyCode event)]
                   (cond
                     (and (.-metaKey event) (= char-code 90))
-                    (let [{:keys [index state]} @edit-history]
+                    (let [{:keys [current-state states]} @edit-history]
                       (if (.-shiftKey event)
-                        (when-let [new-state (get state (inc index))]
-                          (swap! edit-history update-in [:index] inc)
-                          (refresh-content! content events-chan new-state)
-                          (refresh-numbers! numbers (dec (count (:lines new-state))))
+                        (when-let [state (get states (inc current-state))]
+                          (swap! edit-history update-in [:current-state] inc)
+                          (refresh-content! content events-chan state)
+                          (refresh-numbers! numbers (dec (count (:lines state))))
                           (refresh-instarepl! instarepl content events-chan eval-worker))
-                        (when-let [new-state (get state (dec index))]
-                          (swap! edit-history update-in [:index] dec)
-                          (refresh-content! content events-chan new-state)
-                          (refresh-numbers! numbers (dec (count (:lines new-state))))
+                        (when-let [state (get states (dec current-state))]
+                          (swap! edit-history update-in [:current-state] dec)
+                          (refresh-content! content events-chan state)
+                          (refresh-numbers! numbers (dec (count (:lines state))))
                           (refresh-instarepl! instarepl content events-chan eval-worker))))
                     
                     (not (contains? #{37 38 39 40 ; arrows
