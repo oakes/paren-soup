@@ -256,15 +256,14 @@
   "Refreshes the contents."
   [content :- js/Object
    events-chan :- Any
-   lines :- [Str]
-   index :- Int]
-  (set! (.-innerHTML content) (join \newline (lines->html lines)))
+   state :- {Keyword Any}]
+  (set! (.-innerHTML content) (join \newline (lines->html (:lines state))))
   (doseq [elem (-> content (.querySelectorAll ".error") array-seq)]
     (events/listen elem "mouseenter" #(put! events-chan %))
     (events/listen elem "mouseleave" #(put! events-chan %)))
   (doseq [[elem class-name] (rainbow-delimiters content -1)]
     (.add (.-classList elem) class-name))
-  (move-cursor! content index))
+  (move-cursor! content (:index state)))
 
 (defn refresh-numbers!
   "Refreshes the line numbers."
@@ -322,11 +321,10 @@
 (defn update-edit-history!
   "Updates the edit history atom."
   [edit-history :- Any
-   index :- Int
-   lines :- [Str]]
+   state :- {Keyword Any}]
   (swap! edit-history update-in [:index] inc)
   (swap! edit-history update-in [:state] subvec 0 (:index @edit-history))
-  (swap! edit-history update-in [:state] conj {:lines lines :cursor-index index}))
+  (swap! edit-history update-in [:state] conj state))
 
 (defn get-parinfer-opts :- js/Object
   "Returns an options object for parinfer."
@@ -335,14 +333,9 @@
   (let [[row col] (index->row-col text index)]
     #js {:cursorLine row :cursorX col}))
 
-(defn refresh!
-  "Refreshes everything."
-  [instarepl :- (maybe js/Object)
-   numbers :- (maybe js/Object)
-   content :- js/Object
-   events-chan :- Any
-   eval-worker :- js/Object
-   edit-history :- Any
+(defn get-state! :- Any
+  "Returns the updated state of the text editor."
+  [content :- js/Object
    paren-mode? :- Bool]
   (let [index (get-cursor-index content)
         _ (br->newline! content)
@@ -354,9 +347,21 @@
         text (.-text result)
         lines (custom-split-lines text)
         index (row-col->index text (.-cursorLine opts) (.-cursorX result))]
-    (update-edit-history! edit-history index lines)
-    (refresh-content! content events-chan lines index)
-    (refresh-numbers! numbers (dec (count lines)))
+    {:lines lines :index index}))
+
+(defn refresh!
+  "Refreshes everything."
+  [instarepl :- (maybe js/Object)
+   numbers :- (maybe js/Object)
+   content :- js/Object
+   events-chan :- Any
+   eval-worker :- js/Object
+   edit-history :- Any
+   paren-mode? :- Bool]
+  (let [state (get-state! content paren-mode?)]
+    (update-edit-history! edit-history state)
+    (refresh-content! content events-chan state)
+    (refresh-numbers! numbers (dec (count (:lines state))))
     (refresh-instarepl! instarepl content events-chan eval-worker)))
 
 (defn init! []
@@ -389,12 +394,12 @@
                       (if (.-shiftKey event)
                         (when-let [new-state (get state (inc index))]
                           (swap! edit-history update-in [:index] inc)
-                          (refresh-content! content events-chan (:lines new-state) (:cursor-index new-state))
+                          (refresh-content! content events-chan new-state)
                           (refresh-numbers! numbers (dec (count (:lines new-state))))
                           (refresh-instarepl! instarepl content events-chan eval-worker))
                         (when-let [new-state (get state (dec index))]
                           (swap! edit-history update-in [:index] dec)
-                          (refresh-content! content events-chan (:lines new-state) (:cursor-index new-state))
+                          (refresh-content! content events-chan new-state)
                           (refresh-numbers! numbers (dec (count (:lines new-state))))
                           (refresh-instarepl! instarepl content events-chan eval-worker))))
                     
