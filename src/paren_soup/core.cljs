@@ -356,13 +356,10 @@
    content :- js/Object
    events-chan :- Any
    eval-worker :- js/Object
-   edit-history :- Any
-   paren-mode? :- Bool]
-  (let [state (get-state! content paren-mode?)]
-    (update-edit-history! edit-history state)
-    (refresh-content! content events-chan state)
-    (refresh-numbers! numbers (dec (count (:lines state))))
-    (refresh-instarepl! instarepl content events-chan eval-worker)))
+   state :- {Keyword Any}]
+  (refresh-content! content events-chan state)
+  (refresh-numbers! numbers (dec (count (:lines state))))
+  (refresh-instarepl! instarepl content events-chan eval-worker))
 
 (defn init! []
   (.init js/rangy)
@@ -376,7 +373,9 @@
       (set! (.-spellcheck paren-soup) false)
       (when-not content
         (throw (js/Error. "Can't find a div with class 'content'")))
-      (refresh! instarepl numbers content events-chan eval-worker edit-history true)
+      (let [state (get-state! content true)]
+        (update-edit-history! edit-history state)
+        (refresh! instarepl numbers content events-chan eval-worker state))
       (events/removeAll content)
       (events/listen content "keydown" (fn [e]
                                          (put! events-chan e)
@@ -394,14 +393,10 @@
                       (if (.-shiftKey event)
                         (when-let [state (get states (inc current-state))]
                           (swap! edit-history update-in [:current-state] inc)
-                          (refresh-content! content events-chan state)
-                          (refresh-numbers! numbers (dec (count (:lines state))))
-                          (refresh-instarepl! instarepl content events-chan eval-worker))
+                          (refresh! instarepl numbers content events-chan eval-worker state))
                         (when-let [state (get states (dec current-state))]
                           (swap! edit-history update-in [:current-state] dec)
-                          (refresh-content! content events-chan state)
-                          (refresh-numbers! numbers (dec (count (:lines state))))
-                          (refresh-instarepl! instarepl content events-chan eval-worker))))
+                          (refresh! instarepl numbers content events-chan eval-worker state))))
                     
                     (not (contains? #{37 38 39 40 ; arrows
                                       16 ; shift
@@ -410,9 +405,13 @@
                                       91 93 ; meta
                                       }
                                     char-code))
-                    (refresh! instarepl numbers content events-chan eval-worker edit-history (= char-code 13))))
+                    (let [state (get-state! content (= char-code 13))]
+                      (update-edit-history! edit-history state)
+                      (refresh! instarepl numbers content events-chan eval-worker state))))
                 "paste"
-                (refresh! instarepl numbers content events-chan eval-worker edit-history false)
+                (let [state (get-state! content true)]
+                  (update-edit-history! edit-history state)
+                  (refresh! instarepl numbers content events-chan eval-worker state))
                 "mouseenter"
                 (show-error! paren-soup event)
                 "mouseleave"
