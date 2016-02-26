@@ -2,6 +2,7 @@
   (:require [cljs.core.async :refer [chan put! <!]]
             [cljs.tools.reader :refer [read *wrap-value-and-add-metadata?*]]
             [cljs.tools.reader.reader-types :refer [indexing-push-back-reader]]
+            [clojure.data :refer [diff]]
             [clojure.string :refer [escape split-lines join replace split]]
             [goog.events :as events]
             [rangy.core]
@@ -318,13 +319,28 @@
             (-> html (replace "<br>" \newline) (replace "</br>" ""))
             (-> html (replace "<div>" \newline) (replace "</div>" ""))))))
 
+(defn count-lines-changed
+  "Returns the number of lines changed between the new lines and old lines."
+  [new-lines :- [Str]
+   old-lines :- [Str]]
+  (->> (diff new-lines old-lines) first (remove nil?) count))
+
 (defn update-edit-history!
   "Updates the edit history atom."
   [edit-history :- Any
    state :- {Keyword Any}]
-  (swap! edit-history update-in [:current-state] inc)
-  (swap! edit-history update-in [:states] subvec 0 (:current-state @edit-history))
-  (swap! edit-history update-in [:states] conj state))
+  (let [{:keys [current-state states]} @edit-history
+        old-state (get states current-state)
+        old-lines (:lines old-state)
+        new-lines (:lines state)
+        old-lines-changed (:lines-changed old-state)
+        new-lines-changed (count-lines-changed new-lines old-lines)
+        state (assoc state :lines-changed new-lines-changed)]
+    ; if the last two edits only affected one line, replace the last edit instead of adding a new edit
+    (when (not= old-lines-changed new-lines-changed 1)
+      (swap! edit-history update-in [:current-state] inc))
+    (swap! edit-history update-in [:states] subvec 0 (:current-state @edit-history))
+    (swap! edit-history update-in [:states] conj state)))
 
 (defn get-parinfer-opts :- js/Object
   "Returns an options object for parinfer."
