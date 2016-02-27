@@ -1,20 +1,19 @@
 (set-env!
   :source-paths #{"src"}
   :resource-paths #{"resources"}
-  :dependencies '[
-    [adzerk/boot-cljs "1.7.228-1" :scope "test"]
-    [adzerk/boot-cljs-repl "0.1.10-SNAPSHOT" :scope "test"]
-    [adzerk/boot-reload "0.3.1" :scope "test"]
-    [pandeiro/boot-http "0.6.3-SNAPSHOT" :scope "test"]
-    ; project deps
-    [org.clojars.oakes/tools.reader "1.0.0-SNAPSHOT"
-     :exclusions [org.clojure/clojure]]
-    [org.clojure/clojure "1.8.0"]
-    [org.clojure/clojurescript "1.7.228"
-     :exclusions [org.clojure/tools.reader]]
-    [org.clojure/core.async "0.2.374"
-     :exclusions [org.clojure/tools.reader]]
-    [prismatic/schema "0.4.3"]])
+  :dependencies '[[adzerk/boot-cljs "1.7.228-1" :scope "test"]
+                  [adzerk/boot-cljs-repl "0.1.10-SNAPSHOT" :scope "test"]
+                  [adzerk/boot-reload "0.3.1" :scope "test"]
+                  [pandeiro/boot-http "0.6.3-SNAPSHOT" :scope "test"]
+                  ; project deps
+                  [org.clojars.oakes/tools.reader "1.0.0-SNAPSHOT"
+                   :exclusions [org.clojure/clojure]]
+                  [org.clojure/clojure "1.8.0"]
+                  [org.clojure/clojurescript "1.7.228"
+                   :exclusions [org.clojure/tools.reader]]
+                  [org.clojure/core.async "0.2.374"
+                   :exclusions [org.clojure/tools.reader]]
+                  [prismatic/schema "0.4.3"]])
 
 (require
   '[adzerk.boot-cljs :refer [cljs]]

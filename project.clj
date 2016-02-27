@@ -14,18 +14,15 @@
   :profiles {:uberjar {:prep-tasks ["compile" ["cljsbuild" "once"]]}}
   :javac-options ["-target" "1.6" "-source" "1.6" "-Xlint:-options"]
   :plugins [[lein-cljsbuild "1.1.2"]]
-  :cljsbuild { 
-    :builds {
-      :main {
-        :source-paths ["src"]
-        :compiler {:output-to "resources/public/paren-soup.js"
-                   :optimizations :simple
-                   :pretty-print false
-                   :foreign-libs [{:file "src/js/rangy-core.js"
-                                   :provides ["rangy.core"]}
-                                  {:file "src/js/rangy-textrange.js"
-                                   :provides ["rangy.textrange"]}
-                                  {:file "js/parinfer.js"
-                                   :provides ["parinfer.core"]}]}
-        :jar true}}}
+  :cljsbuild {:builds {:main {:source-paths ["src"]
+                              :compiler {:output-to "resources/public/paren-soup.js"
+                                         :optimizations :simple
+                                         :pretty-print false
+                                         :foreign-libs [{:file "src/js/rangy-core.js"
+                                                         :provides ["rangy.core"]}
+                                                        {:file "src/js/rangy-textrange.js"
+                                                         :provides ["rangy.textrange"]}
+                                                        {:file "js/parinfer.js"
+                                                         :provides ["parinfer.core"]}]}
+                              :jar true}}}
   :main paren-soup.core)

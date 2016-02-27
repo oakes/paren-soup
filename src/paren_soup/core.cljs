@@ -43,50 +43,50 @@
 (defn tag-list :- [{Keyword Any}]
   "Returns a list of maps describing each tag."
   ([token :- Any]
-    (tag-list token 0 0 0 0))
+   (tag-list token 0 0 0 0))
   ([token :- Any
     parent-level :- Int
     parent-adjust :- Int
     parent-column :- Int
     parent-line :- Int]
-    (flatten
-      (cond
+   (flatten
+     (cond
         ; an error
-        (instance? js/Error token)
-        [(assoc (.-data token) :message (.-message token) :error? true :level parent-level)]
+       (instance? js/Error token)
+       [(assoc (.-data token) :message (.-message token) :error? true :level parent-level)]
         
         ; a key-value pair from a map
-        (and (coll? token) (nil? (meta token)))
-        (map #(tag-list % parent-level parent-adjust parent-column parent-line) token)
+       (and (coll? token) (nil? (meta token)))
+       (map #(tag-list % parent-level parent-adjust parent-column parent-line) token)
         
         ; a valid token
-        :else
-        (let [{:keys [line column end-line end-column wrapped?]} (meta token)
-              value (if wrapped? (first token) token)]
-          [; begin tag
-           {:line line :column column :value value
-            :line-range (range (inc line) (inc end-line))}
-           (if (coll? value)
-             (let [delimiter-size (if (set? value) 2 1)
-                   new-level (+ parent-level
-                                (if (not= parent-line line)
-                                  parent-adjust
-                                  0))
-                   new-adjust (if (list? value) 2 delimiter-size)
-                   new-column (max (dec column)
-                                   parent-column
-                                   0)]
-               [; open delimiter tags
-                {:line line :column column :delimiter? true}
-                {:end-line line :end-column (+ column delimiter-size) :level (+ new-level new-adjust new-column)}
+       :else
+       (let [{:keys [line column end-line end-column wrapped?]} (meta token)
+             value (if wrapped? (first token) token)]
+         [; begin tag
+          {:line line :column column :value value
+           :line-range (range (inc line) (inc end-line))}
+          (if (coll? value)
+            (let [delimiter-size (if (set? value) 2 1)
+                  new-level (+ parent-level
+                               (if (not= parent-line line)
+                                 parent-adjust
+                                 0))
+                  new-adjust (if (list? value) 2 delimiter-size)
+                  new-column (max (dec column)
+                                  parent-column
+                                  0)]
+              [; open delimiter tags
+               {:line line :column column :delimiter? true}
+               {:end-line line :end-column (+ column delimiter-size) :level (+ new-level new-adjust new-column)}
                 ; child tags
-                (map #(tag-list % new-level new-adjust new-column line) value)
+               (map #(tag-list % new-level new-adjust new-column line) value)
                 ; close delimiter tags
-                {:line end-line :column (dec end-column) :delimiter? true}
-                {:end-line end-line :end-column end-column}])
-             [])
+               {:line end-line :column (dec end-column) :delimiter? true}
+               {:end-line end-line :end-column end-column}])
+            [])
            ; end tag
-           {:end-line end-line :end-column end-column :level (+ parent-level parent-adjust parent-column)}])))))
+          {:end-line end-line :end-column end-column :level (+ parent-level parent-adjust parent-column)}])))))
 
 (defn escape-html :- Str
   [s :- Str]
@@ -418,8 +418,7 @@
                                       16 ; shift
                                       17 ; ctrl
                                       18 ; alt
-                                      91 93 ; meta
-                                      }
+                                      91 93} ; meta
                                     char-code))
                     (let [state (get-state! content (= char-code 13))]
                       (update-edit-history! edit-history state)
