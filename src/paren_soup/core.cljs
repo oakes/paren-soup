@@ -8,7 +8,8 @@
             [rangy.core]
             [rangy.textrange]
             [schema.core :refer [maybe either Any Str Int Keyword Bool]]
-            [parinfer.core])
+            [parinfer.core]
+            [mistakes-were-made.core :as mwm])
   (:require-macros [schema.core :refer [defn with-fn-validation]]
                    [cljs.core.async.macros :refer [go]]))
 
@@ -218,18 +219,6 @@
   (join (for [i (range line-count)]
           (str "<div>" (inc i) "</div>"))))
 
-(defn custom-split-lines :- [Str]
-  "Splits the string into lines."
-  [s :- Str]
-  (let [s (if-not (= \newline (last s))
-            (str s "\n ")
-            (str s " "))
-        lines (split-lines s)
-        last-line (last lines)
-        last-line-len (max 0 (dec (count last-line)))]
-    (conj (vec (butlast lines))
-          (subs last-line 0 last-line-len))))
-
 (defn get-selection :- js/Object
   "Returns the objects related to selection for the given element."
   [content :- js/Object]
@@ -291,25 +280,6 @@
                         (results->html elems results top-offset))))))
       (.postMessage eval-worker forms))))
 
-(defn index->row-col :- [Int]
-  "Converts an index to a row and column number."
-  [text :- Str
-   index :- Int]
-  (let [s (subs text 0 index)
-        last-newline (.lastIndexOf s \newline)
-        col (- index last-newline)
-        row (count (re-seq #"\n" s))]
-    [row (dec col)]))
-
-(defn row-col->index :- Int
-  "Converts a row and column number to an index."
-  [text :- Str
-   row :- Int
-   col :- Int]
-  (let [s (join \newline (take row (split text #"\n")))
-        index (+ (count s) (inc col))]
-    index))
-
 (defn br->newline!
   "Replaces <br> tags with newline chars."
   [content :- js/Object]
@@ -319,51 +289,25 @@
             (-> html (replace "<br>" \newline) (replace "</br>" ""))
             (-> html (replace "<div>" \newline) (replace "</div>" ""))))))
 
-(defn count-lines-changed
-  "Returns the number of lines changed between the new lines and old lines."
-  [new-lines :- [Str]
-   old-lines :- [Str]]
-  (->> (diff new-lines old-lines) first (remove nil?) count))
-
-(defn update-edit-history!
-  "Updates the edit history atom."
-  [edit-history :- Any
-   state :- {Keyword Any}]
-  (let [{:keys [current-state states]} @edit-history
-        old-state (get states current-state)
-        old-lines (:lines old-state)
-        new-lines (:lines state)
-        old-lines-changed (:lines-changed old-state)
-        new-lines-changed (count-lines-changed new-lines old-lines)
-        state (assoc state :lines-changed new-lines-changed)]
-    ; if the last two edits only affected one line, replace the last edit instead of adding a new edit
-    (when (not= old-lines-changed new-lines-changed 1)
-      (swap! edit-history update-in [:current-state] inc))
-    (swap! edit-history update-in [:states] subvec 0 (:current-state @edit-history))
-    (swap! edit-history update-in [:states] conj state)))
-
 (defn get-parinfer-opts :- js/Object
   "Returns an options object for parinfer."
   [text :- Str
    index :- Int]
-  (let [[row col] (index->row-col text index)]
+  (let [[row col] (mwm/index->row-col text index)]
     #js {:cursorLine row :cursorX col}))
 
 (defn get-state! :- Any
   "Returns the updated state of the text editor."
   [content :- js/Object
    paren-mode? :- Bool]
-  (let [index (get-cursor-index content)
+  (let [old-index (get-cursor-index content)
         _ (br->newline! content)
-        text (.-textContent content)
-        opts (get-parinfer-opts text index)
+        old-text (.-textContent content)
+        opts (get-parinfer-opts old-text old-index)
         result (if paren-mode?
-                 (.parenMode js/parinfer text opts)
-                 (.indentMode js/parinfer text opts))
-        text (.-text result)
-        lines (custom-split-lines text)
-        index (row-col->index text (.-cursorLine opts) (.-cursorX result))]
-    {:lines lines :index index}))
+                 (.parenMode js/parinfer old-text opts)
+                 (.indentMode js/parinfer old-text opts))]
+    (mwm/get-state (.-text result) (.-cursorLine opts) (.-cursorX result))))
 
 (defn refresh!
   "Refreshes everything."
@@ -385,12 +329,12 @@
           content (.querySelector paren-soup ".content")
           events-chan (chan)
           eval-worker (when instarepl (js/Worker. "paren-soup-compiler.js"))
-          edit-history (atom {:current-state -1 :states []})]
+          edit-history (mwm/create-edit-history)]
       (set! (.-spellcheck paren-soup) false)
       (when-not content
         (throw (js/Error. "Can't find a div with class 'content'")))
       (let [state (get-state! content true)]
-        (update-edit-history! edit-history state)
+        (mwm/update-edit-history! edit-history state)
         (refresh! instarepl numbers content events-chan eval-worker state))
       (events/removeAll content)
       (events/listen content "keydown" (fn [e]
@@ -405,14 +349,11 @@
                 (let [char-code (.-keyCode event)]
                   (cond
                     (and (.-metaKey event) (= char-code 90))
-                    (let [{:keys [current-state states]} @edit-history]
-                      (if (.-shiftKey event)
-                        (when-let [state (get states (inc current-state))]
-                          (swap! edit-history update-in [:current-state] inc)
-                          (refresh! instarepl numbers content events-chan eval-worker state))
-                        (when-let [state (get states (dec current-state))]
-                          (swap! edit-history update-in [:current-state] dec)
-                          (refresh! instarepl numbers content events-chan eval-worker state))))
+                    (if (.-shiftKey event)
+                      (when-let [state (mwm/redo! edit-history)]
+                        (refresh! instarepl numbers content events-chan eval-worker state))
+                      (when-let [state (mwm/undo! edit-history)]
+                        (refresh! instarepl numbers content events-chan eval-worker state)))
                     
                     (not (contains? #{37 38 39 40 ; arrows
                                       16 ; shift
@@ -421,11 +362,11 @@
                                       91 93} ; meta
                                     char-code))
                     (let [state (get-state! content (= char-code 13))]
-                      (update-edit-history! edit-history state)
+                      (mwm/update-edit-history! edit-history state)
                       (refresh! instarepl numbers content events-chan eval-worker state))))
                 "paste"
                 (let [state (get-state! content true)]
-                  (update-edit-history! edit-history state)
+                  (mwm/update-edit-history! edit-history state)
                   (refresh! instarepl numbers content events-chan eval-worker state))
                 "mouseenter"
                 (show-error! paren-soup event)
