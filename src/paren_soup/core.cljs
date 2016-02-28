@@ -368,7 +368,7 @@
                       (mwm/update-edit-history! edit-history state)
                       (refresh! instarepl numbers content events-chan eval-worker state))))
                 "paste"
-                (let [state (get-state! content true)]
+                (let [state (get-state! content false)]
                   (mwm/update-edit-history! edit-history state)
                   (refresh! instarepl numbers content events-chan eval-worker state))
                 "mouseup"
