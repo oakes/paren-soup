@@ -227,10 +227,10 @@
         char-range (some-> ranges (get 0) .-characterRange)]
     {:selection selection :ranges ranges :char-range char-range}))
 
-(defn get-cursor-index :- Int
-  "Returns the index of the cursor position."
+(defn get-cursor-position :- Int
+  "Returns the cursor position."
   [content :- js/Object]
-  (or (some-> content get-selection :char-range .-start) -1))
+  (or (some-> content get-selection :char-range .-start) 0))
 
 (defn move-cursor!
   "Moves the cursor to the specified position."
@@ -253,7 +253,7 @@
     (events/listen elem "mouseleave" #(put! events-chan %)))
   (doseq [[elem class-name] (rainbow-delimiters content -1)]
     (.add (.-classList elem) class-name))
-  (move-cursor! content (:index state)))
+  (move-cursor! content (:cursor-position state)))
 
 (defn refresh-numbers!
   "Refreshes the line numbers."
@@ -292,18 +292,18 @@
 (defn get-parinfer-opts :- js/Object
   "Returns an options object for parinfer."
   [text :- Str
-   index :- Int]
-  (let [[row col] (mwm/index->row-col text index)]
+   cursor-position :- Int]
+  (let [[row col] (mwm/position->row-col text cursor-position)]
     #js {:cursorLine row :cursorX col}))
 
 (defn get-state! :- Any
   "Returns the updated state of the text editor."
   [content :- js/Object
    paren-mode? :- Bool]
-  (let [old-index (get-cursor-index content)
+  (let [old-position (get-cursor-position content)
         _ (br->newline! content)
         old-text (.-textContent content)
-        opts (get-parinfer-opts old-text old-index)
+        opts (get-parinfer-opts old-text old-position)
         result (if paren-mode?
                  (.parenMode js/parinfer old-text opts)
                  (.indentMode js/parinfer old-text opts))]
@@ -341,6 +341,7 @@
                                          (put! events-chan e)
                                          (when (and (.-metaKey e) (= (.-keyCode e) 90))
                                            (.preventDefault e))))
+      (events/listen content "mouseup" #(put! events-chan %))
       (events/listen content "paste" #(put! events-chan %))
       (go (while true
             (let [event (<! events-chan)]
@@ -354,9 +355,11 @@
                         (refresh! instarepl numbers content events-chan eval-worker state))
                       (when-let [state (mwm/undo! edit-history)]
                         (refresh! instarepl numbers content events-chan eval-worker state)))
+
+                    (contains? #{37 38 39 40} char-code)
+                    (mwm/update-cursor-position! edit-history (get-cursor-position content))
                     
-                    (not (contains? #{37 38 39 40 ; arrows
-                                      16 ; shift
+                    (not (contains? #{16 ; shift
                                       17 ; ctrl
                                       18 ; alt
                                       91 93} ; meta
@@ -368,6 +371,8 @@
                 (let [state (get-state! content true)]
                   (mwm/update-edit-history! edit-history state)
                   (refresh! instarepl numbers content events-chan eval-worker state))
+                "mouseup"
+                (mwm/update-cursor-position! edit-history (get-cursor-position content))
                 "mouseenter"
                 (show-error! paren-soup event)
                 "mouseleave"
