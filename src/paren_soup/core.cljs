@@ -337,16 +337,16 @@
         (mwm/update-edit-history! edit-history state)
         (refresh! instarepl numbers content events-chan eval-worker state))
       (events/removeAll content)
-      (events/listen content "keydown" (fn [e]
-                                         (put! events-chan e)
-                                         (when (and (.-metaKey e) (= (.-keyCode e) 90))
-                                           (.preventDefault e))))
+      (events/listen content "keyup" (fn [e]
+                                       (put! events-chan e)
+                                       (when (and (.-metaKey e) (= (.-keyCode e) 90))
+                                         (.preventDefault e))))
       (events/listen content "mouseup" #(put! events-chan %))
       (events/listen content "paste" #(put! events-chan %))
       (go (while true
             (let [event (<! events-chan)]
               (case (.-type event)
-                "keydown"
+                "keyup"
                 (let [char-code (.-keyCode event)]
                   (cond
                     (and (.-metaKey event) (= char-code 90))
