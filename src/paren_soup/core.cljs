@@ -337,25 +337,27 @@
         (mwm/update-edit-history! edit-history state)
         (refresh! instarepl numbers content events-chan eval-worker state))
       (events/removeAll content)
-      (events/listen content "keyup" (fn [e]
-                                       (put! events-chan e)
-                                       (when (and (.-metaKey e) (= (.-keyCode e) 90))
-                                         (.preventDefault e))))
+      (events/listen content "keydown" (fn [e]
+                                         (put! events-chan e)
+                                         (when (and (.-metaKey e) (= (.-keyCode e) 90))
+                                           (.preventDefault e))))
+      (events/listen content "keyup" #(put! events-chan %))
       (events/listen content "mouseup" #(put! events-chan %))
       (events/listen content "paste" #(put! events-chan %))
       (go (while true
             (let [event (<! events-chan)]
               (case (.-type event)
-                "keyup"
+                "keydown"
                 (let [char-code (.-keyCode event)]
-                  (cond
-                    (and (.-metaKey event) (= char-code 90))
+                  (when (and (.-metaKey event) (= char-code 90))
                     (if (.-shiftKey event)
                       (when-let [state (mwm/redo! edit-history)]
                         (refresh! instarepl numbers content events-chan eval-worker state))
                       (when-let [state (mwm/undo! edit-history)]
-                        (refresh! instarepl numbers content events-chan eval-worker state)))
-
+                        (refresh! instarepl numbers content events-chan eval-worker state)))))
+                "keyup"
+                (let [char-code (.-keyCode event)]
+                  (cond
                     (contains? #{37 38 39 40} char-code)
                     (mwm/update-cursor-position! edit-history (get-cursor-position content))
                     
