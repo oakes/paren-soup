@@ -6,8 +6,8 @@
                   [adzerk/boot-reload "0.3.1" :scope "test"]
                   [pandeiro/boot-http "0.6.3-SNAPSHOT" :scope "test"]
                   ; project deps
-                  [mistakes-were-made "1.0.0-SNAPSHOT"]
-                  [org.clojars.oakes/tools.reader "1.0.0-SNAPSHOT"
+                  [mistakes-were-made "1.0.0"]
+                  [org.clojars.oakes/tools.reader "1.0.0-2016.02.28"
                    :exclusions [org.clojure/clojure]]
                   [org.clojure/clojure "1.8.0"]
                   [org.clojure/clojurescript "1.7.228"
