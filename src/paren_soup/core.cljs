@@ -333,7 +333,7 @@
       (set! (.-spellcheck paren-soup) false)
       (when-not content
         (throw (js/Error. "Can't find a div with class 'content'")))
-      (let [state (get-state! content true)]
+      (let [state (assoc (get-state! content true) :cursor-position 0)]
         (mwm/update-edit-history! edit-history state)
         (refresh! instarepl numbers content events-chan eval-worker state))
       (events/removeAll content)
