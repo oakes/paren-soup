@@ -232,7 +232,7 @@
   [content :- js/Object]
   (or (some-> content get-selection :char-range .-start) 0))
 
-(defn move-cursor!
+(defn set-cursor-position!
   "Moves the cursor to the specified position."
   [content :- js/Object
    pos :- Int]
@@ -253,7 +253,7 @@
     (events/listen elem "mouseleave" #(put! events-chan %)))
   (doseq [[elem class-name] (rainbow-delimiters content -1)]
     (.add (.-classList elem) class-name))
-  (move-cursor! content (:cursor-position state)))
+  (set-cursor-position! content (:cursor-position state)))
 
 (defn refresh-numbers!
   "Refreshes the line numbers."
