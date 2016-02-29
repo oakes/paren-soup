@@ -352,12 +352,10 @@
               (case (.-type event)
                 "keydown"
                 (when (undo-or-redo? event)
-                  (.log js/console "undo or redo")
                   (if (.-shiftKey event)
                     (when-let [state (mwm/redo! edit-history)]
                       (refresh! instarepl numbers content events-chan eval-worker state))
                     (when-let [state (mwm/undo! edit-history)]
-                      (.log js/console "undo")
                       (refresh! instarepl numbers content events-chan eval-worker state))))
                 "keyup"
                 (cond
