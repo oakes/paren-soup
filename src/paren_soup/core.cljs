@@ -3,7 +3,7 @@
             [cljs.tools.reader :refer [read *wrap-value-and-add-metadata?*]]
             [cljs.tools.reader.reader-types :refer [indexing-push-back-reader]]
             [clojure.data :refer [diff]]
-            [clojure.string :refer [escape split-lines join replace split]]
+            [clojure.string :refer [escape join replace]]
             [goog.events :as events]
             [rangy.core]
             [rangy.textrange]
@@ -65,8 +65,7 @@
        (let [{:keys [line column end-line end-column wrapped?]} (meta token)
              value (if wrapped? (first token) token)]
          [; begin tag
-          {:line line :column column :value value
-           :line-range (range (inc line) (inc end-line))}
+          {:line line :column column :value value}
           (if (coll? value)
             (let [delimiter-size (if (set? value) 2 1)
                   new-level (+ parent-level
@@ -373,7 +372,6 @@
                            (.-ctrlKey event)
                            (.-metaKey event)))
                   (let [state (get-state! content (= (.-keyCode event) 13))]
-                    (.log js/console (.-keyCode event))
                     (mwm/update-edit-history! edit-history state)
                     (refresh! instarepl numbers content events-chan eval-worker state)))
                 "paste"
