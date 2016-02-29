@@ -321,6 +321,10 @@
   (refresh-numbers! numbers (dec (count (:lines state))))
   (refresh-instarepl! instarepl content events-chan eval-worker))
 
+(defn undo-or-redo? [e]
+  (and (or (.-metaKey e) (.-ctrlKey e))
+       (= (.-keyCode e) 90)))
+
 (defn init! []
   (.init js/rangy)
   (doseq [paren-soup (-> js/document (.querySelectorAll ".paren-soup") array-seq)]
@@ -339,7 +343,7 @@
       (events/removeAll content)
       (events/listen content "keydown" (fn [e]
                                          (put! events-chan e)
-                                         (when (and (.-metaKey e) (= (.-keyCode e) 90))
+                                         (when (undo-or-redo? e)
                                            (.preventDefault e))))
       (events/listen content "keyup" #(put! events-chan %))
       (events/listen content "mouseup" #(put! events-chan %))
@@ -348,27 +352,30 @@
             (let [event (<! events-chan)]
               (case (.-type event)
                 "keydown"
-                (let [char-code (.-keyCode event)]
-                  (when (and (.-metaKey event) (= char-code 90))
-                    (if (.-shiftKey event)
-                      (when-let [state (mwm/redo! edit-history)]
-                        (refresh! instarepl numbers content events-chan eval-worker state))
-                      (when-let [state (mwm/undo! edit-history)]
-                        (refresh! instarepl numbers content events-chan eval-worker state)))))
-                "keyup"
-                (let [char-code (.-keyCode event)]
-                  (cond
-                    (contains? #{37 38 39 40} char-code)
-                    (mwm/update-cursor-position! edit-history (get-cursor-position content))
-                    
-                    (not (contains? #{16 ; shift
-                                      17 ; ctrl
-                                      18 ; alt
-                                      91 93} ; meta
-                                    char-code))
-                    (let [state (get-state! content (= char-code 13))]
-                      (mwm/update-edit-history! edit-history state)
+                (when (undo-or-redo? event)
+                  (.log js/console "undo or redo")
+                  (if (.-shiftKey event)
+                    (when-let [state (mwm/redo! edit-history)]
+                      (refresh! instarepl numbers content events-chan eval-worker state))
+                    (when-let [state (mwm/undo! edit-history)]
+                      (.log js/console "undo")
                       (refresh! instarepl numbers content events-chan eval-worker state))))
+                "keyup"
+                (cond
+                  (contains? #{37 38 39 40} (.-keyCode event))
+                  (mwm/update-cursor-position! edit-history (get-cursor-position content))
+                  
+                  (not (or (contains? #{16 ; shift
+                                        17 ; ctrl
+                                        18 ; alt
+                                        91 93} ; meta
+                                      (.-keyCode event))
+                           (.-ctrlKey event)
+                           (.-metaKey event)))
+                  (let [state (get-state! content (= (.-keyCode event) 13))]
+                    (.log js/console (.-keyCode event))
+                    (mwm/update-edit-history! edit-history state)
+                    (refresh! instarepl numbers content events-chan eval-worker state)))
                 "paste"
                 (let [state (get-state! content false)]
                   (mwm/update-edit-history! edit-history state)
