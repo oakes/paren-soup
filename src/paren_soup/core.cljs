@@ -300,7 +300,7 @@
             (fn [e]
               (let [results (.-data e)
                     top-offset (-> instarepl .getBoundingClientRect .-top (+ (.-scrollY js/window)))]
-                (when (.-parentNode (first elems))
+                (when (some-> elems first .-parentNode)
                   (set! (.-innerHTML instarepl)
                         (results->html elems results top-offset))))))
       (.postMessage eval-worker forms))))
