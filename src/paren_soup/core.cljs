@@ -46,7 +46,7 @@
   ([token :- Any]
    (tag-list token 0))
   ([token :- Any
-    parent-indent :- Int]
+    parent-spaces :- Int]
    (flatten
      (cond
        ; an error
@@ -65,15 +65,18 @@
           {:line line :column column :value value}
           (if (coll? value)
             (let [delimiter-size (if (set? value) 2 1)
-                  new-end-column (+ column delimiter-size)]
+                  new-end-column (+ column delimiter-size)
+                  next-line-spaces (+ (dec column)
+                                      delimiter-size
+                                      (if (list? value) 1 0))]
               [; open delimiter tags
                {:line line :column column :delimiter? true}
-               {:end-line line :end-column new-end-column :next-line-indent new-end-column}
-                ; child tags
-               (map #(tag-list % new-end-column) value)
-                ; close delimiter tags
+               {:end-line line :end-column new-end-column :next-line-spaces next-line-spaces}
+               ; child tags
+               (map #(tag-list % next-line-spaces) value)
+               ; close delimiter tags
                {:line end-line :column (dec end-column) :delimiter? true}
-               {:end-line end-line :end-column end-column :next-line-indent parent-indent}])
+               {:end-line end-line :end-column end-column :next-line-spaces parent-spaces}])
             [])
            ; end tag
           {:end-line end-line :end-column end-column}])))))
@@ -89,9 +92,6 @@
   "Returns an HTML string for the given tag description."
   [tag :- {Keyword Any}]
   (cond
-    (:indent? tag) (str "<span class='indent'>"
-                        (join (repeat (:count tag) " "))
-                        "</span>")
     (:delimiter? tag) "<span class='delimiter'>"
     (:error? tag) (str "<span class='error' data-message='"
                        (some-> (:message tag) escape-html)
@@ -238,6 +238,26 @@
       (set! (.-end char-range) pos)
       (.restoreCharacterRanges selection content ranges))))
 
+(defn add-indent-if-necessary :- [Any]
+  "Adds indent to the line with the cursor."
+  [lines :- [Str]
+   text :- Str
+   tags :- [{Keyword Any}]
+   state :- {Keyword Any}]
+  (if (:should-indent? state)
+    (let [[cursor-line _] (mwm/position->row-col text (:cursor-position state))
+          tags-before-cursor (take-while (fn [tag]
+                                           (let [line (or (:line tag) (:end-line tag))]
+                                             (< line (inc cursor-line))))
+                                         tags)
+          indent-level (or (->> tags-before-cursor reverse (some :next-line-spaces)) 0)]
+      [(update lines
+               cursor-line
+               (fn [line]
+                 (str (join (repeat indent-level " ")) line)))
+       (+ (:cursor-position state) indent-level)])
+    [lines (:cursor-position state)]))
+
 (defn refresh-content! :- {Keyword Any}
   "Refreshes the contents."
   [content :- js/Object
@@ -248,14 +268,16 @@
                 (:lines state))
         text (join \newline lines)
         tags (text->tags text)
-        html-text (join \newline (lines->html lines tags))]
+        html-lines (lines->html lines tags)
+        [html-lines cursor-position] (add-indent-if-necessary (vec html-lines) text tags state)
+        html-text (join \newline html-lines)]
     (set! (.-innerHTML content) html-text)
     (doseq [elem (-> content (.querySelectorAll ".error") array-seq)]
       (events/listen elem "mouseenter" #(put! events-chan %))
       (events/listen elem "mouseleave" #(put! events-chan %)))
     (doseq [[elem class-name] (rainbow-delimiters content -1)]
       (.add (.-classList elem) class-name))
-    (set-cursor-position! content (:cursor-position state))
+    (set-cursor-position! content cursor-position)
     state))
 
 (defn refresh-numbers!
@@ -299,8 +321,8 @@
   (let [[row col] (mwm/position->row-col text cursor-position)]
     #js {:cursorLine row :cursorX col}))
 
-(defn get-state! :- Any
-  "Returns the updated state of the text editor."
+(defn get-parinfer-state! :- {Keyword Any}
+  "Returns the updated state of the text editor using parinfer."
   [content :- js/Object
    paren-mode? :- Bool]
   (let [old-position (get-cursor-position content)
@@ -311,6 +333,14 @@
                  (.parenMode js/parinfer old-text opts)
                  (.indentMode js/parinfer old-text opts))]
     (mwm/get-state (.-text result) (.-cursorLine opts) (.-cursorX result))))
+
+(defn get-normal-state! :- {Keyword Any}
+  "Returns the updated state of the text editor."
+  [content :- js/Object]
+  (let [position (get-cursor-position content)
+        _ (br->newline! content)
+        text (.-textContent content)]
+    (assoc (mwm/get-state text position) :should-indent? true)))
 
 (defn refresh! :- {Keyword Any}
   "Refreshes everything."
@@ -341,7 +371,7 @@
       (set! (.-spellcheck paren-soup) false)
       (when-not content
         (throw (js/Error. "Can't find a div with class 'content'")))
-      (->> (assoc (get-state! content true) :cursor-position 0)
+      (->> (assoc (get-parinfer-state! content true) :cursor-position 0)
            (refresh! instarepl numbers content events-chan eval-worker)
            (mwm/update-edit-history! edit-history))
       (events/removeAll content)
@@ -374,11 +404,13 @@
                                       (.-keyCode event))
                            (.-ctrlKey event)
                            (.-metaKey event)))
-                  (->> (get-state! content (= (.-keyCode event) 13))
+                  (->> (if (= 13 (.-keyCode event))
+                         (get-normal-state! content)
+                         (get-parinfer-state! content false))
                        (refresh! instarepl numbers content events-chan eval-worker)
                        (mwm/update-edit-history! edit-history)))
                 "paste"
-                (->> (get-state! content false)
+                (->> (get-parinfer-state! content false)
                      (refresh! instarepl numbers content events-chan eval-worker)
                      (mwm/update-edit-history! edit-history))
                 "mouseup"
