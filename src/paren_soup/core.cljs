@@ -1,7 +1,5 @@
 (ns paren-soup.core
   (:require [cljs.core.async :refer [chan put! <!]]
-            [cljs.tools.reader :refer [read *wrap-value-and-add-metadata?*]]
-            [cljs.tools.reader.reader-types :refer [indexing-push-back-reader]]
             [clojure.data :refer [diff]]
             [clojure.string :refer [escape join replace]]
             [goog.events :as events]
@@ -9,17 +7,10 @@
             [rangy.textrange]
             [schema.core :refer [maybe either Any Str Int Keyword Bool]]
             [parinfer.core]
-            [mistakes-were-made.core :as mwm])
+            [mistakes-were-made.core :as mwm]
+            [tag-soup.core :as ts])
   (:require-macros [schema.core :refer [defn with-fn-validation]]
                    [cljs.core.async.macros :refer [go]]))
-
-(defn read-safe :- (maybe (either Any js/Error))
-  "Returns either a form or an exception object, or nil if EOF is reached."
-  [reader :- js/Object]
-  (try
-    (binding [*wrap-value-and-add-metadata?* true]
-      (read reader false nil))
-    (catch js/Error e e)))
 
 (defn show-error!
   "Shows a popup with an error message."
@@ -40,59 +31,6 @@
   [parent-elem :- js/Object]
   (doseq [elem (-> parent-elem (.querySelectorAll ".error-text") array-seq)]
     (.removeChild parent-elem elem)))
-
-(def ^:const special-indent #{'-> '->> 'cond-> 'cond->> 'some-> 'some->>})
-
-(defn tag-list :- [{Keyword Any}]
-  "Returns a list of maps describing each tag."
-  ([token :- Any]
-   (tag-list token 0))
-  ([token :- Any
-    parent-spaces :- Int]
-   (flatten
-     (cond
-       ; an error
-       (instance? js/Error token)
-       [(assoc (.-data token) :message (.-message token) :error? true)]
-       
-       ; a key-value pair from a map
-       (and (coll? token) (nil? (meta token)))
-       (map tag-list token)
-       
-       ; a valid token
-       :else
-       (let [{:keys [line column end-line end-column wrapped?]} (meta token)
-             value (if wrapped? (first token) token)]
-         [; begin tag
-          {:line line :column column :value value}
-          (if (coll? value)
-            (let [delimiter-size (if (set? value) 2 1)
-                  new-end-column (+ column delimiter-size)
-                  adjustment (if (list? value)
-                               (let [first-val (first value)]
-                                 (cond
-                                   ; multi-arity functions
-                                   (vector? first-val)
-                                   0
-                                   ; threading macros
-                                   (contains? special-indent first-val)
-                                   (inc (count (str first-val)))
-                                   ; any other list
-                                   :else
-                                   1))
-                               0)
-                  next-line-spaces (+ (dec column) delimiter-size adjustment)]
-              [; open delimiter tags
-               {:line line :column column :delimiter? true}
-               {:end-line line :end-column new-end-column :next-line-spaces next-line-spaces}
-               ; child tags
-               (map #(tag-list % next-line-spaces) value)
-               ; close delimiter tags
-               {:line end-line :column (dec end-column) :delimiter? true}
-               {:end-line end-line :end-column end-column :next-line-spaces parent-spaces}])
-            [])
-           ; end tag
-          {:end-line end-line :end-column end-column}])))))
 
 (defn escape-html :- Str
   [s :- Str]
@@ -151,13 +89,6 @@
                           persistent!
                           (map join))))]
     (join (interleave segments (concat html-per-column (repeat ""))))))
-
-(defn text->tags :- [{Keyword Any}]
-  "Returns the tags for the given string containing code."
-  [text :- Str]
-  (let [reader (indexing-push-back-reader text)]
-    (sequence (comp (take-while some?) (mapcat tag-list))
-              (repeatedly (partial read-safe reader)))))
 
 (defn lines->html :- [Str]
   "Returns the lines with html added."
@@ -259,11 +190,7 @@
    state :- {Keyword Any}]
   (if (:should-indent? state)
     (let [[cursor-line _] (mwm/position->row-col text (:cursor-position state))
-          tags-before-cursor (take-while (fn [tag]
-                                           (let [line (or (:line tag) (:end-line tag))]
-                                             (< line (inc cursor-line))))
-                                         tags)
-          indent-level (or (->> tags-before-cursor reverse (some :next-line-spaces)) 0)]
+          indent-level (ts/indent-for-line tags cursor-line)]
       [(update lines
                cursor-line
                (fn [line]
@@ -280,7 +207,7 @@
                 (conj (vec (:lines state)) "")
                 (:lines state))
         text (join \newline lines)
-        tags (text->tags text)
+        tags (ts/str->tags text)
         html-lines (lines->html lines tags)
         [html-lines cursor-position] (add-indent-if-necessary (vec html-lines) text tags state)
         html-text (join \newline html-lines)]
