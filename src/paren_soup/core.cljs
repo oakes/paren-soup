@@ -41,6 +41,8 @@
   (doseq [elem (-> parent-elem (.querySelectorAll ".error-text") array-seq)]
     (.removeChild parent-elem elem)))
 
+(def ^:const special-indent #{'-> '->> 'cond-> 'cond->> 'some-> 'some->>})
+
 (defn tag-list :- [{Keyword Any}]
   "Returns a list of maps describing each tag."
   ([token :- Any]
@@ -66,9 +68,20 @@
           (if (coll? value)
             (let [delimiter-size (if (set? value) 2 1)
                   new-end-column (+ column delimiter-size)
-                  next-line-spaces (+ (dec column)
-                                      delimiter-size
-                                      (if (list? value) 1 0))]
+                  adjustment (if (list? value)
+                               (let [first-val (first value)]
+                                 (cond
+                                   ; multi-arity functions
+                                   (vector? first-val)
+                                   0
+                                   ; threading macros
+                                   (contains? special-indent first-val)
+                                   (inc (count (str first-val)))
+                                   ; any other list
+                                   :else
+                                   1))
+                               0)
+                  next-line-spaces (+ (dec column) delimiter-size adjustment)]
               [; open delimiter tags
                {:line line :column column :delimiter? true}
                {:end-line line :end-column new-end-column :next-line-spaces next-line-spaces}
