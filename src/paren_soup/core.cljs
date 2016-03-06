@@ -1,7 +1,7 @@
 (ns paren-soup.core
   (:require [cljs.core.async :refer [chan put! <!]]
             [clojure.data :refer [diff]]
-            [clojure.string :refer [escape join replace]]
+            [clojure.string :refer [escape join replace triml]]
             [goog.events :as events]
             [rangy.core]
             [rangy.textrange]
@@ -194,7 +194,7 @@
       [(update lines
                cursor-line
                (fn [line]
-                 (str (join (repeat indent-level " ")) line)))
+                 (str (join (repeat indent-level " ")) (triml line))))
        (+ (:cursor-position state) indent-level)])
     [lines (:cursor-position state)]))
 
