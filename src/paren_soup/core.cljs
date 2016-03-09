@@ -326,7 +326,7 @@
   (let [{:keys [cursor-position text]} initial-state
         [start-pos end-pos] cursor-position
         selected? (not= start-pos end-pos)
-        [start-line start-col] (mwm/position->row-col text start-pos)
+        [start-line _] (mwm/position->row-col text start-pos)
         [end-line _] (mwm/position->row-col text end-pos)
         lines-to-change (range start-line (inc end-line))
         lines (mwm/split-lines text)
