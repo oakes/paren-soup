@@ -323,19 +323,15 @@
         lines (if reverse?
                 (reduce unindent-line lines lines-to-change)
                 (reduce indent-line lines lines-to-change))
-        cursor-change (* 2 (count lines-to-change))
-        new-end-pos (if reverse?
-                      (- end-pos cursor-change)
-                      (+ end-pos cursor-change))
+        start-change (if reverse? -2 2)
+        end-change (* start-change (count lines-to-change))
+        new-start-pos (+ start-change start-pos)
+        new-end-pos (+ end-change end-pos)
         new-text (join \newline lines)]
-    (if selected?
-      {:start-pos start-pos
-       :end-pos new-end-pos
-       :text new-text
-       :selection [start-pos new-end-pos]}
-      {:start-pos new-end-pos
-       :end-pos new-end-pos
-       :text new-text})))
+    {:start-pos new-start-pos
+     :end-pos new-end-pos
+     :text new-text
+     :selection (when selected? [new-start-pos new-end-pos])}))
 
 (defn refresh! :- {Keyword Any}
   "Refreshes everything."
