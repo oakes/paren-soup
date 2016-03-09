@@ -186,22 +186,23 @@
       (set! (.-end char-range) (or end-pos start-pos))
       (.restoreCharacterRanges selection content ranges))))
 
-(defn add-indent-if-necessary :- [Any]
+(defn add-indent!
   "Adds indent to the line with the cursor."
-  [lines :- [Str]
+  [content :- js/Object
+   lines :- [Str]
    text :- Str
    tags :- [{Keyword Any}]
    state :- {Keyword Any}]
-  (let [start-pos (first (:cursor-position state))]
-    (if (:should-indent? state)
-      (let [[cursor-line _] (mwm/position->row-col text start-pos)
-            indent-level (ts/indent-for-line tags cursor-line)]
-        [(update lines
-                 cursor-line
-                 (fn [line]
-                   (str (join (repeat indent-level " ")) (triml line))))
-         (+ start-pos indent-level)])
-      [lines start-pos])))
+  (let [start-pos (first (:cursor-position state))
+        [cursor-line _] (mwm/position->row-col text start-pos)
+        indent-level (ts/indent-for-line tags cursor-line)
+        lines (update lines
+                cursor-line
+                (fn [line]
+                  (str (join (repeat indent-level " ")) (triml line))))
+        text (join \newline lines)]
+    (set! (.-innerHTML content) text)
+    (set-cursor-position! content (+ start-pos indent-level))))
 
 (defn refresh-content! :- {Keyword Any}
   "Refreshes the contents."
@@ -214,18 +215,21 @@
         [start-pos end-pos] (:cursor-position state)
         text (join \newline lines)
         tags (ts/str->tags text)
-        html-lines (lines->html lines tags)
-        [html-lines new-start-pos] (add-indent-if-necessary (vec html-lines) text tags state)
-        html-text (join \newline html-lines)]
-    (set! (.-innerHTML content) html-text)
+        html-lines (lines->html lines tags)]
+    ; add the new html, indent if necessary, and reset the cursor position
+    (if (:should-indent? state)
+      (add-indent! content (vec html-lines) text tags state)
+      (let [html-text (join \newline html-lines)]
+        (set! (.-innerHTML content) html-text)
+        (set-cursor-position! content start-pos end-pos)))
+    ; set the mouseover events for errors
     (doseq [elem (-> content (.querySelectorAll ".error") array-seq)]
       (events/listen elem "mouseenter" #(put! events-chan %))
       (events/listen elem "mouseleave" #(put! events-chan %)))
+    ; add rainbow delimiters
     (doseq [[elem class-name] (rainbow-delimiters content -1)]
       (.add (.-classList elem) class-name))
-    (if (not= start-pos end-pos)
-      (set-cursor-position! content start-pos end-pos)
-      (set-cursor-position! content new-start-pos))
+    ; return the state
     state))
 
 (defn refresh-numbers!
