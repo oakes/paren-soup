@@ -167,19 +167,23 @@
         char-range (some-> ranges (get 0) .-characterRange)]
     {:selection selection :ranges ranges :char-range char-range}))
 
-(defn get-cursor-position :- Int
+(defn get-cursor-position :- [Int]
   "Returns the cursor position."
   [content :- js/Object]
-  (or (some-> content get-selection :char-range .-start) 0))
+  (if-let [range (some-> content get-selection :char-range)]
+    [(.-start range) (.-end range)]
+    [0 0]))
 
 (defn set-cursor-position!
   "Moves the cursor to the specified position."
   [content :- js/Object
-   pos :- Int]
+   &
+   [start-pos :- Int
+    end-pos :- Int]]
   (let [{:keys [selection ranges char-range]} (get-selection content)]
     (when (and selection ranges char-range)
-      (set! (.-start char-range) pos)
-      (set! (.-end char-range) pos)
+      (set! (.-start char-range) start-pos)
+      (set! (.-end char-range) (or end-pos start-pos))
       (.restoreCharacterRanges selection content ranges))))
 
 (defn add-indent-if-necessary :- [Any]
@@ -204,7 +208,7 @@
    events-chan :- Any
    state :- {Keyword Any}]
   (let [lines (if-not (empty? (last (:lines state))) ; add a new line at the end if necessary
-                (conj (vec (:lines state)) "")
+                (conj (:lines state) "")
                 (:lines state))
         text (join \newline lines)
         tags (ts/str->tags text)
@@ -217,7 +221,9 @@
       (events/listen elem "mouseleave" #(put! events-chan %)))
     (doseq [[elem class-name] (rainbow-delimiters content -1)]
       (.add (.-classList elem) class-name))
-    (set-cursor-position! content cursor-position)
+    (if-let [[start-pos end-pos] (:selection state)]
+      (set-cursor-position! content start-pos end-pos)
+      (set-cursor-position! content cursor-position))
     state))
 
 (defn refresh-numbers!
@@ -261,26 +267,75 @@
   (let [[row col] (mwm/position->row-col text cursor-position)]
     #js {:cursorLine row :cursorX col}))
 
-(defn get-parinfer-state! :- {Keyword Any}
-  "Returns the updated state of the text editor using parinfer."
-  [content :- js/Object
-   paren-mode? :- Bool]
-  (let [old-position (get-cursor-position content)
-        _ (br->newline! content)
-        old-text (.-textContent content)
-        opts (get-parinfer-opts old-text old-position)
-        result (if paren-mode?
-                 (.parenMode js/parinfer old-text opts)
-                 (.indentMode js/parinfer old-text opts))]
-    (mwm/get-state (.-text result) (.-cursorLine opts) (.-cursorX result))))
-
-(defn get-normal-state! :- {Keyword Any}
-  "Returns the updated state of the text editor."
+(defn init-state! :- {Keyword Any}
+  "Returns the editor's state after sanitizing it."
   [content :- js/Object]
-  (let [position (get-cursor-position content)
+  (let [[start-pos end-pos] (get-cursor-position content)
         _ (br->newline! content)
         text (.-textContent content)]
-    (assoc (mwm/get-state text position) :should-indent? true)))
+    {:start-pos start-pos
+     :end-pos end-pos
+     :text text}))
+
+(defn get-parinfer-state :- {Keyword Any}
+  "Returns the updated state of the text editor using parinfer."
+  [paren-mode? :- Bool
+   initial-state :- {Keyword Any}]
+  (let [{:keys [start-pos text selection]} initial-state
+        opts (get-parinfer-opts text start-pos)
+        result (if paren-mode?
+                 (.parenMode js/parinfer text opts)
+                 (.indentMode js/parinfer text opts))]
+    (-> (mwm/get-state (.-text result) (.-cursorLine opts) (.-cursorX result))
+        (assoc :selection selection))))
+
+(defn get-normal-state :- {Keyword Any}
+  "Returns the updated state of the text editor."
+  [initial-state :- {Keyword Any}]
+  (let [{:keys [start-pos text]} initial-state]
+    (assoc (mwm/get-state text start-pos) :should-indent? true)))
+
+(defn indent-line :- {Keyword Any}
+  "Indents the given line."
+  [lines :- [Str]
+   line-to-change :- Int]
+  (update lines line-to-change #(str "  " %)))
+
+(defn unindent-line :- {Keyword Any}
+  "Unindents the given line."
+  [lines :- [Str]
+   line-to-change :- Int]
+  (update lines line-to-change
+    (fn [line]
+      (str (->> line (take 2) (drop-while #(= % \space)) join)
+           (subs line 2)))))
+
+(defn indent-lines :- {Keyword Any}
+  "Indents the appropriate lines."
+  [reverse? :- Bool
+   initial-state :- {Keyword Any}]
+  (let [{:keys [start-pos end-pos text]} initial-state
+        selected? (not= start-pos end-pos)
+        [start-line start-col] (mwm/position->row-col text start-pos)
+        [end-line _] (mwm/position->row-col text end-pos)
+        lines-to-change (range start-line (inc end-line))
+        lines (mwm/split-lines text)
+        lines (if reverse?
+                (reduce unindent-line lines lines-to-change)
+                (reduce indent-line lines lines-to-change))
+        cursor-change (* 2 (count lines-to-change))
+        new-end-pos (if reverse?
+                      (- end-pos cursor-change)
+                      (+ end-pos cursor-change))
+        new-text (join \newline lines)]
+    (if selected?
+      {:start-pos start-pos
+       :end-pos new-end-pos
+       :text new-text
+       :selection [start-pos new-end-pos]}
+      {:start-pos new-end-pos
+       :end-pos new-end-pos
+       :text new-text})))
 
 (defn refresh! :- {Keyword Any}
   "Refreshes everything."
@@ -290,14 +345,17 @@
    events-chan :- Any
    eval-worker :- js/Object
    state :- {Keyword Any}]
-  (let [state (refresh-content! content events-chan state)]
-    (refresh-numbers! numbers (dec (count (:lines state))))
-    (refresh-instarepl! instarepl content events-chan eval-worker)
-    state))
+  (refresh-content! content events-chan state)
+  (refresh-numbers! numbers (dec (count (:lines state))))
+  (refresh-instarepl! instarepl content events-chan eval-worker)
+  state)
 
 (defn undo-or-redo? [e]
   (and (or (.-metaKey e) (.-ctrlKey e))
        (= (.-keyCode e) 90)))
+
+(defn tab? [e]
+  (= (.-keyCode e) 9))
 
 (defn init! []
   (.init js/rangy)
@@ -311,13 +369,15 @@
       (set! (.-spellcheck paren-soup) false)
       (when-not content
         (throw (js/Error. "Can't find a div with class 'content'")))
-      (->> (assoc (get-parinfer-state! content true) :cursor-position 0)
+      (->> (init-state! content)
+           (get-parinfer-state true)
+           (#(assoc % :cursor-position 0))
            (refresh! instarepl numbers content events-chan eval-worker)
            (mwm/update-edit-history! edit-history))
       (events/removeAll content)
       (events/listen content "keydown" (fn [e]
                                          (put! events-chan e)
-                                         (when (undo-or-redo? e)
+                                         (when (or (undo-or-redo? e) (tab? e))
                                            (.preventDefault e))))
       (events/listen content "keyup" #(put! events-chan %))
       (events/listen content "mouseup" #(put! events-chan %))
@@ -335,7 +395,7 @@
                 "keyup"
                 (cond
                   (contains? #{37 38 39 40} (.-keyCode event))
-                  (mwm/update-cursor-position! edit-history (get-cursor-position content))
+                  (mwm/update-cursor-position! edit-history (first (get-cursor-position content)))
                   
                   (not (or (contains? #{16 ; shift
                                         17 ; ctrl
@@ -344,17 +404,21 @@
                                       (.-keyCode event))
                            (.-ctrlKey event)
                            (.-metaKey event)))
-                  (->> (if (= 13 (.-keyCode event))
-                         (get-normal-state! content)
-                         (get-parinfer-state! content false))
-                       (refresh! instarepl numbers content events-chan eval-worker)
-                       (mwm/update-edit-history! edit-history)))
+                  (let [initial-state (init-state! content)]
+                    (->> (case (.-keyCode event)
+                           13 (get-normal-state initial-state)
+                           9 (->> (indent-lines (.-shiftKey event) initial-state)
+                                  (get-parinfer-state false))
+                           (get-parinfer-state false initial-state))
+                         (refresh! instarepl numbers content events-chan eval-worker)
+                         (mwm/update-edit-history! edit-history))))
                 "paste"
-                (->> (get-parinfer-state! content false)
+                (->> (init-state! content)
+                     (get-parinfer-state false)
                      (refresh! instarepl numbers content events-chan eval-worker)
                      (mwm/update-edit-history! edit-history))
                 "mouseup"
-                (mwm/update-cursor-position! edit-history (get-cursor-position content))
+                (mwm/update-cursor-position! edit-history (first (get-cursor-position content)))
                 "mouseenter"
                 (show-error! paren-soup event)
                 "mouseleave"
