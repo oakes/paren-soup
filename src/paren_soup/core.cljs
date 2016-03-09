@@ -192,15 +192,16 @@
    text :- Str
    tags :- [{Keyword Any}]
    state :- {Keyword Any}]
-  (if (:should-indent? state)
-    (let [[cursor-line _] (mwm/position->row-col text (:cursor-position state))
-          indent-level (ts/indent-for-line tags cursor-line)]
-      [(update lines
-               cursor-line
-               (fn [line]
-                 (str (join (repeat indent-level " ")) (triml line))))
-       (+ (:cursor-position state) indent-level)])
-    [lines (:cursor-position state)]))
+  (let [start-pos (first (:cursor-position state))]
+    (if (:should-indent? state)
+      (let [[cursor-line _] (mwm/position->row-col text start-pos)
+            indent-level (ts/indent-for-line tags cursor-line)]
+        [(update lines
+                 cursor-line
+                 (fn [line]
+                   (str (join (repeat indent-level " ")) (triml line))))
+         (+ start-pos indent-level)])
+      [lines start-pos])))
 
 (defn refresh-content! :- {Keyword Any}
   "Refreshes the contents."
@@ -210,10 +211,11 @@
   (let [lines (if-not (empty? (last (:lines state))) ; add a new line at the end if necessary
                 (conj (:lines state) "")
                 (:lines state))
+        [start-pos end-pos] (:cursor-position state)
         text (join \newline lines)
         tags (ts/str->tags text)
         html-lines (lines->html lines tags)
-        [html-lines cursor-position] (add-indent-if-necessary (vec html-lines) text tags state)
+        [html-lines new-start-pos] (add-indent-if-necessary (vec html-lines) text tags state)
         html-text (join \newline html-lines)]
     (set! (.-innerHTML content) html-text)
     (doseq [elem (-> content (.querySelectorAll ".error") array-seq)]
@@ -221,9 +223,9 @@
       (events/listen elem "mouseleave" #(put! events-chan %)))
     (doseq [[elem class-name] (rainbow-delimiters content -1)]
       (.add (.-classList elem) class-name))
-    (if-let [[start-pos end-pos] (:selection state)]
+    (if (not= start-pos end-pos)
       (set-cursor-position! content start-pos end-pos)
-      (set-cursor-position! content cursor-position))
+      (set-cursor-position! content new-start-pos))
     state))
 
 (defn refresh-numbers!
@@ -270,30 +272,33 @@
 (defn init-state! :- {Keyword Any}
   "Returns the editor's state after sanitizing it."
   [content :- js/Object]
-  (let [[start-pos end-pos] (get-cursor-position content)
+  (let [pos (get-cursor-position content)
         _ (br->newline! content)
         text (.-textContent content)]
-    {:start-pos start-pos
-     :end-pos end-pos
+    {:cursor-position pos
      :text text}))
 
 (defn get-parinfer-state :- {Keyword Any}
   "Returns the updated state of the text editor using parinfer."
   [paren-mode? :- Bool
    initial-state :- {Keyword Any}]
-  (let [{:keys [start-pos text selection]} initial-state
-        opts (get-parinfer-opts text start-pos)
+  (let [{:keys [cursor-position text]} initial-state
+        [start-pos end-pos] cursor-position
+        selected? (not= start-pos end-pos)
+        opts (when-not selected?
+               (get-parinfer-opts text start-pos))
         result (if paren-mode?
                  (.parenMode js/parinfer text opts)
                  (.indentMode js/parinfer text opts))]
-    (-> (mwm/get-state (.-text result) (.-cursorLine opts) (.-cursorX result))
-        (assoc :selection selection))))
+    (if selected?
+      (mwm/get-state (.-text result) cursor-position)
+      (mwm/get-state (.-text result) (.-cursorLine opts) (.-cursorX result)))))
 
 (defn get-normal-state :- {Keyword Any}
   "Returns the updated state of the text editor."
   [initial-state :- {Keyword Any}]
-  (let [{:keys [start-pos text]} initial-state]
-    (assoc (mwm/get-state text start-pos) :should-indent? true)))
+  (let [{:keys [cursor-position text]} initial-state]
+    (assoc (mwm/get-state text cursor-position) :should-indent? true)))
 
 (defn indent-line :- {Keyword Any}
   "Indents the given line."
@@ -314,7 +319,8 @@
   "Indents the appropriate lines."
   [reverse? :- Bool
    initial-state :- {Keyword Any}]
-  (let [{:keys [start-pos end-pos text]} initial-state
+  (let [{:keys [cursor-position text]} initial-state
+        [start-pos end-pos] cursor-position
         selected? (not= start-pos end-pos)
         [start-line start-col] (mwm/position->row-col text start-pos)
         [end-line _] (mwm/position->row-col text end-pos)
@@ -328,10 +334,8 @@
         new-start-pos (+ start-change start-pos)
         new-end-pos (+ end-change end-pos)
         new-text (join \newline lines)]
-    {:start-pos new-start-pos
-     :end-pos new-end-pos
-     :text new-text
-     :selection (when selected? [new-start-pos new-end-pos])}))
+    {:text new-text
+     :cursor-position [new-start-pos new-end-pos]}))
 
 (defn refresh! :- {Keyword Any}
   "Refreshes everything."
@@ -367,7 +371,6 @@
         (throw (js/Error. "Can't find a div with class 'content'")))
       (->> (init-state! content)
            (get-parinfer-state true)
-           (#(assoc % :cursor-position 0))
            (refresh! instarepl numbers content events-chan eval-worker)
            (mwm/update-edit-history! edit-history))
       (events/removeAll content)
@@ -391,7 +394,7 @@
                 "keyup"
                 (cond
                   (contains? #{37 38 39 40} (.-keyCode event))
-                  (mwm/update-cursor-position! edit-history (first (get-cursor-position content)))
+                  (mwm/update-cursor-position! edit-history (get-cursor-position content))
                   
                   (not (or (contains? #{16 ; shift
                                         17 ; ctrl
@@ -414,7 +417,7 @@
                      (refresh! instarepl numbers content events-chan eval-worker)
                      (mwm/update-edit-history! edit-history))
                 "mouseup"
-                (mwm/update-cursor-position! edit-history (first (get-cursor-position content)))
+                (mwm/update-cursor-position! edit-history (get-cursor-position content))
                 "mouseenter"
                 (show-error! paren-soup event)
                 "mouseleave"
