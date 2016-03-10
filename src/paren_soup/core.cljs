@@ -319,27 +319,37 @@
       (str (->> line (take 2) (drop-while #(= % \space)) join)
            (subs line 2)))))
 
-(defn indent-lines :- {Keyword Any}
-  "Indents the appropriate lines."
+(defn get-indent-state :- {Keyword Any}
+  "Returns the state with indentation applied."
   [reverse? :- Bool
    initial-state :- {Keyword Any}]
-  (let [{:keys [cursor-position text]} initial-state
+  (let [; add indentation to the text
+        {:keys [cursor-position text]} initial-state
         [start-pos end-pos] cursor-position
-        selected? (not= start-pos end-pos)
-        [start-line _] (mwm/position->row-col text start-pos)
-        [end-line _] (mwm/position->row-col text end-pos)
+        [start-line start-x] (mwm/position->row-col text start-pos)
+        [end-line end-x] (mwm/position->row-col text end-pos)
         lines-to-change (range start-line (inc end-line))
         lines (mwm/split-lines text)
         lines (if reverse?
                 (reduce unindent-line lines lines-to-change)
                 (reduce indent-line lines lines-to-change))
-        start-change (if reverse? -2 2)
-        end-change (* start-change (count lines-to-change))
-        new-start-pos (+ start-change start-pos)
-        new-end-pos (+ end-change end-pos)
-        new-text (join \newline lines)]
-    {:text new-text
-     :cursor-position [new-start-pos new-end-pos]}))
+        initial-state (assoc initial-state :text (join \newline lines))
+        ; run parinfer on the text
+        state (get-parinfer-state false initial-state)
+        ; adjust the cursor position
+        lines (:lines state)
+        new-text (join \newline lines)
+        selected? (not= start-pos end-pos)
+        indent-change (if reverse? -2 2)
+        start-x (if selected?
+                  0
+                  (max 0 (+ indent-change start-x)))
+        end-x (if selected?
+                (count (get lines end-line))
+                (max 0 (+ indent-change end-x)))
+        new-start-pos (mwm/row-col->position new-text start-line start-x)
+        new-end-pos (mwm/row-col->position new-text end-line end-x)]
+    (assoc state :cursor-position [new-start-pos new-end-pos])))
 
 (defn refresh! :- {Keyword Any}
   "Refreshes everything."
@@ -410,8 +420,7 @@
                   (let [initial-state (init-state! content)]
                     (->> (case (.-keyCode event)
                            13 (get-normal-state initial-state)
-                           9 (->> (indent-lines (.-shiftKey event) initial-state)
-                                  (get-parinfer-state false))
+                           9 (get-indent-state (.-shiftKey event) initial-state)
                            (get-parinfer-state false initial-state))
                          (refresh! instarepl numbers content events-chan eval-worker)
                          (mwm/update-edit-history! edit-history))))
