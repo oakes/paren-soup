@@ -3,7 +3,7 @@
   :url "https://github.com/oakes/paren-soup"
   :license {:name "Public Domain"
             :url "http://unlicense.org/UNLICENSE"}
-  :dependencies [[mistakes-were-made "1.6.0-SNAPSHOT"]
+  :dependencies [[mistakes-were-made "1.5.1"]
                  [tag-soup "1.0.0"]
                  [org.clojure/clojure "1.8.0"]
                  [org.clojure/clojurescript "1.7.228"
