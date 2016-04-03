@@ -46,7 +46,7 @@
          (custom-load! opts (rest extensions) cb)))
      (cb {:lang :clj :source ""}))))
 
-(defn eval-forms [forms cb state]
+(defn eval-forms [forms cb state current-ns]
   (let [opts {:eval js-eval
               :load custom-load!
               :source-map true
@@ -57,7 +57,11 @@
         results (atom [])]
     (go (while (seq @forms)
           (try
-            (let [form (first @forms)]
+            (let [form (first @forms)
+                  opts (assoc opts :ns @current-ns)]
+              (when (list? form)
+                (when (= 'ns (first form))
+                  (reset! current-ns (second form))))
               (if (instance? js/Error form)
                 (put! channel {:error form})
                 (eval state form opts #(put! channel %))))
@@ -106,14 +110,16 @@
 
 (defn read-and-eval-forms [forms cb]
   (let [forms (mapv str->form forms)
+        current-ns (atom 'cljs.user)
         eval-cb (fn [results]
                   (cb (map form->serializable results)))
         read-cb (fn [results]
                   (eval-forms (add-timeouts-if-necessary forms results)
                               eval-cb
-                              state))
+                              state
+                              current-ns))
         init-cb (fn [results]
-                  (eval-forms (map wrap-macroexpand forms) read-cb state))]
+                  (eval-forms (map wrap-macroexpand forms) read-cb state current-ns))]
     (eval-forms ['(ns cljs.user)
                  '(def ^:private ps-last-time (atom 0))
                  '(defn ^:private ps-reset-timeout! []
@@ -123,7 +129,8 @@
                       (throw (js/Error. "Execution timed out."))))
                  '(set! *print-err-fn* (fn [_]))]
                 init-cb
-                state)))
+                state
+                current-ns)))
 
 (set! (.-onmessage js/self)
       (fn [e]
