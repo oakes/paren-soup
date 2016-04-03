@@ -1,15 +1,57 @@
 (ns paren-soup.compiler
-  (:require [cljs.core.async :refer [chan put! <!]]
+  (:require [clojure.string :as str]
+            [cljs.core.async :refer [chan put! <!]]
             [cljs.js :refer [empty-state eval js-eval]]
             [cljs.reader :refer [read-string]]
             [clojure.walk :refer [walk]])
-  (:require-macros [cljs.core.async.macros :refer [go]]))
+  (:require-macros [cljs.core.async.macros :refer [go]])
+  (:import goog.net.XhrIo))
 
-(defn eval-forms
-  [forms cb state]
+(defn fix-goog-path [path]
+  ; goog/string -> goog/string/string
+  ; goog/string/StringBuffer -> goog/string/stringbuffer
+  (let [parts (str/split path #"/")
+        last-part (last parts)
+        new-parts (concat
+                    (butlast parts)
+                    (if (= last-part (str/lower-case last-part))
+                      [last-part last-part]
+                      [(str/lower-case last-part)]))]
+    (str/join "/" new-parts)))
+
+(defn custom-load!
+  ([opts cb]
+   (if (re-matches #"^goog/.*" (:path opts))
+     (custom-load!
+       (update opts :path fix-goog-path)
+       [".js"]
+       cb)
+     (custom-load!
+       opts
+       (if (:macros opts)
+         [".clj" ".cljc"]
+         [".cljs" ".cljc" ".js"])
+       cb)))
+  ([opts extensions cb]
+   (if-let [extension (first extensions)]
+     (try
+       (.send XhrIo
+         (str (:path opts) extension)
+         (fn [e]
+           (if (.isSuccess (.-target e))
+             (cb {:lang (if (= extension ".js") :js :clj)
+                  :source (.. e -target getResponseText)})
+             (custom-load! opts (rest extensions) cb))))
+       (catch :default e
+         (custom-load! opts (rest extensions) cb)))
+     (cb {:lang :clj :source ""}))))
+
+(defn eval-forms [forms cb state]
   (let [opts {:eval js-eval
+              :load custom-load!
               :source-map true
-              :context :expr}
+              :context :expr
+              :def-emits-var true}
         channel (chan)
         forms (atom forms)
         results (atom [])]
@@ -56,7 +98,8 @@
 
 (defn form->serializable [form]
   (if (instance? js/Error form)
-    (array (.-message form) (.-fileName form) (.-lineNumber form))
+    (array (or (some-> form .-cause .-message) (.-message form))
+      (.-fileName form) (.-lineNumber form))
     (pr-str form)))
 
 (defonce state (empty-state))
@@ -77,7 +120,8 @@
                     (reset! ps-last-time (.getTime (js/Date.))))
                  '(defn ^:private ps-check-for-timeout! []
                     (when (> (- (.getTime (js/Date.)) @ps-last-time) 2000)
-                      (throw (js/Error. "Execution timed out."))))]
+                      (throw (js/Error. "Execution timed out."))))
+                 '(set! *print-err-fn* (fn [_]))]
                 init-cb
                 state)))
 
