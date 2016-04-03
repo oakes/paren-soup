@@ -82,14 +82,14 @@
     form))
 
 (defn add-timeout-reset [form]
-  (list 'do '(ps-reset-timeout!) form))
+  (list 'do '(cljs.user/ps-reset-timeout!) form))
 
 (defn add-timeout-checks [form]
   (if (and (seq? form) (= 'quote (first form)))
     form
     (let [form (walk add-timeout-checks identity form)]
       (if (and (seq? form) (= 'recur (first form)))
-        (list 'do '(ps-check-for-timeout!) form)
+        (list 'do '(cljs.user/ps-check-for-timeout!) form)
         form))))
 
 (defn add-timeouts-if-necessary [forms expanded-forms]
@@ -121,10 +121,10 @@
         init-cb (fn [results]
                   (eval-forms (map wrap-macroexpand forms) read-cb state current-ns))]
     (eval-forms ['(ns cljs.user)
-                 '(def ^:private ps-last-time (atom 0))
-                 '(defn ^:private ps-reset-timeout! []
+                 '(def ps-last-time (atom 0))
+                 '(defn ps-reset-timeout! []
                     (reset! ps-last-time (.getTime (js/Date.))))
-                 '(defn ^:private ps-check-for-timeout! []
+                 '(defn ps-check-for-timeout! []
                     (when (> (- (.getTime (js/Date.)) @ps-last-time) 2000)
                       (throw (js/Error. "Execution timed out."))))
                  '(set! *print-err-fn* (fn [_]))]
