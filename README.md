@@ -12,10 +12,7 @@ A library providing a ClojureScript viewer and editor that you can embed in any 
 <div class="paren-soup">
   <div class="instarepl"></div>
   <div class="numbers"></div>
-  <div class="content" contenteditable="true">
-    ; put any initial code here
-    (println "Hello, world!")
-  </div>
+  <div class="content" contenteditable="true">(+ 1 1) ; put initial code here</div>
 </div>
 <script type="text/javascript" src="paren-soup.js"></script>
 ```
