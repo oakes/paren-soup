@@ -42,14 +42,13 @@
              (cb {:lang (if (= extension ".js") :js :clj)
                   :source (.. e -target getResponseText)})
              (custom-load! opts (rest extensions) cb))))
-       (catch :default e
+       (catch js/Error _
          (custom-load! opts (rest extensions) cb)))
      (cb {:lang :clj :source ""}))))
 
 (defn eval-forms [forms cb state current-ns]
   (let [opts {:eval js-eval
               :load custom-load!
-              :source-map true
               :context :expr
               :def-emits-var true}
         channel (chan)
