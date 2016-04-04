@@ -394,6 +394,7 @@
                                            (.preventDefault e))))
       (events/listen content "keyup" #(put! events-chan %))
       (events/listen content "mouseup" #(put! events-chan %))
+      (events/listen content "cut" #(put! events-chan %))
       (events/listen content "paste" #(put! events-chan %))
       (go (while true
             (let [event (<! events-chan)]
@@ -424,9 +425,14 @@
                            (get-parinfer-state false initial-state))
                          (refresh! instarepl numbers content events-chan eval-worker)
                          (mwm/update-edit-history! edit-history))))
+                "cut"
+                (->> (init-state! content)
+                     (get-parinfer-state false)
+                     (refresh! instarepl numbers content events-chan eval-worker)
+                     (mwm/update-edit-history! edit-history))
                 "paste"
                 (->> (init-state! content)
-                     (get-parinfer-state true)
+                     (get-parinfer-state false)
                      (refresh! instarepl numbers content events-chan eval-worker)
                      (mwm/update-edit-history! edit-history))
                 "mouseup"
