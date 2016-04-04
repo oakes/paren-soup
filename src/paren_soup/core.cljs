@@ -426,7 +426,7 @@
                          (mwm/update-edit-history! edit-history))))
                 "paste"
                 (->> (init-state! content)
-                     (get-parinfer-state false)
+                     (get-parinfer-state true)
                      (refresh! instarepl numbers content events-chan eval-worker)
                      (mwm/update-edit-history! edit-history))
                 "mouseup"
