@@ -186,29 +186,42 @@
       (set! (.-end char-range) (or end-pos start-pos))
       (.restoreCharacterRanges selection content ranges))))
 
-(defn add-indent!
-  "Adds indent to the line with the cursor."
+(defn add-indent :- {Keyword Any}
+  "Adds indent to the relevant line(s)."
   [content :- js/Object
    lines :- [Str]
    text :- Str
    tags :- [{Keyword Any}]
    state :- {Keyword Any}]
-  (let [start-pos (first (:cursor-position state))
-        [cursor-line _] (mwm/position->row-col text start-pos)
+  (let [[start-pos end-pos] (:cursor-position state)
+        [start-line _] (mwm/position->row-col text start-pos)
+        [end-line _] (mwm/position->row-col text end-pos)
+        lines-to-change (range start-line (inc end-line))
         indent-level (case (:indent-type state)
                        :return
-                       (ts/indent-for-line tags cursor-line)
+                       (ts/indent-for-line tags start-line)
                        :back
-                       (ts/change-indent-for-line tags cursor-line true)
+                       (ts/change-indent-for-line tags start-line true)
                        :forward
-                       (ts/change-indent-for-line tags cursor-line false))
-        lines (update lines
-                cursor-line
-                (fn [line]
-                  (str (join (repeat indent-level " ")) (triml line))))
-        text (join \newline lines)]
-    (set! (.-innerHTML content) text)
-    (set-cursor-position! content (+ start-pos indent-level))))
+                       (ts/change-indent-for-line tags start-line false))
+        lines (reduce
+                (fn [lines line-to-change]
+                  (update
+                    lines
+                    line-to-change
+                    (fn [line]
+                      (str (join (repeat indent-level " ")) (triml line)))))
+                lines
+                lines-to-change)
+        new-text (join \newline lines)]
+    {:lines lines
+     :text new-text
+     :cursor-position
+     (if (= start-pos end-pos)
+       (let [pos (mwm/row-col->position new-text start-line indent-level)]
+         [pos pos])
+       [(mwm/row-col->position new-text start-line 0)
+        (mwm/row-col->position new-text end-line (count (get lines end-line)))])}))
 
 (defn refresh-content! :- {Keyword Any}
   "Refreshes the contents."
@@ -220,12 +233,14 @@
                 (:lines state))
         [start-pos end-pos] (:cursor-position state)
         text (join \newline lines)
-        tags (ts/str->tags text)
-        html-lines (lines->html lines tags)]
+        tags (ts/str->tags text)]
     ; add the new html, indent if necessary, and reset the cursor position
     (if (:indent-type state)
-      (add-indent! content (vec html-lines) text tags state)
-      (let [html-text (join \newline html-lines)]
+      (let [{:keys [lines text cursor-position]} (add-indent content lines text tags state)
+            tags (ts/str->tags text)]
+        (set! (.-innerHTML content) (join \newline (lines->html lines tags)))
+        (set-cursor-position! content (first cursor-position) (second cursor-position)))
+      (let [html-text (join \newline (lines->html lines tags))]
         (set! (.-innerHTML content) html-text)
         (set-cursor-position! content start-pos end-pos)))
     ; set the mouseover events for errors
@@ -308,58 +323,7 @@
   "Returns the updated state of the text editor."
   [initial-state :- {Keyword Any}]
   (let [{:keys [cursor-position text]} initial-state]
-    (assoc (mwm/get-state text cursor-position) :indent-type :return)))
-
-(defn indent-line :- {Keyword Any}
-  "Indents the given line."
-  [lines :- [Str]
-   line-to-change :- Int]
-  (update lines line-to-change #(str "  " %)))
-
-(defn unindent-line :- {Keyword Any}
-  "Unindents the given line."
-  [lines :- [Str]
-   line-to-change :- Int]
-  (update lines line-to-change
-    (fn [line]
-      (str (->> line (take 2) (drop-while #(= % \space)) join)
-           (subs line 2)))))
-
-(defn get-indent-state :- {Keyword Any}
-  "Returns the state with indentation applied."
-  [reverse? :- Bool
-   initial-state :- {Keyword Any}]
-  (let [{:keys [cursor-position text]} initial-state]
-    (assoc (mwm/get-state text cursor-position)
-      :indent-type (if reverse? :back :forward)))
-  #_
-  (let [; add indentation to the text
-        {:keys [cursor-position text]} initial-state
-        [start-pos end-pos] cursor-position
-        [start-line start-x] (mwm/position->row-col text start-pos)
-        [end-line end-x] (mwm/position->row-col text end-pos)
-        lines-to-change (range start-line (inc end-line))
-        lines (mwm/split-lines text)
-        lines (if reverse?
-                (reduce unindent-line lines lines-to-change)
-                (reduce indent-line lines lines-to-change))
-        initial-state (assoc initial-state :text (join \newline lines))
-        ; run parinfer on the text
-        state (get-parinfer-state false initial-state)
-        ; adjust the cursor position
-        lines (:lines state)
-        new-text (join \newline lines)
-        selected? (not= start-pos end-pos)
-        indent-change (if reverse? -2 2)
-        start-x (if selected?
-                  0
-                  (max 0 (+ indent-change start-x)))
-        end-x (if selected?
-                (count (get lines end-line))
-                (max 0 (+ indent-change end-x)))
-        new-start-pos (mwm/row-col->position new-text start-line start-x)
-        new-end-pos (mwm/row-col->position new-text end-line end-x)]
-    (assoc state :cursor-position [new-start-pos new-end-pos])))
+    (mwm/get-state text cursor-position)))
 
 (defn refresh! :- {Keyword Any}
   "Refreshes everything."
@@ -430,8 +394,10 @@
                            (.-metaKey event)))
                   (let [initial-state (init-state! content)]
                     (->> (case (.-keyCode event)
-                           13 (get-normal-state initial-state)
-                           9 (get-indent-state (.-shiftKey event) initial-state)
+                           13 (assoc (get-normal-state initial-state)
+                                :indent-type :return)
+                           9 (assoc (get-normal-state initial-state)
+                               :indent-type (if (.-shiftKey event) :back :forward))
                            (get-parinfer-state false initial-state))
                          (refresh! instarepl numbers content events-chan eval-worker)
                          (mwm/update-edit-history! edit-history))))
