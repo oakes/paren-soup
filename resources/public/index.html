@@ -29,6 +29,9 @@
 (def my-transducer (comp (map inc) (filter odd?)))
 (sequence my-transducer (range 10))
 
+(let [nums [1 2 3 4 5]
+      other-nums [1 2 3 4 5]])
+
 ; try uncommenting this! infinite loops should safely time out.
 ;(while true)</div>
 	</div>

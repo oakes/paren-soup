@@ -195,7 +195,13 @@
    state :- {Keyword Any}]
   (let [start-pos (first (:cursor-position state))
         [cursor-line _] (mwm/position->row-col text start-pos)
-        indent-level (ts/indent-for-line tags cursor-line)
+        indent-level (case (:indent-type state)
+                       :return
+                       (ts/indent-for-line tags cursor-line)
+                       :back
+                       (ts/change-indent-for-line tags cursor-line true)
+                       :forward
+                       (ts/change-indent-for-line tags cursor-line false))
         lines (update lines
                 cursor-line
                 (fn [line]
@@ -217,7 +223,7 @@
         tags (ts/str->tags text)
         html-lines (lines->html lines tags)]
     ; add the new html, indent if necessary, and reset the cursor position
-    (if (:should-indent? state)
+    (if (:indent-type state)
       (add-indent! content (vec html-lines) text tags state)
       (let [html-text (join \newline html-lines)]
         (set! (.-innerHTML content) html-text)
@@ -302,7 +308,7 @@
   "Returns the updated state of the text editor."
   [initial-state :- {Keyword Any}]
   (let [{:keys [cursor-position text]} initial-state]
-    (assoc (mwm/get-state text cursor-position) :should-indent? true)))
+    (assoc (mwm/get-state text cursor-position) :indent-type :return)))
 
 (defn indent-line :- {Keyword Any}
   "Indents the given line."
@@ -323,6 +329,10 @@
   "Returns the state with indentation applied."
   [reverse? :- Bool
    initial-state :- {Keyword Any}]
+  (let [{:keys [cursor-position text]} initial-state]
+    (assoc (mwm/get-state text cursor-position)
+      :indent-type (if reverse? :back :forward)))
+  #_
   (let [; add indentation to the text
         {:keys [cursor-position text]} initial-state
         [start-pos end-pos] cursor-position
