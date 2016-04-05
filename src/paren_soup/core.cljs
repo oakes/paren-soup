@@ -197,20 +197,26 @@
         [start-line _] (mwm/position->row-col text start-pos)
         [end-line _] (mwm/position->row-col text end-pos)
         lines-to-change (range start-line (inc end-line))
-        indent-level (case (:indent-type state)
-                       :return
-                       (ts/indent-for-line tags start-line)
-                       :back
-                       (ts/change-indent-for-line tags start-line true)
-                       :forward
-                       (ts/change-indent-for-line tags start-line false))
+        old-indent-level (->> (get lines start-line) seq (take-while #(= % \space)) count)
+        new-indent-level (case (:indent-type state)
+                           :return
+                           (ts/indent-for-line tags start-line)
+                           :back
+                           (ts/change-indent-for-line tags start-line true)
+                           :forward
+                           (ts/change-indent-for-line tags start-line false))
+        indent-change (- new-indent-level old-indent-level)
         lines (reduce
                 (fn [lines line-to-change]
                   (update
                     lines
                     line-to-change
                     (fn [line]
-                      (str (join (repeat indent-level " ")) (triml line)))))
+                      (let [[spaces code] (split-with #(= % \space) (seq line))
+                            spaces (if (pos? indent-change)
+                                     (concat spaces (repeat indent-change \space))
+                                     (drop (* -1 indent-change) spaces))]
+                        (str (join spaces) (join code))))))
                 lines
                 lines-to-change)
         new-text (join \newline lines)]
@@ -218,7 +224,7 @@
      :text new-text
      :cursor-position
      (if (= start-pos end-pos)
-       (let [pos (mwm/row-col->position new-text start-line indent-level)]
+       (let [pos (mwm/row-col->position new-text start-line new-indent-level)]
          [pos pos])
        [(mwm/row-col->position new-text start-line 0)
         (mwm/row-col->position new-text end-line (count (get lines end-line)))])}))
