@@ -186,6 +186,8 @@
       (set! (.-end char-range) (or end-pos start-pos))
       (.restoreCharacterRanges selection content ranges))))
 
+(declare get-parinfer-state)
+
 (defn add-indent :- {Keyword Any}
   "Adds indent to the relevant line(s)."
   [content :- js/Object
@@ -193,7 +195,8 @@
    text :- Str
    tags :- [{Keyword Any}]
    state :- {Keyword Any}]
-  (let [[start-pos end-pos] (:cursor-position state)
+  (let [cursor-position (:cursor-position state)
+        [start-pos end-pos] cursor-position
         [start-line _] (mwm/position->row-col text start-pos)
         [end-line _] (mwm/position->row-col text end-pos)
         lines-to-change (range start-line (inc end-line))
@@ -219,15 +222,17 @@
                         (str (join spaces) (join code))))))
                 lines
                 lines-to-change)
-        new-text (join \newline lines)]
-    {:lines lines
-     :text new-text
-     :cursor-position
-     (if (= start-pos end-pos)
-       (let [pos (mwm/row-col->position new-text start-line new-indent-level)]
-         [pos pos])
-       [(mwm/row-col->position new-text start-line 0)
-        (mwm/row-col->position new-text end-line (count (get lines end-line)))])}))
+        text (join \newline lines)
+        state (get-parinfer-state false {:text text :cursor-position cursor-position})
+        lines (:lines state)
+        text (join \newline lines)]
+    (assoc state
+      :cursor-position
+      (if (= start-pos end-pos)
+        (let [pos (mwm/row-col->position text start-line new-indent-level)]
+          [pos pos])
+        [(mwm/row-col->position text start-line 0)
+         (mwm/row-col->position text end-line (count (get lines end-line)))]))))
 
 (defn refresh-content! :- {Keyword Any}
   "Refreshes the contents."
@@ -242,8 +247,9 @@
         tags (ts/str->tags text)]
     ; add the new html, indent if necessary, and reset the cursor position
     (if (:indent-type state)
-      (let [{:keys [lines text cursor-position]} (add-indent content lines text tags state)
-            tags (ts/str->tags text)]
+      (let [{:keys [lines cursor-position]} (add-indent content lines text tags state)
+            new-text (join \newline lines)
+            tags (ts/str->tags new-text)]
         (set! (.-innerHTML content) (join \newline (lines->html lines tags)))
         (set-cursor-position! content (first cursor-position) (second cursor-position)))
       (let [html-text (join \newline (lines->html lines tags))]
