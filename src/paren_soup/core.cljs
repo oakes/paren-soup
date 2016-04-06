@@ -241,6 +241,18 @@
         [(mwm/row-col->position text start-line 0)
          (mwm/row-col->position text end-line (count (get lines end-line)))]))))
 
+(defn update-editor!
+  "Adds error messages and rainbow delimiters to the editor."
+  [content :- js/Object
+   events-chan :- js/Object]
+  ; set the mouseover events for errors
+  (doseq [elem (-> content (.querySelectorAll ".error") array-seq)]
+    (events/listen elem "mouseenter" #(put! events-chan %))
+    (events/listen elem "mouseleave" #(put! events-chan %)))
+  ; add rainbow delimiters
+  (doseq [[elem class-name] (rainbow-delimiters content -1)]
+    (.add (.-classList elem) class-name)))
+
 (defn refresh-content! :- {Keyword Any}
   "Refreshes the contents."
   [content :- js/Object
@@ -252,25 +264,19 @@
         [start-pos end-pos] (:cursor-position state)
         text (join \newline lines)
         tags (ts/str->tags text)]
-    ; add the new html, indent if necessary, and reset the cursor position
     (if (:indent-type state)
-      (let [{:keys [lines cursor-position]} (add-indent lines text tags state)
+      (let [{:keys [lines cursor-position] :as state} (add-indent lines text tags state)
             new-text (join \newline lines)
             tags (ts/str->tags new-text)]
         (set! (.-innerHTML content) (join \newline (lines->html lines tags)))
-        (set-cursor-position! content (first cursor-position) (second cursor-position)))
+        (set-cursor-position! content (first cursor-position) (second cursor-position))
+        (update-editor! content events-chan)
+        state)
       (let [html-text (join \newline (lines->html lines tags))]
         (set! (.-innerHTML content) html-text)
-        (set-cursor-position! content start-pos end-pos)))
-    ; set the mouseover events for errors
-    (doseq [elem (-> content (.querySelectorAll ".error") array-seq)]
-      (events/listen elem "mouseenter" #(put! events-chan %))
-      (events/listen elem "mouseleave" #(put! events-chan %)))
-    ; add rainbow delimiters
-    (doseq [[elem class-name] (rainbow-delimiters content -1)]
-      (.add (.-classList elem) class-name))
-    ; return the state
-    state))
+        (set-cursor-position! content start-pos end-pos)
+        (update-editor! content events-chan)
+        state))))
 
 (defn refresh-numbers!
   "Refreshes the line numbers."
@@ -352,10 +358,10 @@
    events-chan :- Any
    eval-worker :- js/Object
    state :- {Keyword Any}]
-  (refresh-content! content events-chan state)
-  (refresh-numbers! numbers (dec (count (:lines state))))
-  (refresh-instarepl! instarepl content events-chan eval-worker)
-  state)
+  (let [state (refresh-content! content events-chan state)]
+    (refresh-numbers! numbers (dec (count (:lines state))))
+    (refresh-instarepl! instarepl content events-chan eval-worker)
+    state))
 
 (defn undo-or-redo? [e]
   (and (or (.-metaKey e) (.-ctrlKey e))
