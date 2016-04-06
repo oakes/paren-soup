@@ -205,10 +205,18 @@
                            :return
                            (ts/indent-for-line tags start-line)
                            :back
-                           (ts/change-indent-for-line tags start-line true)
+                           (ts/back-indent-for-line tags start-line)
                            :forward
-                           (ts/change-indent-for-line tags start-line false))
+                           (ts/forward-indent-for-line tags start-line))
         indent-change (- new-indent-level old-indent-level)
+        indent-change (if (neg? indent-change)
+                        (->> (seq (get lines start-line))
+                             (split-with #(= % \space))
+                             first
+                             (take (* -1 indent-change))
+                             count
+                             (* -1))
+                        indent-change)
         lines (reduce
                 (fn [lines line-to-change]
                   (update
