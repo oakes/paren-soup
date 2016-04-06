@@ -190,8 +190,7 @@
 
 (defn add-indent :- {Keyword Any}
   "Adds indent to the relevant line(s)."
-  [content :- js/Object
-   lines :- [Str]
+  [lines :- [Str]
    text :- Str
    tags :- [{Keyword Any}]
    state :- {Keyword Any}]
@@ -255,7 +254,7 @@
         tags (ts/str->tags text)]
     ; add the new html, indent if necessary, and reset the cursor position
     (if (:indent-type state)
-      (let [{:keys [lines cursor-position]} (add-indent content lines text tags state)
+      (let [{:keys [lines cursor-position]} (add-indent lines text tags state)
             new-text (join \newline lines)
             tags (ts/str->tags new-text)]
         (set! (.-innerHTML content) (join \newline (lines->html lines tags)))
