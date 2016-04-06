@@ -1,0 +1,56 @@
+<!doctype html>
+<html>
+	<head>
+		<title>paren-soup</title>
+		<link rel="stylesheet" type="text/css" href="paren-soup-light.css">
+		<style>
+			html, body, .paren-soup {
+				height: 100%;
+				margin: 0;
+			}
+			.paren-soup .content {
+				min-height: 100%;
+			}
+			html, body, .paren-soup .content {
+				overflow: hidden;
+			}
+			.paren-soup {
+				overflow: auto;
+			}
+		</style>
+	</head>
+	<body>
+	<div class="paren-soup">
+		<div class="numbers"></div>
+		<div class="content" contenteditable="true">(defproject paren-soup "1.8.0-SNAPSHOT"
+  :description "A viewer and editor for ClojureScript"
+  :url "https://github.com/oakes/paren-soup"
+  :license {:name "Public Domain"
+            :url "http://unlicense.org/UNLICENSE"}
+  :dependencies [[mistakes-were-made "1.5.2"]
+                 [tag-soup "1.0.1"]
+                 [org.clojure/clojure "1.8.0"]
+                 [org.clojure/clojurescript "1.7.228"
+                  :exclusions [org.clojure/tools.reader]]
+                 [org.clojure/core.async "0.2.374"
+                  :exclusions [org.clojure/tools.reader]]
+                 [prismatic/schema "0.4.3"]]
+  :profiles {:uberjar {:prep-tasks ["compile" ["cljsbuild" "once"]]}}
+  :javac-options ["-target" "1.6" "-source" "1.6" "-Xlint:-options"]
+  :plugins [[lein-cljsbuild "1.1.2"]]
+  :cljsbuild {:builds {:main {:source-paths ["src"]
+                              :compiler {:output-to "resources/public/paren-soup.js"
+                                         :optimizations :simple
+                                         :pretty-print false
+                                         :foreign-libs [{:file "src/js/rangy-core.js"
+                                                         :provides ["rangy.core"]}
+                                                        {:file "src/js/rangy-textrange.js"
+                                                         :provides ["rangy.textrange"]}
+                                                        {:file "js/parinfer.js"
+                                                         :provides ["parinfer.core"]}]}
+                              :jar true}}}
+  :main paren-soup.core)</div>
+	</div>
+	<script type="text/javascript" src="paren-soup.js"></script>
+	</body>
+</html>
