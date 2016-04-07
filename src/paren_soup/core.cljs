@@ -229,8 +229,10 @@
                         (str (join spaces) (join code))))))
                 lines
                 lines-to-change)
-        text (join \newline lines)
-        state (get-parinfer-state false {:text text :cursor-position cursor-position})
+        state (if (= :return (:indent-type state))
+                (assoc state :lines lines)
+                (get-parinfer-state false
+                  {:text (join \newline lines) :cursor-position cursor-position}))
         lines (:lines state)
         text (join \newline lines)]
     (assoc state
