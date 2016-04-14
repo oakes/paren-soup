@@ -231,7 +231,7 @@
                 lines-to-change)
         state (if (= :return (:indent-type state))
                 (assoc state :lines lines)
-                (get-parinfer-state false
+                (get-parinfer-state :indent
                   {:text (join \newline lines) :cursor-position cursor-position}))
         lines (:lines state)
         text (join \newline lines)]
@@ -332,16 +332,22 @@
 
 (defn get-parinfer-state :- {Keyword Any}
   "Returns the updated state of the text editor using parinfer."
-  [paren-mode? :- Bool
+  [mode :- Keyword
    initial-state :- {Keyword Any}]
   (let [{:keys [cursor-position text]} initial-state
         [start-pos end-pos] cursor-position
         selected? (not= start-pos end-pos)
         opts (when-not selected?
                (get-parinfer-opts text start-pos))
-        result (if paren-mode?
+        result (case mode
+                 :paren
                  (.parenMode js/parinfer text opts)
-                 (.indentMode js/parinfer text opts))]
+                 :indent
+                 (.indentMode js/parinfer text opts)
+                 :both
+                 (let [result (.parenMode js/parinfer text opts)
+                       text (.-text result)]
+                   (.indentMode js/parinfer text opts)))]
     (if selected?
       (mwm/get-state (.-text result) cursor-position)
       (mwm/get-state (.-text result) (.-cursorLine opts) (.-cursorX result)))))
@@ -385,7 +391,7 @@
       (when-not content
         (throw (js/Error. "Can't find a div with class 'content'")))
       (->> (init-state! content)
-           (get-parinfer-state true)
+           (get-parinfer-state :paren)
            (refresh! instarepl numbers content events-chan eval-worker)
            (mwm/update-edit-history! edit-history))
       (events/removeAll content)
@@ -425,17 +431,17 @@
                                 :indent-type :return)
                            9 (assoc (get-normal-state initial-state)
                                :indent-type (if (.-shiftKey event) :back :forward))
-                           (get-parinfer-state false initial-state))
+                           (get-parinfer-state :indent initial-state))
                          (refresh! instarepl numbers content events-chan eval-worker)
                          (mwm/update-edit-history! edit-history))))
                 "cut"
                 (->> (init-state! content)
-                     (get-parinfer-state false)
+                     (get-parinfer-state :both)
                      (refresh! instarepl numbers content events-chan eval-worker)
                      (mwm/update-edit-history! edit-history))
                 "paste"
                 (->> (init-state! content)
-                     (get-parinfer-state false)
+                     (get-parinfer-state :both)
                      (refresh! instarepl numbers content events-chan eval-worker)
                      (mwm/update-edit-history! edit-history))
                 "mouseup"
