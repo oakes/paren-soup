@@ -3,6 +3,7 @@
             [clojure.data :refer [diff]]
             [clojure.string :refer [escape join replace triml]]
             [goog.events :as events]
+            [goog.string :as gstring]
             [rangy.core]
             [rangy.textrange]
             [schema.core :refer [maybe either Any Str Int Keyword Bool]]
@@ -115,16 +116,13 @@
         (recur (inc i)
                (+ offset height)
                (conj! evals
-                      (str "<div class='result"
-                           (when (array? res)
-                             " error")
-                           "' style='top: "
-                           (- top offset)
-                           "px; height: "
-                           height
-                           "px;'>"
-                           (escape-html (if (array? res) (first res) res))
-                           "</div>"))))
+                 (gstring/format
+                   "<div class='%s' style='top: %spx; height: %spx; min-height: %spx'>%s</div>"
+                   (if (array? res) "result error" "result")
+                   top
+                   height
+                   height
+                   (escape-html (if (array? res) (first res) res))))))
       (join (persistent! evals)))))
 
 (defn get-collections :- [js/Object]

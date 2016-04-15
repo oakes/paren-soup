@@ -1,4 +1,5 @@
 .paren-soup {
+	display: flex;
 	font-size: 16px;
 	font-family: monospace;
 	color: lightgray;
@@ -13,22 +14,29 @@
 }
 
 .paren-soup .instarepl {
-	float: left;
+	position: relative;
+	flex: 0;
 	padding-right: 5px;
-	text-align: right;
-	width: 200px;
+	min-width: 200px;
+	max-width: 200px;
 }
 
 .paren-soup .instarepl .result {
-	position: relative;
+	opacity: 0.7;
+	position: absolute;
 	overflow: hidden;
 	background-color: darkgreen;
 	outline: 1px solid;
+	max-width: inherit;
+	word-wrap: break-word;
+	right: 0px;
 }
 
 .paren-soup .instarepl .result:hover {
-	width: 500px;
-	text-align: left;
+	opacity: 1;
+	cursor: pointer;
+	height: auto !important;
+	z-index: 1;
 }
 
 .paren-soup .instarepl .error {
@@ -36,18 +44,21 @@
 }
 
 .paren-soup .numbers {
-	float: left;
+	flex: 0;
 	padding: 0px 5px;
 	text-align: right;
+	opacity: 0.7;
 }
 
 .paren-soup .content {
+	flex: 1;
 	margin: 0px;
 	padding: 0px 5px;
 	outline: 0px solid transparent;
 	white-space: pre;
 	word-wrap: normal;
-	overflow: scroll;
+	overflow-x: scroll;
+	overflow-y: hidden;
 }
 
 .paren-soup .content .symbol {
