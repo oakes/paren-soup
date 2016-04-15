@@ -33,21 +33,33 @@
   (doseq [elem (-> parent-elem (.querySelectorAll ".error-text") array-seq)]
     (.removeChild parent-elem elem)))
 
-(defn escape-html :- Str
+(defn escape-html-str :- Str
   [s :- Str]
-  (escape s {\< "&lt;"
-             \> "&gt;"
-             \& "&amp;"
-             \' "&apos;"}))
+  (escape s
+    {\< "&lt;"
+     \> "&gt;"
+     \& "&amp;"
+     \" "&quot;"
+     \' "&apos;"}))
+
+(defn escape-html-char :- Str
+  [s :- Str]
+  (case s
+    \< "&lt;"
+    \> "&gt;"
+    \& "&amp;"
+    \" "&quot;"
+    \' "&apos;"
+    s))
 
 (defn tag->html :- Str
   "Returns an HTML string for the given tag description."
   [tag :- {Keyword Any}]
   (cond
     (:delimiter? tag) "<span class='delimiter'>"
-    (:error? tag) (str "<span class='error' data-message='"
-                       (some-> (:message tag) escape-html)
-                       "'></span>")
+    (:error? tag) (gstring/format
+                    "<span class='error' data-message='%s'></span>"
+                    (some-> (:message tag) escape-html-str))
     (:line tag) (let [value (:value tag)]
                   (cond
                     (symbol? value) "<span class='symbol'>"
@@ -77,7 +89,7 @@
         segments (loop [i 0
                         segments (transient [])
                         current-segment (transient [])]
-                   (if-let [c (get line i)]
+                   (if-let [c (some-> line (get i) escape-html-char)]
                      (if (contains? columns (inc i))
                        (recur (inc i)
                               (conj! segments (persistent! current-segment))
@@ -122,7 +134,7 @@
                    top
                    height
                    height
-                   (escape-html (if (array? res) (first res) res))))))
+                   (escape-html-str (if (array? res) (first res) res))))))
       (join (persistent! evals)))))
 
 (defn get-collections :- [js/Object]
