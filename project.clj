@@ -4,7 +4,7 @@
   :license {:name "Public Domain"
             :url "http://unlicense.org/UNLICENSE"}
   :dependencies [[mistakes-were-made "1.5.3"]
-                 [tag-soup "1.1.4"]
+                 [tag-soup "1.1.5-SNAPSHOT"]
                  [org.clojure/clojure "1.8.0"]
                  [org.clojure/clojurescript "1.7.228"
                   :exclusions [org.clojure/tools.reader]]

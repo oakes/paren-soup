@@ -7,7 +7,7 @@
                   [pandeiro/boot-http "0.6.3-SNAPSHOT" :scope "test"]
                   ; project deps
                   [mistakes-were-made "1.5.3"]
-                  [tag-soup "1.1.4"]
+                  [tag-soup "1.1.5-SNAPSHOT"]
                   [org.clojure/clojure "1.8.0"]
                   [org.clojure/clojurescript "1.7.228"
                    :exclusions [org.clojure/tools.reader]]

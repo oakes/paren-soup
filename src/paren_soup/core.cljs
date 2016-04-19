@@ -80,12 +80,11 @@
   "Returns the given line with html added."
   [line :- Str
    tags-for-line :- [{Keyword Any}]]
-  (let [get-column #(or (:column %) (:end-column %))
-        tags-for-line (sort-by get-column tags-for-line)
-        html-per-column (sequence (comp (partition-by get-column)
+  (let [tags-for-line (sort-by ts/get-column tags-for-line)
+        html-per-column (sequence (comp (partition-by ts/get-column)
                                         (map #(join (map tag->html %))))
                                   tags-for-line)
-        columns (set (map get-column tags-for-line))
+        columns (set (map ts/get-column tags-for-line))
         segments (loop [i 0
                         segments (transient [])
                         current-segment (transient [])]
@@ -108,7 +107,7 @@
   [html-cache :- {Str Str}
    lines :- [Str]
    tags :- [{Keyword Any}]]
-  (let [tags-by-line (group-by #(or (:line %) (:end-line %)) tags)]
+  (let [tags-by-line (group-by ts/get-line tags)]
     (sequence (comp (partition-all 2)
                     (map (fn [[i line]]
                            (if-let [html-line (html-cache line)]
