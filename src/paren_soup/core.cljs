@@ -105,13 +105,16 @@
 
 (defn lines->html :- [Str]
   "Returns the lines with html added."
-  [lines :- [Str]
+  [lines->html-lines :- {Str Str}
+   lines :- [Str]
    tags :- [{Keyword Any}]]
   (let [tags-by-line (group-by #(or (:line %) (:end-line %)) tags)]
     (sequence (comp (partition-all 2)
                     (map (fn [[i line]]
-                           (line->html line (get tags-by-line i)))))
-              (interleave (iterate inc 1) lines))))
+                           (if-let [html-line (lines->html-lines line)]
+                             html-line
+                             (line->html line (get tags-by-line (inc i)))))))
+              (interleave (iterate inc 0) lines))))
 
 (defn results->html :- Str
   "Returns HTML for the given eval results."
@@ -269,8 +272,12 @@
   "Refreshes the contents."
   [content :- js/Object
    events-chan :- Any
+   previous-state :- (maybe {Keyword Any})
    state :- {Keyword Any}]
-  (let [lines (if-not (empty? (last (:lines state))) ; add a new line at the end if necessary
+  (let [old-lines (:lines previous-state)
+        old-html-lines (mwm/split-lines (.-innerHTML content))
+        lines->html-lines (apply hash-map (interleave old-lines old-html-lines))
+        lines (if-not (empty? (last (:lines state))) ; add a new line at the end if necessary
                 (conj (:lines state) "")
                 (:lines state))
         [start-pos end-pos] (:cursor-position state)
@@ -280,11 +287,11 @@
       (let [{:keys [lines cursor-position] :as state} (add-indent lines text tags state)
             new-text (join \newline lines)
             tags (ts/str->tags new-text)]
-        (set! (.-innerHTML content) (join \newline (lines->html lines tags)))
+        (set! (.-innerHTML content) (join \newline (lines->html lines->html-lines lines tags)))
         (set-cursor-position! content (first cursor-position) (second cursor-position))
         (update-editor! content events-chan)
         state)
-      (let [html-text (join \newline (lines->html lines tags))]
+      (let [html-text (join \newline (lines->html lines->html-lines lines tags))]
         (set! (.-innerHTML content) html-text)
         (set-cursor-position! content start-pos end-pos)
         (update-editor! content events-chan)
@@ -375,8 +382,9 @@
    content :- js/Object
    events-chan :- Any
    eval-worker :- js/Object
+   previous-state :- (maybe {Keyword Any})
    state :- {Keyword Any}]
-  (let [state (refresh-content! content events-chan state)]
+  (let [state (refresh-content! content events-chan previous-state state)]
     (refresh-numbers! numbers (dec (count (:lines state))))
     (refresh-instarepl! instarepl content events-chan eval-worker)
     state))
@@ -402,7 +410,7 @@
         (throw (js/Error. "Can't find a div with class 'content'")))
       (->> (init-state! content)
            (get-parinfer-state :paren)
-           (refresh! instarepl numbers content events-chan eval-worker)
+           (refresh! instarepl numbers content events-chan eval-worker nil)
            (mwm/update-edit-history! edit-history))
       (events/removeAll content)
       (events/listen content "keydown" (fn [e]
@@ -418,11 +426,12 @@
               (case (.-type event)
                 "keydown"
                 (when (undo-or-redo? event)
-                  (if (.-shiftKey event)
-                    (when-let [state (mwm/redo! edit-history)]
-                      (refresh! instarepl numbers content events-chan eval-worker state))
-                    (when-let [state (mwm/undo! edit-history)]
-                      (refresh! instarepl numbers content events-chan eval-worker state))))
+                  (let [old-state (mwm/get-current-state edit-history)]
+                    (if (.-shiftKey event)
+                      (when-let [state (mwm/redo! edit-history)]
+                        (refresh! instarepl numbers content events-chan eval-worker old-state state))
+                      (when-let [state (mwm/undo! edit-history)]
+                        (refresh! instarepl numbers content events-chan eval-worker old-state state)))))
                 "keyup"
                 (cond
                   (contains? #{37 38 39 40} (.-keyCode event))
@@ -442,17 +451,17 @@
                            9 (assoc (get-normal-state initial-state)
                                :indent-type (if (.-shiftKey event) :back :forward))
                            (get-parinfer-state :indent initial-state))
-                         (refresh! instarepl numbers content events-chan eval-worker)
+                         (refresh! instarepl numbers content events-chan eval-worker (mwm/get-previous-state edit-history))
                          (mwm/update-edit-history! edit-history))))
                 "cut"
                 (->> (init-state! content)
                      (get-parinfer-state :both)
-                     (refresh! instarepl numbers content events-chan eval-worker)
+                     (refresh! instarepl numbers content events-chan eval-worker (mwm/get-previous-state edit-history))
                      (mwm/update-edit-history! edit-history))
                 "paste"
                 (->> (init-state! content)
                      (get-parinfer-state :both)
-                     (refresh! instarepl numbers content events-chan eval-worker)
+                     (refresh! instarepl numbers content events-chan eval-worker (mwm/get-previous-state edit-history))
                      (mwm/update-edit-history! edit-history))
                 "mouseup"
                 (mwm/update-cursor-position! edit-history (get-cursor-position content))
