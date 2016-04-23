@@ -1,5 +1,5 @@
 //
-// Parinfer 1.7.0
+// Parinfer 1.8.1
 //
 // Copyright 2015-2016 © Shaun LeBron
 // MIT License
@@ -106,8 +106,12 @@ function getInitialResult(text, options, mode) {
     x: 0,                      // [integer] - x position of the current character (ch)
 
     parenStack: [],            // We track where we are in the Lisp tree by keeping a stack (array) of open-parens.
-                               // Stack elements are objects containing keys {ch, x, indentDelta}
+                               // Stack elements are objects containing keys {ch, x, lineNo, indentDelta}
                                // whose values are the same as those described here in this result structure.
+
+    tabStops: [],              // In Indent Mode, it is useful for editors to snap a line's indentation
+                               // to certain critical points.  Thus, we have a `tabStops` array of objects containing
+                               // keys {ch, x, lineNo}, which is just the state of the `parenStack` at the cursor line.
 
     parenTrail: {              // the range of parens at the end of a line
       lineNo: SENTINEL_NULL,   // [integer] - line number of the last parsed paren trail
@@ -474,12 +478,12 @@ function updateParenTrailBounds(result) {
   if (result.x > 0) { prevCh = line[result.x - 1]; }
   var ch = result.ch;
 
-  var shouldReset = (
-    result.isInCode &&
-    !isCloseParen(ch) &&
-    ch !== "" &&                                    // erased character
-    (ch !== BLANK_SPACE || prevCh === BACKSLASH) && // non-escaped space
-    ch != DOUBLE_SPACE                              // double-space (converted tab)
+  var shouldReset = (                               // In order to reset, the current character...
+    result.isInCode &&                              // - cannot be inside a string or comment
+    (!isCloseParen(ch) || prevCh === BACKSLASH) &&  // - cannot be a close-paren, unless escaped
+    ch !== "" &&                                    // - cannot be an erased character
+    (ch !== BLANK_SPACE || prevCh === BACKSLASH) && // - cannot be a space, unless escaped
+    ch != DOUBLE_SPACE                              // - cannot be a double-space (converted tab)
   );
 
   if (shouldReset) {
@@ -588,8 +592,20 @@ function appendParenTrail(result) {
   result.parenTrail.endX++;
 }
 
+function invalidateParenTrail(result) {
+  result.parenTrail = {
+    lineNo: SENTINEL_NULL,
+    startX: SENTINEL_NULL,
+    endX: SENTINEL_NULL,
+    openers: []
+  };
+}
+
 function finishNewParenTrail(result) {
-  if (result.mode === INDENT_MODE) {
+  if (result.isInStr) {
+    invalidateParenTrail(result);
+  }
+  else if (result.mode === INDENT_MODE) {
     clampParenTrailToCursor(result);
     popParenTrail(result);
   }
@@ -712,6 +728,23 @@ function initIndent(result) {
   }
 }
 
+function setTabStops(result) {
+  if (result.cursorLine !== result.lineNo ||
+      result.mode !== INDENT_MODE) {
+    return;
+  }
+
+  var i,e;
+  for (i=0; i<result.parenStack.length; i++) {
+    e = result.parenStack[i];
+    result.tabStops.push({
+      ch: e.ch,
+      x: e.x,
+      lineNo: e.lineNo
+    });
+  }
+}
+
 //------------------------------------------------------------------------------
 // High-level processing functions
 //------------------------------------------------------------------------------
@@ -744,6 +777,8 @@ function processChar(result, ch) {
 function processLine(result, line) {
   initLine(result, line);
   initIndent(result);
+
+  setTabStops(result);
 
   var i;
   var chars = line + NEWLINE;
@@ -835,7 +870,8 @@ function publicResult(result) {
     text: result.lines.join(lineEnding),
     cursorX: result.cursorX,
     success: true,
-    changedLines: getChangedLines(result)
+    changedLines: getChangedLines(result),
+    tabStops: result.tabStops
   }
 }
 
@@ -850,7 +886,7 @@ function parenMode(text, options) {
 }
 
 var API = {
-  version: "1.7.0",
+  version: "1.8.1",
   indentMode: indentMode,
   parenMode: parenMode
 };
