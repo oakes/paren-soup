@@ -104,15 +104,12 @@
 
 (defn lines->html :- [Str]
   "Returns the lines with html added."
-  [html-cache :- {Str Str}
-   lines :- [Str]
+  [lines :- [Str]
    tags :- [{Keyword Any}]]
   (let [tags-by-line (group-by ts/get-line tags)]
     (sequence (comp (partition-all 2)
                     (map (fn [[i line]]
-                           (if-let [html-line (html-cache line)]
-                             html-line
-                             (line->html line (get tags-by-line (inc i)))))))
+                           (line->html line (get tags-by-line (inc i))))))
               (interleave (iterate inc 0) lines))))
 
 (defn results->html :- Str
@@ -272,7 +269,6 @@
   "Refreshes the contents."
   [content :- js/Object
    events-chan :- Any
-   html-cache :- Any
    state :- {Keyword Any}]
   (let [lines (if-not (empty? (last (:lines state))) ; add a new line at the end if necessary
                 (conj (:lines state) "")
@@ -284,19 +280,17 @@
       (let [{:keys [lines cursor-position] :as state} (add-indent lines text tags state)
             new-text (join \newline lines)
             tags (ts/str->tags new-text)
-            html-lines (lines->html @html-cache lines tags)
+            html-lines (lines->html lines tags)
             html-text (join \newline html-lines)]
         (set! (.-innerHTML content) html-text)
         (set-cursor-position! content (first cursor-position) (second cursor-position))
         (update-editor! content events-chan)
-        (reset! html-cache (apply hash-map (interleave lines html-lines)))
         state)
-      (let [html-lines (lines->html @html-cache lines tags)
+      (let [html-lines (lines->html lines tags)
             html-text (join \newline html-lines)]
         (set! (.-innerHTML content) html-text)
         (set-cursor-position! content start-pos end-pos)
         (update-editor! content events-chan)
-        (reset! html-cache (apply hash-map (interleave lines html-lines)))
         state))))
 
 (defn refresh-numbers!
@@ -384,9 +378,8 @@
    content :- js/Object
    events-chan :- Any
    eval-worker :- js/Object
-   html-cache :- Any
    state :- {Keyword Any}]
-  (let [state (refresh-content! content events-chan html-cache state)]
+  (let [state (refresh-content! content events-chan state)]
     (refresh-numbers! numbers (dec (count (:lines state))))
     (refresh-instarepl! instarepl content events-chan eval-worker)
     state))
@@ -406,14 +399,13 @@
           content (.querySelector paren-soup ".content")
           events-chan (chan)
           eval-worker (when instarepl (js/Worker. "paren-soup-compiler.js"))
-          edit-history (mwm/create-edit-history)
-          html-cache (atom {})]
+          edit-history (mwm/create-edit-history)]
       (set! (.-spellcheck paren-soup) false)
       (when-not content
         (throw (js/Error. "Can't find a div with class 'content'")))
       (->> (init-state! content)
            (get-parinfer-state :paren)
-           (refresh! instarepl numbers content events-chan eval-worker html-cache)
+           (refresh! instarepl numbers content events-chan eval-worker)
            (mwm/update-edit-history! edit-history))
       (events/removeAll content)
       (events/listen content "keydown" (fn [e]
@@ -431,9 +423,9 @@
                 (when (undo-or-redo? event)
                   (if (.-shiftKey event)
                     (when-let [state (mwm/redo! edit-history)]
-                      (refresh! instarepl numbers content events-chan eval-worker html-cache state))
+                      (refresh! instarepl numbers content events-chan eval-worker state))
                     (when-let [state (mwm/undo! edit-history)]
-                      (refresh! instarepl numbers content events-chan eval-worker html-cache state))))
+                      (refresh! instarepl numbers content events-chan eval-worker state))))
                 "keyup"
                 (cond
                   (contains? #{37 38 39 40} (.-keyCode event))
@@ -453,17 +445,17 @@
                            9 (assoc (get-normal-state initial-state)
                                :indent-type (if (.-shiftKey event) :back :forward))
                            (get-parinfer-state :indent initial-state))
-                         (refresh! instarepl numbers content events-chan eval-worker html-cache)
+                         (refresh! instarepl numbers content events-chan eval-worker)
                          (mwm/update-edit-history! edit-history))))
                 "cut"
                 (->> (init-state! content)
                      (get-parinfer-state :both)
-                     (refresh! instarepl numbers content events-chan eval-worker html-cache)
+                     (refresh! instarepl numbers content events-chan eval-worker)
                      (mwm/update-edit-history! edit-history))
                 "paste"
                 (->> (init-state! content)
                      (get-parinfer-state :both)
-                     (refresh! instarepl numbers content events-chan eval-worker html-cache)
+                     (refresh! instarepl numbers content events-chan eval-worker)
                      (mwm/update-edit-history! edit-history))
                 "mouseup"
                 (mwm/update-cursor-position! edit-history (get-cursor-position content))
