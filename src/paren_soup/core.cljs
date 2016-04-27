@@ -273,21 +273,23 @@
   (let [lines (if-not (empty? (last (:lines state))) ; add a new line at the end if necessary
                 (conj (:lines state) "")
                 (:lines state))
-        [start-pos end-pos] (:cursor-position state)
         text (join \newline lines)
         tags (ts/str->tags text)]
     (if (:indent-type state)
-      (let [{:keys [lines cursor-position] :as state} (add-indent lines text tags state)
-            new-text (join \newline lines)
-            tags (ts/str->tags new-text)
+      (let [state (add-indent lines text tags state)
+            lines (:lines state)
+            text (join \newline lines)
+            tags (ts/str->tags text)
             html-lines (lines->html lines tags)
-            html-text (join \newline html-lines)]
+            html-text (join \newline html-lines)
+            [start-pos end-pos] (:cursor-position state)]
         (set! (.-innerHTML content) html-text)
-        (set-cursor-position! content (first cursor-position) (second cursor-position))
+        (set-cursor-position! content start-pos end-pos)
         (update-editor! content events-chan)
         state)
       (let [html-lines (lines->html lines tags)
-            html-text (join \newline html-lines)]
+            html-text (join \newline html-lines)
+            [start-pos end-pos] (:cursor-position state)]
         (set! (.-innerHTML content) html-text)
         (set-cursor-position! content start-pos end-pos)
         (update-editor! content events-chan)
@@ -295,28 +297,26 @@
 
 (defn refresh-numbers!
   "Refreshes the line numbers."
-  [numbers :- (maybe js/Object)
+  [numbers :- js/Object
    line-count :- Int]
-  (when numbers
-    (set! (.-innerHTML numbers) (line-numbers line-count))))
+  (set! (.-innerHTML numbers) (line-numbers line-count)))
 
 (defn refresh-instarepl!
   "Refreshes the InstaREPL."
-  [instarepl :- (maybe js/Object)
+  [instarepl :- js/Object
    content :- js/Object
    events-chan :- Any
    eval-worker :- js/Object]
-  (when instarepl
-    (let [elems (get-collections content)
-          forms (into-array (map #(-> % .-textContent (replace \u00a0 " ")) elems))]
-      (set! (.-onmessage eval-worker)
-            (fn [e]
-              (let [results (.-data e)
-                    top-offset (-> instarepl .getBoundingClientRect .-top (+ (.-scrollY js/window)))]
-                (when (some-> elems first .-parentNode)
-                  (set! (.-innerHTML instarepl)
-                        (results->html elems results top-offset))))))
-      (.postMessage eval-worker forms))))
+  (let [elems (get-collections content)
+        forms (into-array (map #(-> % .-textContent (replace \u00a0 " ")) elems))]
+    (set! (.-onmessage eval-worker)
+          (fn [e]
+            (let [results (.-data e)
+                  top-offset (-> instarepl .getBoundingClientRect .-top (+ (.-scrollY js/window)))]
+              (when (some-> elems first .-parentNode)
+                (set! (.-innerHTML instarepl)
+                      (results->html elems results top-offset))))))
+    (.postMessage eval-worker forms)))
 
 (defn br->newline!
   "Replaces <br> tags with newline chars."
@@ -380,8 +380,8 @@
    eval-worker :- js/Object
    state :- {Keyword Any}]
   (let [state (refresh-content! content events-chan state)]
-    (refresh-numbers! numbers (dec (count (:lines state))))
-    (refresh-instarepl! instarepl content events-chan eval-worker)
+    (some-> numbers (refresh-numbers! (dec (count (:lines state)))))
+    (some-> instarepl (refresh-instarepl! content events-chan eval-worker))
     state))
 
 (defn undo-or-redo? [e]
