@@ -6,7 +6,9 @@
   :dependencies [[mistakes-were-made "1.6.0"]
                  [tag-soup "1.1.5"]
                  [html-soup "1.0.0"]
-                 [cross-parinfer "1.0.1"]
+                 [cross-parinfer "1.0.3"]
+                 [org.clojars.oakes/rangy-core "1.3.0-0"]
+                 [org.clojars.oakes/rangy-textrange "1.3.0-0"]
                  [org.clojure/clojure "1.8.0"]
                  [org.clojure/clojurescript "1.7.228"
                   :exclusions [org.clojure/tools.reader]]
@@ -18,11 +20,7 @@
   :plugins [[lein-cljsbuild "1.1.2"]]
   :cljsbuild {:builds {:main {:source-paths ["src"]
                               :compiler {:output-to "resources/public/paren-soup.js"
-                                         :optimizations :simple
-                                         :pretty-print false
-                                         :foreign-libs [{:file "src/js/rangy-core.js"
-                                                         :provides ["rangy.core"]}
-                                                        {:file "src/js/rangy-textrange.js"
-                                                         :provides ["rangy.textrange"]}]}
+                                         :optimizations :advanced
+                                         :pretty-print false}
                               :jar true}}}
   :main paren-soup.core)

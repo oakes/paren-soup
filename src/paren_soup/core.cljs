@@ -3,8 +3,8 @@
             [clojure.string :refer [join replace]]
             [goog.events :as events]
             [goog.string :refer [format]]
-            [rangy.core]
-            [rangy.textrange]
+            [cljsjs.rangy-core]
+            [cljsjs.rangy-textrange]
             [schema.core :refer [maybe either Any Str Int Keyword Bool]]
             [mistakes-were-made.core :as mwm]
             [tag-soup.core :as ts]
@@ -95,14 +95,14 @@
   [content :- js/Object]
   (let [selection (.getSelection js/rangy)
         ranges (.saveCharacterRanges selection content)
-        char-range (some-> ranges (get 0) .-characterRange)]
+        char-range (some-> ranges (aget 0) (aget "characterRange"))]
     {:selection selection :ranges ranges :char-range char-range}))
 
 (defn get-cursor-position :- [Int]
   "Returns the cursor position."
   [content :- js/Object]
   (if-let [range (some-> content get-selection :char-range)]
-    [(.-start range) (.-end range)]
+    [(aget range "start") (aget range "end")]
     [0 0]))
 
 (defn set-cursor-position!
@@ -113,8 +113,8 @@
     end-pos :- Int]]
   (let [{:keys [selection ranges char-range]} (get-selection content)]
     (when (and selection ranges char-range)
-      (set! (.-start char-range) start-pos)
-      (set! (.-end char-range) (or end-pos start-pos))
+      (aset char-range "start" start-pos)
+      (aset char-range "end" (or end-pos start-pos))
       (.restoreCharacterRanges selection content ranges))))
 
 (defn update-editor!

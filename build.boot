@@ -9,7 +9,9 @@
                   [mistakes-were-made "1.6.0"]
                   [tag-soup "1.1.5"]
                   [html-soup "1.0.0"]
-                  [cross-parinfer "1.0.1"]
+                  [cross-parinfer "1.0.3"]
+                  [org.clojars.oakes/rangy-core "1.3.0-0"]
+                  [org.clojars.oakes/rangy-textrange "1.3.0-0"]
                   [org.clojure/clojure "1.8.0"]
                   [org.clojure/clojurescript "1.7.228"
                    :exclusions [org.clojure/tools.reader]]
@@ -33,4 +35,4 @@
 
 (deftask build []
   (set-env! :source-paths #{"src"})
-  (comp (cljs :optimizations :simple)))
+  (comp (cljs :optimizations :advanced)))
