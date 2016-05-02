@@ -7,16 +7,13 @@
                   [pandeiro/boot-http "0.6.3-SNAPSHOT" :scope "test"]
                   ; project deps
                   [mistakes-were-made "1.6.0"]
-                  [tag-soup "1.1.5"]
-                  [html-soup "1.0.0"]
-                  [cross-parinfer "1.0.3"]
+                  [html-soup "1.1.0"]
+                  [cross-parinfer "1.1.0"]
                   [org.clojars.oakes/rangy-core "1.3.0-0"]
                   [org.clojars.oakes/rangy-textrange "1.3.0-0"]
                   [org.clojure/clojure "1.8.0"]
-                  [org.clojure/clojurescript "1.7.228"
-                   :exclusions [org.clojure/tools.reader]]
-                  [org.clojure/core.async "0.2.374"
-                   :exclusions [org.clojure/tools.reader]]
+                  [org.clojure/clojurescript "1.7.228"]
+                  [org.clojure/core.async "0.2.374"]
                   [prismatic/schema "0.4.3"]])
 
 (require

@@ -7,7 +7,6 @@
             [cljsjs.rangy-textrange]
             [schema.core :refer [maybe either Any Str Int Keyword Bool]]
             [mistakes-were-made.core :as mwm]
-            [tag-soup.core :as ts]
             [html-soup.core :as hs]
             [cross-parinfer.core :as cp])
   (:require-macros [schema.core :refer [defn with-fn-validation]]
