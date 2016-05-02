@@ -6,7 +6,7 @@
   :dependencies [[mistakes-were-made "1.6.0"]
                  [tag-soup "1.1.5"]
                  [html-soup "1.0.0"]
-                 [cross-parinfer "1.0.0"]
+                 [cross-parinfer "1.0.1"]
                  [org.clojure/clojure "1.8.0"]
                  [org.clojure/clojurescript "1.7.228"
                   :exclusions [org.clojure/tools.reader]]

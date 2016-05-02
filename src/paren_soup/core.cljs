@@ -188,27 +188,6 @@
     {:cursor-position pos
      :text text}))
 
-(defn get-parinfer-state :- {Keyword Any}
-  "Returns the updated state of the text editor using parinfer."
-  [mode :- Keyword
-   state :- {Keyword Any}]
-  (let [{:keys [cursor-position text]} state
-        [start-pos end-pos] cursor-position
-        [row col] (cp/position->row-col text start-pos)
-        result (case mode
-                 :paren
-                 (cp/paren-mode text col row)
-                 :indent
-                 (cp/indent-mode text col row)
-                 :both
-                 (let [result (cp/paren-mode text col row)
-                       text (.-text result)]
-                   (cp/indent-mode text col row)))]
-    (if (not= start-pos end-pos)
-      (assoc state :text (:text result))
-      (let [pos (cp/row-col->position (:text result) row (:x result))]
-        (assoc state :text (:text result) :cursor-position [pos pos])))))
-
 (defn refresh! :- {Keyword Any}
   "Refreshes everything."
   [instarepl :- (maybe js/Object)
@@ -242,7 +221,7 @@
       (when-not content
         (throw (js/Error. "Can't find a div with class 'content'")))
       (->> (init-state! content)
-           (get-parinfer-state :paren)
+           (cp/add-parinfer :paren)
            (refresh! instarepl numbers content events-chan eval-worker)
            (mwm/update-edit-history! edit-history))
       (events/removeAll content)
@@ -280,17 +259,17 @@
                     (->> (case (.-keyCode event)
                            13 (assoc  state :indent-type :return)
                            9 (assoc state :indent-type (if (.-shiftKey event) :back :forward))
-                           (get-parinfer-state :indent state))
+                           (cp/add-parinfer :indent state))
                          (refresh! instarepl numbers content events-chan eval-worker)
                          (mwm/update-edit-history! edit-history))))
                 "cut"
                 (->> (init-state! content)
-                     (get-parinfer-state :both)
+                     (cp/add-parinfer :both)
                      (refresh! instarepl numbers content events-chan eval-worker)
                      (mwm/update-edit-history! edit-history))
                 "paste"
                 (->> (init-state! content)
-                     (get-parinfer-state :both)
+                     (cp/add-parinfer :both)
                      (refresh! instarepl numbers content events-chan eval-worker)
                      (mwm/update-edit-history! edit-history))
                 "mouseup"
