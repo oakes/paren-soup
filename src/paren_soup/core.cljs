@@ -6,10 +6,10 @@
             [rangy.core]
             [rangy.textrange]
             [schema.core :refer [maybe either Any Str Int Keyword Bool]]
-            [parinfer.core]
             [mistakes-were-made.core :as mwm]
             [tag-soup.core :as ts]
-            [html-soup.core :as hs])
+            [html-soup.core :as hs]
+            [cross-parinfer.core :as cp])
   (:require-macros [schema.core :refer [defn with-fn-validation]]
                    [cljs.core.async.macros :refer [go]]))
 
@@ -117,63 +117,6 @@
       (set! (.-end char-range) (or end-pos start-pos))
       (.restoreCharacterRanges selection content ranges))))
 
-(declare get-parinfer-state)
-
-(defn add-indent :- {Keyword Any}
-  "Adds indent to the relevant line(s)."
-  [lines :- [Str]
-   text :- Str
-   tags :- [{Keyword Any}]
-   state :- {Keyword Any}]
-  (let [cursor-position (:cursor-position state)
-        [start-pos end-pos] cursor-position
-        [start-line _] (mwm/position->row-col text start-pos)
-        [end-line _] (mwm/position->row-col text end-pos)
-        lines-to-change (range start-line (inc end-line))
-        old-indent-level (->> (get lines start-line) seq (take-while #(= % \space)) count)
-        new-indent-level (case (:indent-type state)
-                           :return
-                           (ts/indent-for-line tags start-line)
-                           :back
-                           (ts/back-indent-for-line tags start-line old-indent-level)
-                           :forward
-                           (ts/forward-indent-for-line tags start-line old-indent-level))
-        indent-change (- new-indent-level old-indent-level)
-        indent-change (if (neg? indent-change)
-                        (->> (seq (get lines start-line))
-                             (split-with #(= % \space))
-                             first
-                             (take (* -1 indent-change))
-                             count
-                             (* -1))
-                        indent-change)
-        lines (reduce
-                (fn [lines line-to-change]
-                  (update
-                    lines
-                    line-to-change
-                    (fn [line]
-                      (let [[spaces code] (split-with #(= % \space) (seq line))
-                            spaces (if (pos? indent-change)
-                                     (concat spaces (repeat indent-change \space))
-                                     (drop (* -1 indent-change) spaces))]
-                        (str (join spaces) (join code))))))
-                lines
-                lines-to-change)
-        state (if (= :return (:indent-type state))
-                (assoc state :lines lines)
-                (get-parinfer-state :indent
-                  {:text (join \newline lines) :cursor-position cursor-position}))
-        lines (:lines state)
-        text (join \newline lines)]
-    (assoc state
-      :cursor-position
-      (if (= start-pos end-pos)
-        (let [pos (mwm/row-col->position text start-line new-indent-level)]
-          [pos pos])
-        [(mwm/row-col->position text start-line 0)
-         (mwm/row-col->position text end-line (count (get lines end-line)))]))))
-
 (defn update-editor!
   "Adds error messages and rainbow delimiters to the editor."
   [content :- js/Object
@@ -191,30 +134,18 @@
   [content :- js/Object
    events-chan :- Any
    state :- {Keyword Any}]
-  (let [lines (if-not (empty? (last (:lines state))) ; add a new line at the end if necessary
-                (conj (:lines state) "")
-                (:lines state))
-        text (join \newline lines)
-        tags (ts/str->tags text)]
-    (if (:indent-type state)
-      (let [state (add-indent lines text tags state)
-            lines (:lines state)
-            text (join \newline lines)
-            tags (ts/str->tags text)
-            html-lines (hs/lines->html lines tags)
-            html-text (join \newline html-lines)
-            [start-pos end-pos] (:cursor-position state)]
-        (set! (.-innerHTML content) html-text)
-        (set-cursor-position! content start-pos end-pos)
-        (update-editor! content events-chan)
-        state)
-      (let [html-lines (hs/lines->html lines tags)
-            html-text (join \newline html-lines)
-            [start-pos end-pos] (:cursor-position state)]
-        (set! (.-innerHTML content) html-text)
-        (set-cursor-position! content start-pos end-pos)
-        (update-editor! content events-chan)
-        state))))
+  (let [state (if (= \newline (last (:text state)))
+                (assoc state :text (str (:text state) \newline))
+                state)
+        state (if (:indent-type state)
+                (cp/add-indent state)
+                state)
+        html-text (hs/code->html (:text state))
+        [start-pos end-pos] (:cursor-position state)]
+    (set! (.-innerHTML content) html-text)
+    (set-cursor-position! content start-pos end-pos)
+    (update-editor! content events-chan)
+    state))
 
 (defn refresh-numbers!
   "Refreshes the line numbers."
@@ -248,13 +179,6 @@
             (-> html (replace "<br>" \newline) (replace "</br>" ""))
             (-> html (replace "<div>" \newline) (replace "</div>" ""))))))
 
-(defn get-parinfer-opts :- js/Object
-  "Returns an options object for parinfer."
-  [text :- Str
-   cursor-position :- Int]
-  (let [[row col] (mwm/position->row-col text cursor-position)]
-    #js {:cursorLine row :cursorX col}))
-
 (defn init-state! :- {Keyword Any}
   "Returns the editor's state after sanitizing it."
   [content :- js/Object]
@@ -267,30 +191,23 @@
 (defn get-parinfer-state :- {Keyword Any}
   "Returns the updated state of the text editor using parinfer."
   [mode :- Keyword
-   initial-state :- {Keyword Any}]
-  (let [{:keys [cursor-position text]} initial-state
+   state :- {Keyword Any}]
+  (let [{:keys [cursor-position text]} state
         [start-pos end-pos] cursor-position
-        selected? (not= start-pos end-pos)
-        opts (when-not selected?
-               (get-parinfer-opts text start-pos))
+        [row col] (cp/position->row-col text start-pos)
         result (case mode
                  :paren
-                 (.parenMode js/parinfer text opts)
+                 (cp/paren-mode text col row)
                  :indent
-                 (.indentMode js/parinfer text opts)
+                 (cp/indent-mode text col row)
                  :both
-                 (let [result (.parenMode js/parinfer text opts)
+                 (let [result (cp/paren-mode text col row)
                        text (.-text result)]
-                   (.indentMode js/parinfer text opts)))]
-    (if selected?
-      (mwm/get-state (.-text result) cursor-position)
-      (mwm/get-state (.-text result) (.-cursorLine opts) (.-cursorX result)))))
-
-(defn get-normal-state :- {Keyword Any}
-  "Returns the updated state of the text editor."
-  [initial-state :- {Keyword Any}]
-  (let [{:keys [cursor-position text]} initial-state]
-    (mwm/get-state text cursor-position)))
+                   (cp/indent-mode text col row)))]
+    (if (not= start-pos end-pos)
+      (assoc state :text (:text result))
+      (let [pos (cp/row-col->position (:text result) row (:x result))]
+        (assoc state :text (:text result) :cursor-position [pos pos])))))
 
 (defn refresh! :- {Keyword Any}
   "Refreshes everything."
@@ -301,7 +218,7 @@
    eval-worker :- js/Object
    state :- {Keyword Any}]
   (let [state (refresh-content! content events-chan state)]
-    (some-> numbers (refresh-numbers! (dec (count (:lines state)))))
+    (some-> numbers (refresh-numbers! (inc (count (re-seq #"\n" (:text state))))))
     (some-> instarepl (refresh-instarepl! content events-chan eval-worker))
     state))
 
@@ -359,13 +276,11 @@
                                       (.-keyCode event))
                            (.-ctrlKey event)
                            (.-metaKey event)))
-                  (let [initial-state (init-state! content)]
+                  (let [state (init-state! content)]
                     (->> (case (.-keyCode event)
-                           13 (assoc (get-normal-state initial-state)
-                                :indent-type :return)
-                           9 (assoc (get-normal-state initial-state)
-                               :indent-type (if (.-shiftKey event) :back :forward))
-                           (get-parinfer-state :indent initial-state))
+                           13 (assoc  state :indent-type :return)
+                           9 (assoc state :indent-type (if (.-shiftKey event) :back :forward))
+                           (get-parinfer-state :indent state))
                          (refresh! instarepl numbers content events-chan eval-worker)
                          (mwm/update-edit-history! edit-history))))
                 "cut"

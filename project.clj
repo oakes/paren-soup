@@ -3,9 +3,10 @@
   :url "https://github.com/oakes/paren-soup"
   :license {:name "Public Domain"
             :url "http://unlicense.org/UNLICENSE"}
-  :dependencies [[mistakes-were-made "1.5.3"]
+  :dependencies [[mistakes-were-made "1.6.0"]
                  [tag-soup "1.1.5"]
                  [html-soup "1.0.0"]
+                 [cross-parinfer "1.0.0"]
                  [org.clojure/clojure "1.8.0"]
                  [org.clojure/clojurescript "1.7.228"
                   :exclusions [org.clojure/tools.reader]]
@@ -22,8 +23,6 @@
                                          :foreign-libs [{:file "src/js/rangy-core.js"
                                                          :provides ["rangy.core"]}
                                                         {:file "src/js/rangy-textrange.js"
-                                                         :provides ["rangy.textrange"]}
-                                                        {:file "js/parinfer.js"
-                                                         :provides ["parinfer.core"]}]}
+                                                         :provides ["rangy.textrange"]}]}
                               :jar true}}}
   :main paren-soup.core)

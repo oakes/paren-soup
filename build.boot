@@ -6,9 +6,10 @@
                   [adzerk/boot-reload "0.3.1" :scope "test"]
                   [pandeiro/boot-http "0.6.3-SNAPSHOT" :scope "test"]
                   ; project deps
-                  [mistakes-were-made "1.5.3"]
+                  [mistakes-were-made "1.6.0"]
                   [tag-soup "1.1.5"]
                   [html-soup "1.0.0"]
+                  [cross-parinfer "1.0.0"]
                   [org.clojure/clojure "1.8.0"]
                   [org.clojure/clojurescript "1.7.228"
                    :exclusions [org.clojure/tools.reader]]
