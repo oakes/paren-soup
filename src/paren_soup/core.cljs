@@ -9,7 +9,7 @@
             [schema.core :refer [maybe either Any Str Int Keyword Bool]]
             [mistakes-were-made.core :as mwm]
             [html-soup.core :as hs]
-            [cross-parinfer.core :as cp])
+            [paren-soup.fx :as fx])
   (:require-macros [schema.core :refer [defn with-fn-validation]]
                    [cljs.core.async.macros :refer [go]]))
 
@@ -182,7 +182,7 @@
   "Refreshes the content."
   [content :- js/Object
    state :- {Keyword Any}]
-  (set! (.-innerHTML content) (hs/code->html (:text state))))
+  (set! (.-innerHTML content) (fx/code->html (:text state))))
 
 (defn adjust-state :- {Keyword Any}
   "Adds a newline and indentation to the state if necessary."
@@ -192,7 +192,7 @@
                 (assoc state :text (str text \newline))
                 state)
         state (if indent-type
-                (cp/add-indent state)
+                (fx/add-indent state)
                 state)]
     state))
 
@@ -249,7 +249,7 @@
           (some-> numbers (refresh-numbers! (count (re-seq #"\n" (:text state)))))
           (some-> instarepl (refresh-instarepl-with-delay! content events-chan eval-worker))))
       (->> (init-state content)
-           (cp/add-parinfer :paren)
+           (fx/add-parinfer :paren)
            (adjust-state)
            (reset! current-state)
            (mwm/update-edit-history! edit-history))
@@ -287,19 +287,19 @@
                     (->> (case (.-keyCode event)
                            13 (assoc  state :indent-type :return)
                            9 (assoc state :indent-type (if (.-shiftKey event) :back :forward))
-                           (cp/add-parinfer :indent state))
+                           (fx/add-parinfer :indent state))
                          (adjust-state)
                          (reset! current-state)
                          (mwm/update-edit-history! edit-history))))
                 "cut"
                 (->> (init-state content)
-                     (cp/add-parinfer :both)
+                     (fx/add-parinfer :both)
                      (adjust-state)
                      (reset! current-state)
                      (mwm/update-edit-history! edit-history))
                 "paste"
                 (->> (init-state content)
-                     (cp/add-parinfer :both)
+                     (fx/add-parinfer :both)
                      (adjust-state)
                      (reset! current-state)
                      (mwm/update-edit-history! edit-history))

@@ -18,6 +18,7 @@
   :cljsbuild {:builds {:main {:source-paths ["src"]
                               :compiler {:output-to "resources/public/paren-soup.js"
                                          :optimizations :advanced
+                                         :externs ["paren-soup-externs.js"]
                                          :pretty-print false}
                               :jar true}}}
   :main paren-soup.core)
