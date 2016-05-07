@@ -195,20 +195,10 @@
                 state)]
     state))
 
-(defn br->newline!
-  "Replaces <br> tags with newline chars."
-  [content :- js/Object]
-  (let [html (.-innerHTML content)]
-    (set! (.-innerHTML content)
-          (if (>= (.indexOf html "<br>") 0)
-            (-> html (replace "<br>" \newline) (replace "</br>" ""))
-            (-> html (replace "<div>" \newline) (replace "</div>" ""))))))
-
-(defn init-state! :- {Keyword Any}
+(defn init-state :- {Keyword Any}
   "Returns the editor's state after sanitizing it."
   [content :- js/Object]
   (let [pos (get-cursor-position content)
-        _ (br->newline! content)
         text (.-textContent content)]
     {:cursor-position pos
      :text text}))
@@ -219,6 +209,9 @@
 
 (defn tab? [e]
   (= (.-keyCode e) 9))
+
+(defn enter? [e]
+  (= (.-keyCode e) 13))
 
 (defn init! []
   (.init js/rangy)
@@ -233,7 +226,7 @@
       (set! (.-spellcheck paren-soup) false)
       (when-not content
         (throw (js/Error. "Can't find a div with class 'content'")))
-      (->> (init-state! content)
+      (->> (init-state content)
            (cp/add-parinfer :paren)
            (adjust-state)
            (reset! current-state)
@@ -245,7 +238,7 @@
       (events/removeAll content)
       (events/listen content "keydown" (fn [e]
                                          (put! events-chan e)
-                                         (when (or (undo-or-redo? e) (tab? e))
+                                         (when (or (undo-or-redo? e) (tab? e) (enter? e))
                                            (.preventDefault e))))
       (events/listen content "keyup" #(put! events-chan %))
       (events/listen content "mouseup" #(put! events-chan %))
@@ -255,12 +248,15 @@
             (let [event (<! events-chan)]
               (case (.-type event)
                 "keydown"
-                (when (undo-or-redo? event)
+                (cond
+                  (undo-or-redo? event)
                   (if (.-shiftKey event)
                     (when-let [state (mwm/redo! edit-history)]
                       (reset! current-state (adjust-state state)))
                     (when-let [state (mwm/undo! edit-history)]
-                      (reset! current-state (adjust-state state)))))
+                      (reset! current-state (adjust-state state))))
+                  (enter? event)
+                  (.execCommand js/document "insertHTML" false "\n"))
                 "keyup"
                 (cond
                   (contains? #{37 38 39 40} (.-keyCode event))
@@ -273,7 +269,7 @@
                                       (.-keyCode event))
                            (.-ctrlKey event)
                            (.-metaKey event)))
-                  (let [state (init-state! content)]
+                  (let [state (init-state content)]
                     (->> (case (.-keyCode event)
                            13 (assoc  state :indent-type :return)
                            9 (assoc state :indent-type (if (.-shiftKey event) :back :forward))
@@ -282,13 +278,13 @@
                          (reset! current-state)
                          (mwm/update-edit-history! edit-history))))
                 "cut"
-                (->> (init-state! content)
+                (->> (init-state content)
                      (cp/add-parinfer :both)
                      (adjust-state)
                      (reset! current-state)
                      (mwm/update-edit-history! edit-history))
                 "paste"
-                (->> (init-state! content)
+                (->> (init-state content)
                      (cp/add-parinfer :both)
                      (adjust-state)
                      (reset! current-state)
