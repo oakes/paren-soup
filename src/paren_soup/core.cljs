@@ -32,20 +32,28 @@
   (doseq [elem (-> parent-elem (.querySelectorAll ".error-text") array-seq)]
     (.removeChild parent-elem elem)))
 
-(defn results->html :- Str
-  "Returns HTML for the given eval results."
+(defn elems->locations :- [{Keyword Any}]
+  "Returns the location of each elem."
   [elems :- [js/Object]
-   results :- [Any]
    top-offset :- Int]
   (loop [i 0
-         offset 0
-         evals (transient [])]
+         locations (transient [])]
     (if-let [elem (get elems i)]
-      (let [top (-> elem .getBoundingClientRect .-top (- top-offset) (+ (.-scrollY js/window)))
-            height (-> elem .getBoundingClientRect .-bottom (- top-offset) (+ (.-scrollY js/window)) (- top))
-            res (get results i)]
+      (let [top (-> elem .-offsetTop (- top-offset))
+            height (-> elem .-offsetHeight)]
+        (recur (inc i) (conj! locations {:top top :height height})))
+      (persistent! locations))))
+
+(defn results->html :- Str
+  "Returns HTML for the given eval results."
+  [results :- [Any]
+   locations :- [{Keyword Any}]]
+  (loop [i 0
+         evals (transient [])]
+    (let [res (get results i)
+          {:keys [top height]} (get locations i)]
+      (if (and res top height)
         (recur (inc i)
-               (+ offset height)
                (conj! evals
                  (format
                    "<div class='%s' style='top: %spx; height: %spx; min-height: %spx'>%s</div>"
@@ -54,8 +62,8 @@
                    height
                    height
                    (some-> (if (array? res) (first res) res)
-                           hs/escape-html-str)))))
-      (join (persistent! evals)))))
+                           hs/escape-html-str))))
+        (join (persistent! evals))))))
 
 (defn get-collections :- [js/Object]
   "Returns collections from the given DOM node."
@@ -128,24 +136,6 @@
   (doseq [[elem class-name] (rainbow-delimiters content -1)]
     (.add (.-classList elem) class-name)))
 
-(defn refresh-content! :- {Keyword Any}
-  "Refreshes the contents."
-  [content :- js/Object
-   events-chan :- Any
-   state :- {Keyword Any}]
-  (let [state (if (= \newline (last (:text state)))
-                (assoc state :text (str (:text state) \newline))
-                state)
-        state (if (:indent-type state)
-                (cp/add-indent state)
-                state)
-        html-text (hs/code->html (:text state))
-        [start-pos end-pos] (:cursor-position state)]
-    (set! (.-innerHTML content) html-text)
-    (set-cursor-position! content start-pos end-pos)
-    (update-editor! content events-chan)
-    state))
-
 (defn refresh-numbers!
   "Refreshes the line numbers."
   [numbers :- js/Object
@@ -159,15 +149,51 @@
    events-chan :- Any
    eval-worker :- js/Object]
   (let [elems (get-collections content)
+        locations (elems->locations elems (.-offsetTop instarepl))
         forms (into-array (map #(-> % .-textContent (replace \u00a0 " ")) elems))]
     (set! (.-onmessage eval-worker)
           (fn [e]
-            (let [results (.-data e)
-                  top-offset (-> instarepl .getBoundingClientRect .-top (+ (.-scrollY js/window)))]
+            (let [results (.-data e)]
               (when (some-> elems first .-parentNode)
                 (set! (.-innerHTML instarepl)
-                      (results->html elems results top-offset))))))
+                      (results->html results locations))))))
     (.postMessage eval-worker forms)))
+
+(defn post-refresh!
+  "Refreshes things after the content has been refreshed."
+  [instarepl :- (maybe js/Object)
+   numbers :- (maybe js/Object)
+   content :- js/Object
+   events-chan :- Any
+   eval-worker :- js/Object
+   state :- {Keyword Any}]
+  (let [[start-pos end-pos] (:cursor-position state)]
+    (set-cursor-position! content start-pos end-pos)
+    (update-editor! content events-chan)
+    (some-> numbers (refresh-numbers! (count (re-seq #"\n" (:text state)))))
+    (some-> instarepl (refresh-instarepl! content events-chan eval-worker))))
+
+(defn refresh!
+  "Refreshes everything."
+  [instarepl :- (maybe js/Object)
+   numbers :- (maybe js/Object)
+   content :- js/Object
+   events-chan :- Any
+   eval-worker :- js/Object
+   state-atom :- Any]
+  (set! (.-innerHTML content) (hs/code->html (:text @state-atom)))
+  (post-refresh! instarepl numbers content events-chan eval-worker @state-atom))
+
+(defn adjust-state :- {Keyword Any}
+  "Adds a newline and indentation to the state if necessary."
+  [state :- {Keyword Any}]
+  (let [state (if-not (= \newline (last (:text state)))
+                (assoc state :text (str (:text state) \newline))
+                state)
+        state (if (:indent-type state)
+                (cp/add-indent state)
+                state)]
+    state))
 
 (defn br->newline!
   "Replaces <br> tags with newline chars."
@@ -187,19 +213,6 @@
     {:cursor-position pos
      :text text}))
 
-(defn refresh! :- {Keyword Any}
-  "Refreshes everything."
-  [instarepl :- (maybe js/Object)
-   numbers :- (maybe js/Object)
-   content :- js/Object
-   events-chan :- Any
-   eval-worker :- js/Object
-   state :- {Keyword Any}]
-  (let [state (refresh-content! content events-chan state)]
-    (some-> numbers (refresh-numbers! (inc (count (re-seq #"\n" (:text state))))))
-    (some-> instarepl (refresh-instarepl! content events-chan eval-worker))
-    state))
-
 (defn undo-or-redo? [e]
   (and (or (.-metaKey e) (.-ctrlKey e))
        (= (.-keyCode e) 90)))
@@ -215,14 +228,20 @@
           content (.querySelector paren-soup ".content")
           events-chan (chan)
           eval-worker (when instarepl (js/Worker. "paren-soup-compiler.js"))
-          edit-history (mwm/create-edit-history)]
+          edit-history (mwm/create-edit-history)
+          current-state (atom nil)]
       (set! (.-spellcheck paren-soup) false)
       (when-not content
         (throw (js/Error. "Can't find a div with class 'content'")))
       (->> (init-state! content)
            (cp/add-parinfer :paren)
-           (refresh! instarepl numbers content events-chan eval-worker)
+           (adjust-state)
+           (reset! current-state)
            (mwm/update-edit-history! edit-history))
+      (refresh! instarepl numbers content events-chan eval-worker current-state)
+      (add-watch current-state :render
+        (fn [_ _ _ _]
+          (refresh! instarepl numbers content events-chan eval-worker current-state)))
       (events/removeAll content)
       (events/listen content "keydown" (fn [e]
                                          (put! events-chan e)
@@ -239,9 +258,9 @@
                 (when (undo-or-redo? event)
                   (if (.-shiftKey event)
                     (when-let [state (mwm/redo! edit-history)]
-                      (refresh! instarepl numbers content events-chan eval-worker state))
+                      (reset! current-state (adjust-state state)))
                     (when-let [state (mwm/undo! edit-history)]
-                      (refresh! instarepl numbers content events-chan eval-worker state))))
+                      (reset! current-state (adjust-state state)))))
                 "keyup"
                 (cond
                   (contains? #{37 38 39 40} (.-keyCode event))
@@ -259,17 +278,20 @@
                            13 (assoc  state :indent-type :return)
                            9 (assoc state :indent-type (if (.-shiftKey event) :back :forward))
                            (cp/add-parinfer :indent state))
-                         (refresh! instarepl numbers content events-chan eval-worker)
+                         (adjust-state)
+                         (reset! current-state)
                          (mwm/update-edit-history! edit-history))))
                 "cut"
                 (->> (init-state! content)
                      (cp/add-parinfer :both)
-                     (refresh! instarepl numbers content events-chan eval-worker)
+                     (adjust-state)
+                     (reset! current-state)
                      (mwm/update-edit-history! edit-history))
                 "paste"
                 (->> (init-state! content)
                      (cp/add-parinfer :both)
-                     (refresh! instarepl numbers content events-chan eval-worker)
+                     (adjust-state)
+                     (reset! current-state)
                      (mwm/update-edit-history! edit-history))
                 "mouseup"
                 (mwm/update-cursor-position! edit-history (get-cursor-position content))
