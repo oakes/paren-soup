@@ -125,18 +125,6 @@
       (aset char-range "end" (or end-pos start-pos))
       (.restoreCharacterRanges selection content ranges))))
 
-(defn update-editor!
-  "Adds error messages and rainbow delimiters to the editor."
-  [content :- js/Object
-   events-chan :- js/Object]
-  ; set the mouseover events for errors
-  (doseq [elem (-> content (.querySelectorAll ".error") array-seq)]
-    (events/listen elem "mouseenter" #(put! events-chan %))
-    (events/listen elem "mouseleave" #(put! events-chan %)))
-  ; add rainbow delimiters
-  (doseq [[elem class-name] (rainbow-delimiters content -1)]
-    (.add (.-classList elem) class-name)))
-
 (defn refresh-numbers!
   "Refreshes the line numbers."
   [numbers :- js/Object
@@ -165,9 +153,16 @@
   [content :- js/Object
    events-chan :- Any
    state :- {Keyword Any}]
+  ; set the cursor position
   (let [[start-pos end-pos] (:cursor-position state)]
     (set-cursor-position! content start-pos end-pos))
-  (update-editor! content events-chan))
+  ; set the mouseover events for errors
+  (doseq [elem (-> content (.querySelectorAll ".error") array-seq)]
+    (events/listen elem "mouseenter" #(put! events-chan %))
+    (events/listen elem "mouseleave" #(put! events-chan %)))
+  ; add rainbow delimiters
+  (doseq [[elem class-name] (rainbow-delimiters content -1)]
+    (.add (.-classList elem) class-name)))
 
 (defn refresh-content!
   "Refreshes the content."
