@@ -2,6 +2,7 @@
   (:require [cljs.core.async :refer [chan put! <!]]
             [clojure.string :refer [join replace]]
             [goog.events :as events]
+            [goog.functions :refer [debounce]]
             [goog.string :refer [format]]
             [cljsjs.rangy-core]
             [cljsjs.rangy-textrange]
@@ -159,38 +160,24 @@
                       (results->html results locations))))))
     (.postMessage eval-worker forms)))
 
-(defn post-refresh!
-  "Refreshes things after the content has been refreshed."
+(defn refresh-content!
+  "Refreshes the content."
   [instarepl :- (maybe js/Object)
    numbers :- (maybe js/Object)
    content :- js/Object
    events-chan :- Any
    eval-worker :- js/Object
    state :- {Keyword Any}]
-  (let [[start-pos end-pos] (:cursor-position state)]
-    (set-cursor-position! content start-pos end-pos)
-    (update-editor! content events-chan)
-    (some-> numbers (refresh-numbers! (count (re-seq #"\n" (:text state)))))
-    (some-> instarepl (refresh-instarepl! content events-chan eval-worker))))
-
-(defn refresh!
-  "Refreshes everything."
-  [instarepl :- (maybe js/Object)
-   numbers :- (maybe js/Object)
-   content :- js/Object
-   events-chan :- Any
-   eval-worker :- js/Object
-   state :- {Keyword Any}]
-  (set! (.-innerHTML content) (hs/code->html (:text state)))
-  (post-refresh! instarepl numbers content events-chan eval-worker state))
+  (set! (.-innerHTML content) (hs/code->html (:text state))))
 
 (defn adjust-state :- {Keyword Any}
   "Adds a newline and indentation to the state if necessary."
   [state :- {Keyword Any}]
-  (let [state (if-not (= \newline (last (:text state)))
-                (assoc state :text (str (:text state) \newline))
+  (let [{:keys [text indent-type]} state
+        state (if-not (= \newline (last text))
+                (assoc state :text (str text \newline))
                 state)
-        state (if (:indent-type state)
+        state (if indent-type
                 (cp/add-indent state)
                 state)]
     state))
@@ -236,13 +223,19 @@
           events-chan (chan)
           eval-worker (when instarepl (js/Worker. "paren-soup-compiler.js"))
           edit-history (mwm/create-edit-history)
-          current-state (atom nil)]
+          current-state (atom nil)
+          refresh-instarepl-with-delay! (debounce refresh-instarepl! 300)]
       (set! (.-spellcheck paren-soup) false)
       (when-not content
         (throw (js/Error. "Can't find a div with class 'content'")))
       (add-watch current-state :render
         (fn [_ _ _ state]
-          (refresh! instarepl numbers content events-chan eval-worker state)))
+          (refresh-content! instarepl numbers content events-chan eval-worker state)
+          (let [[start-pos end-pos] (:cursor-position state)]
+           (set-cursor-position! content start-pos end-pos))
+          (update-editor! content events-chan)
+          (some-> numbers (refresh-numbers! (count (re-seq #"\n" (:text state)))))
+          (some-> instarepl (refresh-instarepl-with-delay! content events-chan eval-worker))))
       (->> (init-state content)
            (cp/add-parinfer :paren)
            (adjust-state)
