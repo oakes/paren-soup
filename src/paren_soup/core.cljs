@@ -160,13 +160,18 @@
                       (results->html results locations))))))
     (.postMessage eval-worker forms)))
 
+(defn post-refresh-content!
+  "Does additional work on the content after it is rendered."
+  [content :- js/Object
+   events-chan :- Any
+   state :- {Keyword Any}]
+  (let [[start-pos end-pos] (:cursor-position state)]
+    (set-cursor-position! content start-pos end-pos))
+  (update-editor! content events-chan))
+
 (defn refresh-content!
   "Refreshes the content."
-  [instarepl :- (maybe js/Object)
-   numbers :- (maybe js/Object)
-   content :- js/Object
-   events-chan :- Any
-   eval-worker :- js/Object
+  [content :- js/Object
    state :- {Keyword Any}]
   (set! (.-innerHTML content) (hs/code->html (:text state))))
 
@@ -230,10 +235,8 @@
         (throw (js/Error. "Can't find a div with class 'content'")))
       (add-watch current-state :render
         (fn [_ _ _ state]
-          (refresh-content! instarepl numbers content events-chan eval-worker state)
-          (let [[start-pos end-pos] (:cursor-position state)]
-           (set-cursor-position! content start-pos end-pos))
-          (update-editor! content events-chan)
+          (refresh-content! content state)
+          (post-refresh-content! content events-chan state)
           (some-> numbers (refresh-numbers! (count (re-seq #"\n" (:text state)))))
           (some-> instarepl (refresh-instarepl-with-delay! content events-chan eval-worker))))
       (->> (init-state content)
