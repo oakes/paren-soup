@@ -203,15 +203,29 @@
     {:cursor-position pos
      :text text}))
 
-(defn undo-or-redo? [e]
-  (and (or (.-metaKey e) (.-ctrlKey e))
-       (= (.-keyCode e) 90)))
-
-(defn tab? [e]
-  (= (.-keyCode e) 9))
-
-(defn enter? [e]
-  (= (.-keyCode e) 13))
+(defn key-name? :- Bool
+  "Returns true if the supplied key event involves the key(s) described by key-name."
+  [event :- js/Object
+   key-name :- Keyword]
+  (case key-name
+    :undo-or-redo
+    (and (or (.-metaKey event) (.-ctrlKey event))
+       (= (.-keyCode event) 90))
+    :tab
+    (= (.-keyCode event) 9)
+    :enter
+    (= (.-keyCode event) 13)
+    :arrows
+    (contains? #{37 38 39 40} (.-keyCode event))
+    :general
+    (not (or (contains? #{16 ; shift
+                          17 ; ctrl
+                          18 ; alt
+                          91 93} ; meta
+                         (.-keyCode event))
+             (.-ctrlKey event)
+             (.-metaKey event)))
+    false))
 
 (defn init! []
   (.init js/rangy)
@@ -238,7 +252,9 @@
       (events/removeAll content)
       (events/listen content "keydown" (fn [e]
                                          (put! events-chan e)
-                                         (when (or (undo-or-redo? e) (tab? e) (enter? e))
+                                         (when (or (key-name? e :undo-or-redo)
+                                                   (key-name? e :tab)
+                                                   (key-name? e :enter))
                                            (.preventDefault e))))
       (events/listen content "keyup" #(put! events-chan %))
       (events/listen content "mouseup" #(put! events-chan %))
@@ -249,26 +265,19 @@
               (case (.-type event)
                 "keydown"
                 (cond
-                  (undo-or-redo? event)
+                  (key-name? event :undo-or-redo)
                   (if (.-shiftKey event)
                     (when-let [state (mwm/redo! edit-history)]
                       (reset! current-state (adjust-state state)))
                     (when-let [state (mwm/undo! edit-history)]
                       (reset! current-state (adjust-state state))))
-                  (enter? event)
+                  (key-name? event :enter)
                   (.execCommand js/document "insertHTML" false "\n"))
                 "keyup"
                 (cond
-                  (contains? #{37 38 39 40} (.-keyCode event))
+                  (key-name? event :arrows)
                   (mwm/update-cursor-position! edit-history (get-cursor-position content))
-                  
-                  (not (or (contains? #{16 ; shift
-                                        17 ; ctrl
-                                        18 ; alt
-                                        91 93} ; meta
-                                      (.-keyCode event))
-                           (.-ctrlKey event)
-                           (.-metaKey event)))
+                  (key-name? event :general)
                   (let [state (init-state content)]
                     (->> (case (.-keyCode event)
                            13 (assoc  state :indent-type :return)
