@@ -249,17 +249,18 @@
       (add-watch current-state :render
         (fn [_ _ _ _]
           (refresh! instarepl numbers content events-chan eval-worker current-state)))
-      (events/removeAll content)
-      (events/listen content "keydown" (fn [e]
-                                         (put! events-chan e)
-                                         (when (or (key-name? e :undo-or-redo)
-                                                   (key-name? e :tab)
-                                                   (key-name? e :enter))
-                                           (.preventDefault e))))
-      (events/listen content "keyup" #(put! events-chan %))
-      (events/listen content "mouseup" #(put! events-chan %))
-      (events/listen content "cut" #(put! events-chan %))
-      (events/listen content "paste" #(put! events-chan %))
+      (doto content
+        (events/removeAll)
+        (events/listen "keydown" (fn [e]
+                                   (put! events-chan e)
+                                   (when (or (key-name? e :undo-or-redo)
+                                             (key-name? e :tab)
+                                             (key-name? e :enter))
+                                     (.preventDefault e))))
+        (events/listen "keyup" #(put! events-chan %))
+        (events/listen "mouseup" #(put! events-chan %))
+        (events/listen "cut" #(put! events-chan %))
+        (events/listen "paste" #(put! events-chan %)))
       (go (while true
             (let [event (<! events-chan)]
               (case (.-type event)
