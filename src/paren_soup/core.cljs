@@ -180,9 +180,9 @@
    content :- js/Object
    events-chan :- Any
    eval-worker :- js/Object
-   state-atom :- Any]
-  (set! (.-innerHTML content) (hs/code->html (:text @state-atom)))
-  (post-refresh! instarepl numbers content events-chan eval-worker @state-atom))
+   state :- {Keyword Any}]
+  (set! (.-innerHTML content) (hs/code->html (:text state)))
+  (post-refresh! instarepl numbers content events-chan eval-worker state))
 
 (defn adjust-state :- {Keyword Any}
   "Adds a newline and indentation to the state if necessary."
@@ -240,15 +240,14 @@
       (set! (.-spellcheck paren-soup) false)
       (when-not content
         (throw (js/Error. "Can't find a div with class 'content'")))
+      (add-watch current-state :render
+        (fn [_ _ _ state]
+          (refresh! instarepl numbers content events-chan eval-worker state)))
       (->> (init-state content)
            (cp/add-parinfer :paren)
            (adjust-state)
            (reset! current-state)
            (mwm/update-edit-history! edit-history))
-      (refresh! instarepl numbers content events-chan eval-worker current-state)
-      (add-watch current-state :render
-        (fn [_ _ _ _]
-          (refresh! instarepl numbers content events-chan eval-worker current-state)))
       (doto content
         (events/removeAll)
         (events/listen "keydown" (fn [e]
