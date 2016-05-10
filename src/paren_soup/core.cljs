@@ -98,7 +98,7 @@
   (join (for [i (range line-count)]
           (str "<div>" (inc i) "</div>"))))
 
-(defn get-selection :- js/Object
+(defn get-selection :- {Keyword Any}
   "Returns the objects related to selection for the given element."
   [content :- js/Object]
   (let [selection (.getSelection js/rangy)
