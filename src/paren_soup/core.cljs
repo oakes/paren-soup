@@ -77,20 +77,26 @@
 
 (def ^:const rainbow-count 10)
 
-(defn rainbow-delimiters :- {js/Object Str}
+(defn rainbow-delimiters :- Any
   "Returns a map of elements and class names."
-  [parent :- js/Object
-   level :- Int]
-  (apply merge
-         {}
-         (for [elem (-> parent .-children array-seq)]
-           (cond
-             (-> elem .-classList (.contains "delimiter"))
-             {elem (str "rainbow-" (mod level rainbow-count))}
-             (-> elem .-classList (.contains "collection"))
-             (apply merge {} (rainbow-delimiters elem (inc level)))
-             :else
-             {}))))
+  ([parent :- js/Object
+    level :- Int]
+   (persistent! (rainbow-delimiters parent level (transient {}))))
+  ([parent :- js/Object
+    level :- Int
+    m :- Any]
+   (reduce
+     (fn [m elem]
+       (let [classes (.-classList elem)]
+         (cond
+           (.contains classes "delimiter")
+           (assoc! m elem (str "rainbow-" (mod level rainbow-count)))
+           (.contains classes "collection")
+           (rainbow-delimiters elem (inc level) m)
+           :else
+           m)))
+     m
+     (-> parent .-children array-seq))))
 
 (defn line-numbers :- Str
   "Adds line numbers to the numbers."
