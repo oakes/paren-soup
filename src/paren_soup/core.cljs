@@ -13,7 +13,7 @@
   (:require-macros [schema.core :refer [defn with-fn-validation]]
                    [cljs.core.async.macros :refer [go]]))
 
-(defn show-error!
+(defn show-error-message!
   "Shows a popup with an error message."
   [parent-elem :- js/Object
    event :- js/Object]
@@ -27,7 +27,13 @@
       (aset popup "className" "error-text")
       (.appendChild parent-elem popup))))
 
-(defn hide-errors!
+(def show-error-icon!
+  (debounce
+    (fn [elem]
+      (set! (.-display (.-style elem)) "inline-block"))
+    1000))
+
+(defn hide-error-messages!
   "Hides all error popups."
   [parent-elem :- js/Object]
   (doseq [elem (-> parent-elem (.querySelectorAll ".error-text") array-seq)]
@@ -162,8 +168,10 @@
   ; set the cursor position
   (let [[start-pos end-pos] (:cursor-position state)]
     (set-cursor-position! content start-pos end-pos))
-  ; set the mouseover events for errors
+  ; set up errors
+  (hide-error-messages! (.-parentElement content))
   (doseq [elem (-> content (.querySelectorAll ".error") array-seq)]
+    (show-error-icon! elem)
     (events/listen elem "mouseenter" #(put! events-chan %))
     (events/listen elem "mouseleave" #(put! events-chan %)))
   ; add rainbow delimiters
@@ -298,9 +306,9 @@
                 "mouseup"
                 (mwm/update-cursor-position! edit-history (get-cursor-position content))
                 "mouseenter"
-                (show-error! paren-soup event)
+                (show-error-message! paren-soup event)
                 "mouseleave"
-                (hide-errors! paren-soup)
+                (hide-error-messages! paren-soup)
                 nil)))))))
 
 (defn init-debug! []
