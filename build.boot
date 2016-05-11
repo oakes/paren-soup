@@ -7,8 +7,8 @@
                   [pandeiro/boot-http "0.6.3-SNAPSHOT" :scope "test"]
                   ; project deps
                   [mistakes-were-made "1.6.1"]
-                  [html-soup "1.2.0"]
-                  [cross-parinfer "1.1.4"]
+                  [html-soup "1.2.1"]
+                  [cross-parinfer "1.1.5"]
                   [cljsjs/rangy-core "1.3.0-1"]
                   [cljsjs/rangy-textrange "1.3.0-1"]
                   [org.clojure/clojure "1.8.0"]
