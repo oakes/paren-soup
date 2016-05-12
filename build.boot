@@ -6,9 +6,9 @@
                   [adzerk/boot-reload "0.3.1" :scope "test"]
                   [pandeiro/boot-http "0.6.3-SNAPSHOT" :scope "test"]
                   ; project deps
-                  [mistakes-were-made "1.6.1"]
-                  [html-soup "1.2.1"]
-                  [cross-parinfer "1.1.5"]
+                  [mistakes-were-made "1.6.2"]
+                  [html-soup "1.2.2"]
+                  [cross-parinfer "1.1.6"]
                   [cljsjs/rangy-core "1.3.0-1"]
                   [cljsjs/rangy-textrange "1.3.0-1"]
                   [org.clojure/clojure "1.8.0"]
