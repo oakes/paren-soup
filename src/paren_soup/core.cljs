@@ -1,6 +1,5 @@
 (ns paren-soup.core
-  (:require [cljs.core.async :refer [chan put! <!]]
-            [clojure.string :refer [join replace]]
+  (:require [clojure.string :refer [join replace]]
             [goog.events :as events]
             [goog.functions :refer [debounce]]
             [goog.string :refer [format]]
@@ -10,8 +9,7 @@
             [mistakes-were-made.core :as mwm]
             [html-soup.core :as hs]
             [paren-soup.fx :as fx])
-  (:require-macros [schema.core :refer [defn with-fn-validation]]
-                   [cljs.core.async.macros :refer [go]]))
+  (:require-macros [schema.core :refer [defn with-fn-validation]]))
 
 (defn show-error-message!
   "Shows a popup with an error message."
@@ -19,13 +17,13 @@
    event :- js/Object]
   (let [elem (.-target event)
         x (.-clientX event)
-        y (.-clientY event)]
-    (let [popup (.createElement js/document "div")]
-      (aset popup "textContent" (-> elem .-dataset .-message))
-      (aset (.-style popup) "top" (str y "px"))
-      (aset (.-style popup) "left" (str x "px"))
-      (aset popup "className" "error-text")
-      (.appendChild parent-elem popup))))
+        y (.-clientY event)
+        popup (.createElement js/document "div")]
+    (aset popup "textContent" (-> elem .-dataset .-message))
+    (aset (.-style popup) "top" (str y "px"))
+    (aset (.-style popup) "left" (str x "px"))
+    (aset popup "className" "error-text")
+    (.appendChild parent-elem popup)))
 
 (def show-error-icon!
   (debounce
@@ -147,7 +145,6 @@
   "Refreshes the InstaREPL."
   [instarepl :- js/Object
    content :- js/Object
-   events-chan :- Any
    eval-worker :- js/Object]
   (let [elems (get-collections content)
         locations (elems->locations elems (.-offsetTop instarepl))
@@ -162,8 +159,8 @@
 
 (defn post-refresh-content!
   "Does additional work on the content after it is rendered."
-  [content :- js/Object
-   events-chan :- Any
+  [paren-soup :- js/Object
+   content :- js/Object
    state :- {Keyword Any}]
   ; set the cursor position
   (let [[start-pos end-pos] (:cursor-position state)]
@@ -172,8 +169,12 @@
   (hide-error-messages! (.-parentElement content))
   (doseq [elem (-> content (.querySelectorAll ".error") array-seq)]
     (show-error-icon! elem)
-    (events/listen elem "mouseenter" #(put! events-chan %))
-    (events/listen elem "mouseleave" #(put! events-chan %)))
+    (events/listen elem "mouseenter"
+      (fn [event]
+        (show-error-message! paren-soup event)))
+    (events/listen elem "mouseleave"
+      (fn [event]
+        (hide-error-messages! paren-soup))))
   ; add rainbow delimiters
   (doseq [[elem class-name] (rainbow-delimiters content -1)]
     (.add (.-classList elem) class-name)))
@@ -234,7 +235,6 @@
     (let [instarepl (.querySelector paren-soup ".instarepl")
           numbers (.querySelector paren-soup ".numbers")
           content (.querySelector paren-soup ".content")
-          events-chan (chan)
           eval-worker (when instarepl (js/Worker. "paren-soup-compiler.js"))
           edit-history (mwm/create-edit-history)
           current-state (atom nil)
@@ -242,74 +242,65 @@
       (set! (.-spellcheck paren-soup) false)
       (when-not content
         (throw (js/Error. "Can't find a div with class 'content'")))
+      ; refresh the editor every time the state is changed
       (add-watch current-state :render
         (fn [_ _ _ state]
           (refresh-content! content state)
-          (post-refresh-content! content events-chan state)
+          (post-refresh-content! paren-soup content state)
           (some-> numbers (refresh-numbers! (count (re-seq #"\n" (:text state)))))
-          (some-> instarepl (refresh-instarepl-with-delay! content events-chan eval-worker))))
+          (some-> instarepl (refresh-instarepl-with-delay! content eval-worker))))
+      ; initialize the editor
       (->> (init-state content)
            (fx/add-parinfer :paren)
            (adjust-state)
            (reset! current-state)
            (mwm/update-edit-history! edit-history))
-      (doto content
-        (events/removeAll)
-        (events/listen "keydown" (fn [e]
-                                   (put! events-chan e)
-                                   (when (or (key-name? e :undo-or-redo)
-                                             (key-name? e :tab)
-                                             (key-name? e :enter))
-                                     (.preventDefault e))))
-        (events/listen "keyup" #(put! events-chan %))
-        (events/listen "mouseup" #(put! events-chan %))
-        (events/listen "cut" #(put! events-chan %))
-        (events/listen "paste" #(put! events-chan %)))
-      (go (while true
-            (let [event (<! events-chan)]
-              (case (.-type event)
-                "keydown"
-                (cond
-                  (key-name? event :undo-or-redo)
-                  (if (.-shiftKey event)
-                    (when-let [state (mwm/redo! edit-history)]
-                      (reset! current-state (adjust-state state)))
-                    (when-let [state (mwm/undo! edit-history)]
-                      (reset! current-state (adjust-state state))))
-                  (key-name? event :enter)
-                  (.execCommand js/document "insertHTML" false "\n"))
-                "keyup"
-                (cond
-                  (key-name? event :arrows)
-                  (mwm/update-cursor-position! edit-history (get-cursor-position content))
-                  (key-name? event :general)
-                  (let [state (init-state content)]
-                    (->> (case (.-keyCode event)
-                           13 (assoc  state :indent-type :return)
-                           9 (assoc state :indent-type (if (.-shiftKey event) :back :forward))
-                           (fx/add-parinfer :indent state))
-                         (adjust-state)
-                         (reset! current-state)
-                         (mwm/update-edit-history! edit-history))))
-                "cut"
-                (->> (init-state content)
-                     (fx/add-parinfer :both)
-                     (adjust-state)
-                     (reset! current-state)
-                     (mwm/update-edit-history! edit-history))
-                "paste"
-                (->> (init-state content)
-                     (fx/add-parinfer :both)
-                     (adjust-state)
-                     (reset! current-state)
-                     (mwm/update-edit-history! edit-history))
-                "mouseup"
-                (mwm/update-cursor-position! edit-history (get-cursor-position content))
-                "mouseenter"
-                (show-error-message! paren-soup event)
-                "mouseleave"
-                (hide-error-messages! paren-soup)
-                nil)))))))
+      ; remove any previously-attached event listeners
+      (events/removeAll content)
+      ; update the state on keydown
+      (events/listen content "keydown"
+        (fn [event]
+          (cond
+            (key-name? event :undo-or-redo)
+            (if (.-shiftKey event)
+              (when-let [state (mwm/redo! edit-history)]
+                (reset! current-state (adjust-state state)))
+              (when-let [state (mwm/undo! edit-history)]
+                (reset! current-state (adjust-state state))))
+            (key-name? event :enter)
+            (.execCommand js/document "insertHTML" false "\n"))
+          (when (or (key-name? event :undo-or-redo)
+                    (key-name? event :tab)
+                    (key-name? event :enter))
+            (.preventDefault event))))
+      ; update the state on keyup
+      (events/listen content "keyup"
+        (fn [event]
+          (cond
+            (key-name? event :arrows)
+            (mwm/update-cursor-position! edit-history (get-cursor-position content))
+            (key-name? event :general)
+            (let [state (init-state content)]
+              (->> (case (.-keyCode event)
+                     13 (assoc  state :indent-type :return)
+                     9 (assoc state :indent-type (if (.-shiftKey event) :back :forward))
+                     (fx/add-parinfer :indent state))
+                   (adjust-state)
+                   (reset! current-state)
+                   (mwm/update-edit-history! edit-history))))))
+      ; update the cursor position in the edit history on mouseup
+      (events/listen content "mouseup"
+        (fn [event]
+          (mwm/update-cursor-position! edit-history (get-cursor-position content))))
+      ; refresh the editor with *both* parinfer modes on cut/paste
+      (let [cb (fn [event]
+                 (->> (init-state content)
+                      (fx/add-parinfer :both)
+                      (adjust-state)
+                      (reset! current-state)
+                      (mwm/update-edit-history! edit-history)))]
+        (events/listen content "cut" cb)
+        (events/listen content "paste" cb)))))
 
 (defn init-debug! []
   (.log js/console (with-out-str (time (with-fn-validation (init!))))))
