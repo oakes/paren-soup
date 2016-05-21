@@ -108,20 +108,67 @@
   (join (for [i (range line-count)]
           (str "<div>" (inc i) "</div>"))))
 
+(defn get-parents :- [js/Object]
+  "Returns the parents of the given node."
+  [node :- js/Object]
+  (loop [node node
+         nodes '()]
+    (if-let [parent (.-parentElement node)]
+      (if (.contains (.-classList parent) "collection")
+        (recur parent (conj nodes parent))
+        (recur parent nodes))
+      nodes)))
+
+(defn common-ancestor :- (maybe js/Object)
+  "Returns the common ancestor of the given nodes. If there are multiple, it returns the second-nearest."
+  [first-node :- js/Object
+   second-node :- js/Object]
+  (loop [first-parents (get-parents first-node)
+         second-parents (get-parents second-node)
+         common-ancestors '()]
+    (let [first-parent (first first-parents)
+          second-parent (first second-parents)]
+      (if (and first-parent second-parent (= first-parent second-parent))
+        (recur
+          (rest first-parents)
+          (rest second-parents)
+          (conj common-ancestors first-parent))
+        (or (second common-ancestors)
+            (first common-ancestors))))))
+
+(defn char-range->position :- [Int]
+  "Returns the position from the given char range object."
+  [char-range :- (maybe js/Object)]
+  (if char-range
+    [(aget char-range "start") (aget char-range "end")]
+    [0 0]))
+
 (defn get-selection :- {Keyword Any}
   "Returns the objects related to selection for the given element."
   [content :- js/Object]
   (let [selection (.getSelection js/rangy)
         ranges (.saveCharacterRanges selection content)
-        char-range (some-> ranges (aget 0) (aget "characterRange"))]
-    {:selection selection :ranges ranges :char-range char-range}))
+        char-range (some-> ranges (aget 0) (aget "characterRange"))
+        anchor (.-anchorNode selection)
+        focus (.-focusNode selection)
+        parent (when (and anchor focus)
+                 (common-ancestor anchor focus))]
+    {:selection selection
+     :ranges ranges
+     :char-range char-range
+     :cursor-position (char-range->position char-range)
+     :cropped-selection
+     (when parent
+       {:element parent
+        :cursor-position
+        (let [ranges (.saveCharacterRanges selection parent)
+              char-range (some-> ranges (aget 0) (aget "characterRange"))]
+          (char-range->position char-range))})}))
 
 (defn get-cursor-position :- [Int]
   "Returns the cursor position."
   [content :- js/Object]
-  (if-let [range (some-> content get-selection :char-range)]
-    [(aget range "start") (aget range "end")]
-    [0 0]))
+  (:cursor-position (get-selection content)))
 
 (defn set-cursor-position!
   "Moves the cursor to the specified position."
@@ -183,7 +230,25 @@
   "Refreshes the content."
   [content :- js/Object
    state :- {Keyword Any}]
-  (set! (.-innerHTML content) (fx/code->html (:text state))))
+  (if-let [crop (:cropped-state state)]
+    (let [new-elem (.createElement js/document "span")
+          text (:text crop)
+          elem (:element crop)]
+      (set! (.-innerHTML new-elem) (fx/code->html text))
+      (.replaceChild (.-parentNode elem) (.-firstChild new-elem) elem)
+      ; if there were changes outside the node, we need to run it on the whole document instead
+      (when (not= (:text state) (.-textContent content))
+        (refresh-content! content (dissoc state :cropped-state))))
+    (set! (.-innerHTML content) (fx/code->html (:text state)))))
+
+(defn add-parinfer :- {Keyword Any}
+  "Adds parinfer to the state."
+  [mode-type :- Keyword
+   state :- {Keyword Any}]
+  (let [state (fx/add-parinfer mode-type state)]
+    (if-let [crop (:cropped-state state)]
+      (assoc state :cropped-state (fx/add-parinfer mode-type crop))
+      state)))
 
 (defn adjust-state :- {Keyword Any}
   "Adds a newline and indentation to the state if necessary."
@@ -200,10 +265,15 @@
 (defn init-state :- {Keyword Any}
   "Returns the editor's state after sanitizing it."
   [content :- js/Object]
-  (let [pos (get-cursor-position content)
-        text (.-textContent content)]
-    {:cursor-position pos
-     :text text}))
+  (let [sel (get-selection content)
+        pos (:cursor-position sel)
+        text (.-textContent content)
+        state {:cursor-position pos :text text}]
+    (if-let [cropped-selection (:cropped-selection sel)]
+      (assoc state :cropped-state
+        (assoc cropped-selection
+          :text (.-textContent (:element cropped-selection))))
+      state)))
 
 (defn key-name? :- Bool
   "Returns true if the supplied key event involves the key(s) described by key-name."
@@ -224,7 +294,7 @@
                           17 ; ctrl
                           18 ; alt
                           91 93} ; meta
-                         (.-keyCode event))
+               (.-keyCode event))
              (.-ctrlKey event)
              (.-metaKey event)))
     false))
@@ -251,9 +321,10 @@
           (some-> instarepl (refresh-instarepl-with-delay! content eval-worker))))
       ; initialize the editor
       (->> (init-state content)
-           (fx/add-parinfer :paren)
+           (add-parinfer :paren)
            (adjust-state)
            (reset! current-state)
+           (#(dissoc % :cropped-state))
            (mwm/update-edit-history! edit-history))
       ; remove any previously-attached event listeners
       (events/removeAll content)
@@ -282,11 +353,12 @@
             (key-name? event :general)
             (let [state (init-state content)]
               (->> (case (.-keyCode event)
-                     13 (assoc  state :indent-type :return)
+                     13 (assoc state :indent-type :return)
                      9 (assoc state :indent-type (if (.-shiftKey event) :back :forward))
-                     (fx/add-parinfer :indent state))
+                     (add-parinfer :indent state))
                    (adjust-state)
                    (reset! current-state)
+                   (#(dissoc % :cropped-state))
                    (mwm/update-edit-history! edit-history))))))
       ; update the cursor position in the edit history on mouseup
       (events/listen content "mouseup"
@@ -295,9 +367,10 @@
       ; refresh the editor with *both* parinfer modes on cut/paste
       (let [cb (fn [event]
                  (->> (init-state content)
-                      (fx/add-parinfer :both)
+                      (add-parinfer :both)
                       (adjust-state)
                       (reset! current-state)
+                      (#(dissoc % :cropped-state))
                       (mwm/update-edit-history! edit-history)))]
         (events/listen content "cut" cb)
         (events/listen content "paste" cb)))))
