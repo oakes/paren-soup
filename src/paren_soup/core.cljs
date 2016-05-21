@@ -8,7 +8,7 @@
             [schema.core :refer [maybe either Any Str Int Keyword Bool]]
             [mistakes-were-made.core :as mwm]
             [html-soup.core :as hs]
-            [paren-soup.fx :as fx])
+            [cross-parinfer.core :as cp])
   (:require-macros [schema.core :refer [defn with-fn-validation]]))
 
 (defn show-error-message!
@@ -234,20 +234,20 @@
     (let [new-elem (.createElement js/document "span")
           text (:text crop)
           elem (:element crop)]
-      (set! (.-innerHTML new-elem) (fx/code->html text))
+      (set! (.-innerHTML new-elem) (hs/code->html text))
       (.replaceChild (.-parentNode elem) (.-firstChild new-elem) elem)
       ; if there were changes outside the node, we need to run it on the whole document instead
       (when (not= (:text state) (.-textContent content))
         (refresh-content! content (dissoc state :cropped-state))))
-    (set! (.-innerHTML content) (fx/code->html (:text state)))))
+    (set! (.-innerHTML content) (hs/code->html (:text state)))))
 
 (defn add-parinfer :- {Keyword Any}
   "Adds parinfer to the state."
   [mode-type :- Keyword
    state :- {Keyword Any}]
-  (let [state (fx/add-parinfer mode-type state)]
+  (let [state (cp/add-parinfer mode-type state)]
     (if-let [crop (:cropped-state state)]
-      (assoc state :cropped-state (fx/add-parinfer mode-type crop))
+      (assoc state :cropped-state (cp/add-parinfer mode-type crop))
       state)))
 
 (defn adjust-state :- {Keyword Any}
@@ -258,7 +258,7 @@
                 (assoc state :text (str text \newline))
                 state)
         state (if indent-type
-                (fx/add-indent state)
+                (cp/add-indent state)
                 state)]
     state))
 
