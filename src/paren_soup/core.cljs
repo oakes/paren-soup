@@ -307,7 +307,14 @@
           edit-history (mwm/create-edit-history)
           current-state (atom nil)
           refresh-instarepl-with-delay! (debounce refresh-instarepl! 300)
-          events-chan (chan)]
+          events-chan (chan)
+          refresh! (fn [mode-type]
+                     (->> (init-state content)
+                          (add-parinfer mode-type)
+                          (adjust-state)
+                          (reset! current-state)
+                          (#(dissoc % :cropped-state))
+                          (mwm/update-edit-history! edit-history)))]
       (set! (.-spellcheck paren-soup) false)
       (when-not content
         (throw (js/Error. "Can't find a div with class 'content'")))
@@ -319,12 +326,7 @@
           (some-> numbers (refresh-numbers! (count (re-seq #"\n" (:text state)))))
           (some-> instarepl (refresh-instarepl-with-delay! content eval-worker))))
       ; initialize the editor
-      (->> (init-state content)
-           (add-parinfer :paren)
-           (adjust-state)
-           (reset! current-state)
-           (#(dissoc % :cropped-state))
-           (mwm/update-edit-history! edit-history))
+      (refresh! :paren)
       ; set up event listeners
       (doto content
         (events/removeAll)
@@ -368,19 +370,9 @@
                        (#(dissoc % :cropped-state))
                        (mwm/update-edit-history! edit-history))))
               "cut"
-              (->> (init-state content)
-                   (add-parinfer :both)
-                   (adjust-state)
-                   (reset! current-state)
-                   (#(dissoc % :cropped-state))
-                   (mwm/update-edit-history! edit-history))
+              (refresh! :both)
               "paste"
-              (->> (init-state content)
-                   (add-parinfer :both)
-                   (adjust-state)
-                   (reset! current-state)
-                   (#(dissoc % :cropped-state))
-                   (mwm/update-edit-history! edit-history))
+              (refresh! :both)
               "mouseup"
               (mwm/update-cursor-position! edit-history (get-cursor-position content))
               "mouseenter"
