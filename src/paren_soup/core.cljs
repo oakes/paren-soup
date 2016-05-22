@@ -272,15 +272,18 @@
 
 (defn init-state :- {Keyword Any}
   "Returns the editor's state after sanitizing it."
-  [content :- js/Object]
+  [content :- js/Object
+   crop? :- Bool]
   (let [sel (get-selection content)
         pos (:cursor-position sel)
         text (.-textContent content)
         state {:cursor-position pos :text text}]
     (if-let [cropped-selection (:cropped-selection sel)]
-      (assoc state :cropped-state
-        (assoc cropped-selection
-          :text (.-textContent (:element cropped-selection))))
+      (if crop?
+        (assoc state :cropped-state
+          (assoc cropped-selection
+            :text (.-textContent (:element cropped-selection))))
+        state)
       state)))
 
 (defn key-name? :- Bool
@@ -317,14 +320,7 @@
           edit-history (mwm/create-edit-history)
           current-state (atom nil)
           refresh-instarepl-with-delay! (debounce refresh-instarepl! 300)
-          events-chan (chan)
-          refresh! (fn [mode-type]
-                     (->> (init-state content)
-                          (add-parinfer mode-type)
-                          (adjust-state)
-                          (reset! current-state)
-                          (#(dissoc % :cropped-state))
-                          (mwm/update-edit-history! edit-history)))]
+          events-chan (chan)]
       (set! (.-spellcheck paren-soup) false)
       (when-not content
         (throw (js/Error. "Can't find a div with class 'content'")))
@@ -336,7 +332,12 @@
           (some-> numbers (refresh-numbers! (count (re-seq #"\n" (:text state)))))
           (some-> instarepl (refresh-instarepl-with-delay! content eval-worker))))
       ; initialize the editor
-      (refresh! :paren)
+      (->> (init-state content true)
+           (add-parinfer :paren)
+           (adjust-state)
+           (reset! current-state)
+           (#(dissoc % :cropped-state))
+           (mwm/update-edit-history! edit-history))
       ; set up event listeners
       (doto content
         (events/removeAll)
@@ -370,7 +371,7 @@
                 (key-name? event :arrows)
                 (mwm/update-cursor-position! edit-history (get-cursor-position content))
                 (key-name? event :general)
-                (let [state (init-state content)]
+                (let [state (init-state content true)]
                   (->> (case (.-keyCode event)
                          13 (assoc state :indent-type :return)
                          9 (assoc state :indent-type (if (.-shiftKey event) :back :forward))
@@ -380,9 +381,17 @@
                        (#(dissoc % :cropped-state))
                        (mwm/update-edit-history! edit-history))))
               "cut"
-              (refresh! :both)
+              (->> (init-state content false)
+                   (add-parinfer :both)
+                   (adjust-state)
+                   (reset! current-state)
+                   (mwm/update-edit-history! edit-history))
               "paste"
-              (refresh! :both)
+              (->> (init-state content false)
+                   (add-parinfer :both)
+                   (adjust-state)
+                   (reset! current-state)
+                   (mwm/update-edit-history! edit-history))
               "mouseup"
               (mwm/update-cursor-position! edit-history (get-cursor-position content))
               "mouseenter"
