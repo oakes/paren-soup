@@ -136,7 +136,9 @@
           (rest second-parents)
           (conj common-ancestors first-parent))
         (or (second common-ancestors)
-            (first common-ancestors))))))
+            (first common-ancestors)
+            (when (= first-node second-node)
+              first-node))))))
 
 (defn char-range->position :- [Int]
   "Returns the position from the given char range object."
@@ -251,12 +253,20 @@
 (defn adjust-state :- {Keyword Any}
   "Adds a newline and indentation to the state if necessary."
   [state :- {Keyword Any}]
-  (let [{:keys [text indent-type]} state
+  (let [{:keys [text indent-type cropped-state]} state
+        ; add newline at end if necessary
         state (if-not (= \newline (last text))
                 (assoc state :text (str text \newline))
                 state)
+        ; fix indentation of the state
         state (if indent-type
                 (cp/add-indent state)
+                state)
+        ; fix indentation of the cropped state
+        state (if (and indent-type cropped-state)
+                (assoc state :cropped-state
+                  (merge cropped-state
+                    (cp/add-indent (assoc cropped-state :indent-type indent-type))))
                 state)]
     state))
 
