@@ -110,8 +110,8 @@
   (join (for [i (range line-count)]
           (str "<div>" (inc i) "</div>"))))
 
-(defn get-parents :- [js/Object]
-  "Returns the parents of the given node."
+(defn get-parent-collections :- js/Object
+  "Returns the parent collections of the given node."
   [node :- js/Object]
   (loop [node node
          nodes '()]
@@ -122,23 +122,16 @@
       nodes)))
 
 (defn common-ancestor :- (maybe js/Object)
-  "Returns the common ancestor of the given nodes. If there are multiple, it returns the second-nearest."
+  "Returns the common ancestor of the given nodes."
   [first-node :- js/Object
    second-node :- js/Object]
-  (loop [first-parents (get-parents first-node)
-         second-parents (get-parents second-node)
-         common-ancestors '()]
-    (let [first-parent (first first-parents)
-          second-parent (first second-parents)]
-      (if (and first-parent second-parent (= first-parent second-parent))
-        (recur
-          (rest first-parents)
-          (rest second-parents)
-          (conj common-ancestors first-parent))
-        (or (second common-ancestors)
-            (first common-ancestors)
-            (when (= first-node second-node)
-              first-node))))))
+  (let [first-parent (first (get-parent-collections first-node))
+        second-parent (first (get-parent-collections second-node))]
+    (cond
+      (and first-parent second-parent (= first-parent second-parent))
+      first-parent
+      (= first-node second-node)
+      first-node)))
 
 (defn char-range->position :- [Int]
   "Returns the position from the given char range object."
@@ -247,7 +240,8 @@
    state :- {Keyword Any}]
   (let [state (cp/add-parinfer mode-type state)]
     (if-let [crop (:cropped-state state)]
-      (assoc state :cropped-state (cp/add-parinfer mode-type crop))
+      (assoc state :cropped-state
+        (merge crop (cp/add-parinfer mode-type crop)))
       state)))
 
 (defn adjust-state :- {Keyword Any}
