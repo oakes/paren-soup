@@ -128,11 +128,13 @@
   (let [first-parent (first (get-parent-collections first-node))
         second-parent (first (get-parent-collections second-node))]
     (cond
+      ; a collection element
       (and first-parent second-parent (= first-parent second-parent))
       first-parent
+      ; a top-level text node
       (and (= first-node second-node)
-           (not (some-> first-node .-classList (.contains "content")))
-           (not (some-> first-node .-classList (.contains "error"))))
+           (= 3 (.-nodeType first-node))
+           (some-> first-node .-parentElement .-classList (.contains "content")))
       first-node)))
 
 (defn char-range->position :- [Int]
