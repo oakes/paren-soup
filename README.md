@@ -5,6 +5,7 @@ A library providing a ClojureScript viewer and editor that you can embed in any 
 * [Parinfer](http://shaunlebron.github.io/parinfer/)
 * Syntax highlighting
 * Rainbow delimiters
+* Inline reader errors
 * InstaREPL (à la Light Table)
 
 [Try the demo](http://oakes.github.io/paren-soup). To use paren-soup in your own website, just go to [the releases section](https://github.com/oakes/paren-soup/releases) and download the latest files. In your HTML, link to one of the CSS files and use the following markup:
