@@ -130,7 +130,8 @@
     (cond
       (and first-parent second-parent (= first-parent second-parent))
       first-parent
-      (= first-node second-node)
+      (and (= first-node second-node)
+           (not (some-> first-node .-classList (.contains "content"))))
       first-node)))
 
 (defn char-range->position :- [Int]
