@@ -110,8 +110,8 @@
   (join (for [i (range line-count)]
           (str "<div>" (inc i) "</div>"))))
 
-(defn get-parent-collections :- js/Object
-  "Returns the parent collections of the given node."
+(defn get-parents :- js/Object
+  "Returns the parents of the given node."
   [node :- js/Object]
   (loop [node node
          nodes '()]
@@ -121,20 +121,26 @@
         (recur parent nodes))
       nodes)))
 
+(defn text-node? [node]
+  (= 3 (.-nodeType node)))
+
+(defn top-level? [node]
+  (some-> node .-parentElement .-classList (.contains "content")))
+
 (defn common-ancestor :- (maybe js/Object)
   "Returns the common ancestor of the given nodes."
   [first-node :- js/Object
    second-node :- js/Object]
-  (let [first-parent (first (get-parent-collections first-node))
-        second-parent (first (get-parent-collections second-node))]
+  (let [first-parent (first (get-parents first-node))
+        second-parent (first (get-parents second-node))]
     (cond
-      ; a collection element
+      ; a parent element
       (and first-parent second-parent (= first-parent second-parent))
       first-parent
       ; a top-level text node
       (and (= first-node second-node)
-           (= 3 (.-nodeType first-node))
-           (some-> first-node .-parentElement .-classList (.contains "content")))
+           (text-node? first-node)
+           (top-level? first-node))
       first-node)))
 
 (defn char-range->position :- [Int]
@@ -223,16 +229,42 @@
   (doseq [[elem class-name] (rainbow-delimiters content -1)]
     (.add (.-classList elem) class-name)))
 
+(defn refresh-content-element!
+  "Replaces a single node in the content, and siblings if necessary."
+  [text elem]
+  (let [parent (.-parentElement elem)
+        ; find all siblings that should be refreshed as well
+        siblings (loop [elems []
+                        current-elem elem]
+                   (if (text-node? current-elem)
+                     (if-let [sibling (.-nextSibling current-elem)]
+                       (recur (conj elems sibling) sibling)
+                       elems)
+                     elems))
+        ; add siblings' text to the string
+        text (str text (join (map #(.-textContent %) siblings)))
+        ; create temporary element
+        temp-elem (.createElement js/document "span")
+        _ (set! (.-innerHTML temp-elem) (hs/code->html text))
+        ; collect elements
+        new-elems (doall
+                    (for [i (range (-> temp-elem .-childNodes .-length))]
+                      (-> temp-elem .-childNodes (.item i))))
+        old-elems (cons elem siblings)]
+    ; insert the new nodes
+    (doseq [new-elem new-elems]
+      (.insertBefore parent new-elem elem))
+    ; remove the old nodes
+    (doseq [old-elem old-elems]
+      (.removeChild parent old-elem))))
+
 (defn refresh-content!
   "Refreshes the content."
   [content :- js/Object
    state :- {Keyword Any}]
   (if-let [crop (:cropped-state state)]
-    (let [new-elem (.createElement js/document "span")
-          text (:text crop)
-          elem (:element crop)]
-      (set! (.-innerHTML new-elem) (hs/code->html text))
-      (.replaceChild (.-parentNode elem) (.-firstChild new-elem) elem)
+    (do
+      (refresh-content-element! (:text crop) (:element crop))
       ; if there were changes outside the node, we need to run it on the whole document instead
       (when (not= (:text state) (.-textContent content))
         (refresh-content! content (dissoc state :cropped-state))))
