@@ -124,6 +124,9 @@
 (defn text-node? [node]
   (= 3 (.-nodeType node)))
 
+(defn error-node? [node]
+  (some-> node .-classList (.contains "error")))
+
 (defn top-level? [node]
   (some-> node .-parentElement .-classList (.contains "content")))
 
@@ -236,7 +239,7 @@
         ; find all siblings that should be refreshed as well
         siblings (loop [elems []
                         current-elem elem]
-                   (if (text-node? current-elem)
+                   (if (or (text-node? current-elem) (error-node? current-elem))
                      (if-let [sibling (.-nextSibling current-elem)]
                        (recur (conj elems sibling) sibling)
                        elems)
@@ -340,6 +343,15 @@
              (.-metaKey event)))
     false))
 
+(defn full-refresh!
+  "Refreshes the content completely."
+  [content current-state edit-history]
+  (->> (init-state content false)
+       (add-parinfer :both)
+       (adjust-state)
+       (reset! current-state)
+       (mwm/update-edit-history! edit-history)))
+
 (defn init! []
   (.init js/rangy)
   (doseq [paren-soup (-> js/document (.querySelectorAll ".paren-soup") array-seq)]
@@ -401,27 +413,23 @@
                 (key-name? event :arrows)
                 (mwm/update-cursor-position! edit-history (get-cursor-position content))
                 (key-name? event :general)
-                (let [state (init-state content true)]
-                  (->> (case (.-keyCode event)
-                         13 (assoc state :indent-type :return)
-                         9 (assoc state :indent-type (if (.-shiftKey event) :back :forward))
-                         (add-parinfer :indent state))
-                       (adjust-state)
-                       (reset! current-state)
-                       (#(dissoc % :cropped-state))
-                       (mwm/update-edit-history! edit-history))))
+                (let [state (init-state content true)
+                      last-state (mwm/get-current-state edit-history)
+                      diff (- (-> state :text count) (-> last-state :text count))]
+                  (if (< diff -1)
+                    (full-refresh! content current-state edit-history)
+                    (->> (case (.-keyCode event)
+                           13 (assoc state :indent-type :return)
+                           9 (assoc state :indent-type (if (.-shiftKey event) :back :forward))
+                           (add-parinfer :indent state))
+                         (adjust-state)
+                         (reset! current-state)
+                         (#(dissoc % :cropped-state))
+                         (mwm/update-edit-history! edit-history)))))
               "cut"
-              (->> (init-state content false)
-                   (add-parinfer :both)
-                   (adjust-state)
-                   (reset! current-state)
-                   (mwm/update-edit-history! edit-history))
+              (full-refresh! content current-state edit-history)
               "paste"
-              (->> (init-state content false)
-                   (add-parinfer :both)
-                   (adjust-state)
-                   (reset! current-state)
-                   (mwm/update-edit-history! edit-history))
+              (full-refresh! content current-state edit-history)
               "mouseup"
               (mwm/update-cursor-position! edit-history (get-cursor-position content))
               "mouseenter"
