@@ -220,8 +220,9 @@
    events-chan :- Any
    state :- {Keyword Any}]
   ; set the cursor position
-  (let [[start-pos end-pos] (:cursor-position state)]
-    (set-cursor-position! content start-pos end-pos))
+  (if-let [crop (:cropped-state state)]
+    (apply set-cursor-position! (:element crop) (:cursor-position crop))
+    (apply set-cursor-position! content (:cursor-position state)))
   ; set up errors
   (hide-error-messages! (.-parentElement content))
   (doseq [elem (-> content (.querySelectorAll ".error") array-seq)]
@@ -234,11 +235,12 @@
 
 (defn refresh-content-element!
   "Replaces a single node in the content, and siblings if necessary."
-  [text elem]
-  (let [parent (.-parentElement elem)
+  [cropped-state]
+  (let [{:keys [text element]} cropped-state
+        parent (.-parentElement element)
         ; find all siblings that should be refreshed as well
         siblings (loop [elems []
-                        current-elem elem]
+                        current-elem element]
                    (if (or (text-node? current-elem) (error-node? current-elem))
                      (if-let [sibling (.-nextSibling current-elem)]
                        (recur (conj elems sibling) sibling)
@@ -253,25 +255,28 @@
         new-elems (doall
                     (for [i (range (-> temp-elem .-childNodes .-length))]
                       (-> temp-elem .-childNodes (.item i))))
-        old-elems (cons elem siblings)]
+        old-elems (cons element siblings)]
     ; insert the new nodes
     (doseq [new-elem new-elems]
-      (.insertBefore parent new-elem elem))
+      (.insertBefore parent new-elem element))
     ; remove the old nodes
     (doseq [old-elem old-elems]
-      (.removeChild parent old-elem))))
+      (.removeChild parent old-elem))
+    (assoc cropped-state :element (first new-elems))))
 
 (defn refresh-content!
   "Refreshes the content."
   [content :- js/Object
    state :- {Keyword Any}]
   (if-let [crop (:cropped-state state)]
-    (do
-      (refresh-content-element! (:text crop) (:element crop))
+    (let [crop (refresh-content-element! crop)]
       ; if there were changes outside the node, we need to run it on the whole document instead
-      (when (not= (:text state) (.-textContent content))
-        (refresh-content! content (dissoc state :cropped-state))))
-    (set! (.-innerHTML content) (hs/code->html (:text state)))))
+      (if (not= (:text state) (.-textContent content))
+        (refresh-content! content (dissoc state :cropped-state))
+        (assoc state :cropped-state crop)))
+    (do
+      (set! (.-innerHTML content) (hs/code->html (:text state)))
+      state)))
 
 (defn add-parinfer :- {Keyword Any}
   "Adds parinfer to the state."
@@ -369,8 +374,7 @@
       ; refresh the editor every time the state is changed
       (add-watch current-state :render
         (fn [_ _ _ state]
-          (refresh-content! content state)
-          (post-refresh-content! content events-chan state)
+          (post-refresh-content! content events-chan (refresh-content! content state))
           (some-> numbers (refresh-numbers! (count (re-seq #"\n" (:text state)))))
           (some-> instarepl (refresh-instarepl-with-delay! content eval-worker))))
       ; initialize the editor
