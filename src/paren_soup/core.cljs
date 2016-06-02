@@ -178,11 +178,12 @@
    position :- [Int]]
   (let [[start-pos end-pos] position
         selection (.getSelection js/rangy)
-        {:keys [ranges char-range]} (get-selection element)]
-    (when (and ranges char-range)
-      (aset char-range "start" start-pos)
-      (aset char-range "end" end-pos)
-      (.restoreCharacterRanges selection element ranges))))
+        char-range #js {:start start-pos :end end-pos}
+        range #js {:characterRange char-range
+                   :backward false
+                   :characterOptions nil}
+        ranges (array range)]
+    (.restoreCharacterRanges selection element ranges)))
 
 (defn refresh-numbers!
   "Refreshes the line numbers."
