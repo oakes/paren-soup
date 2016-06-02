@@ -74,8 +74,8 @@
 
 (defn get-collections :- [js/Object]
   "Returns collections from the given DOM node."
-  [content :- js/Object]
-  (vec (for [elem (-> content .-children array-seq)
+  [element :- js/Object]
+  (vec (for [elem (-> element .-children array-seq)
              :let [classes (.-classList elem)]
              :when (or (.contains classes "collection")
                        (.contains classes "symbol"))]
@@ -166,20 +166,20 @@
 
 (defn get-cursor-position :- [Int]
   "Returns the cursor position."
-  [content :- js/Object]
-  (:cursor-position (get-selection content)))
+  [element :- js/Object]
+  (-> element get-selection :cursor-position))
 
 (defn set-cursor-position!
   "Moves the cursor to the specified position."
-  [content :- js/Object
+  [element :- js/Object
    start-pos :- Int
    end-pos :- Int]
   (let [selection (.getSelection js/rangy)
-        {:keys [ranges char-range]} (get-selection content)]
+        {:keys [ranges char-range]} (get-selection element)]
     (when (and ranges char-range)
       (aset char-range "start" start-pos)
       (aset char-range "end" (or end-pos start-pos))
-      (.restoreCharacterRanges selection content ranges))))
+      (.restoreCharacterRanges selection element ranges))))
 
 (defn refresh-numbers!
   "Refreshes the line numbers."
