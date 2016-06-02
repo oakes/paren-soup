@@ -121,13 +121,16 @@
         (recur parent nodes))
       nodes)))
 
-(defn text-node? [node]
+(defn text-node? :- Bool
+  [node :- js/Object]
   (= 3 (.-nodeType node)))
 
-(defn error-node? [node]
+(defn error-node? :- Bool
+  [node :- js/Object]
   (some-> node .-classList (.contains "error")))
 
-(defn top-level? [node]
+(defn top-level? :- Bool
+  [node :- js/Object]
   (some-> node .-parentElement .-classList (.contains "content")))
 
 (defn common-ancestor :- (maybe js/Object)
@@ -172,13 +175,13 @@
 (defn set-cursor-position!
   "Moves the cursor to the specified position."
   [element :- js/Object
-   start-pos :- Int
-   end-pos :- Int]
-  (let [selection (.getSelection js/rangy)
+   position :- [Int]]
+  (let [[start-pos end-pos] position
+        selection (.getSelection js/rangy)
         {:keys [ranges char-range]} (get-selection element)]
     (when (and ranges char-range)
       (aset char-range "start" start-pos)
-      (aset char-range "end" (or end-pos start-pos))
+      (aset char-range "end" end-pos)
       (.restoreCharacterRanges selection element ranges))))
 
 (defn refresh-numbers!
@@ -210,8 +213,8 @@
    state :- {Keyword Any}]
   ; set the cursor position
   (if-let [crop (:cropped-state state)]
-    (apply set-cursor-position! (:element crop) (:cursor-position crop))
-    (apply set-cursor-position! content (:cursor-position state)))
+    (set-cursor-position! (:element crop) (:cursor-position crop))
+    (set-cursor-position! content (:cursor-position state)))
   ; set up errors
   (hide-error-messages! (.-parentElement content))
   (doseq [elem (-> content (.querySelectorAll ".error") array-seq)]
@@ -253,7 +256,7 @@
       (.removeChild parent old-elem))
     (assoc cropped-state :element (first new-elems))))
 
-(defn refresh-content!
+(defn refresh-content! :- {Keyword Any}
   "Refreshes the content."
   [content :- js/Object
    state :- {Keyword Any}]
