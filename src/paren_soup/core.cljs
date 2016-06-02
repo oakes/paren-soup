@@ -298,7 +298,7 @@
     state))
 
 (defn init-state :- {Keyword Any}
-  "Returns the editor's state after sanitizing it."
+  "Returns the editor's state."
   [content :- js/Object
    crop? :- Bool]
   (let [selection (.getSelection js/rangy)
