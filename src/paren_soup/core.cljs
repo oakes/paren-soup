@@ -155,25 +155,14 @@
 
 (defn get-selection :- {Keyword Any}
   "Returns the objects related to selection for the given element."
-  [content :- js/Object]
+  [element :- js/Object]
   (let [selection (.getSelection js/rangy)
-        ranges (.saveCharacterRanges selection content)
-        char-range (some-> ranges (aget 0) (aget "characterRange"))
-        anchor (.-anchorNode selection)
-        focus (.-focusNode selection)
-        parent (when (and anchor focus)
-                 (common-ancestor anchor focus))]
-    {:selection selection
+        ranges (.saveCharacterRanges selection element)
+        char-range (some-> ranges (aget 0) (aget "characterRange"))]
+    {:element element
      :ranges ranges
      :char-range char-range
-     :cursor-position (char-range->position char-range)
-     :cropped-selection
-     (when parent
-       {:element parent
-        :cursor-position
-        (let [ranges (.saveCharacterRanges selection parent)
-              char-range (some-> ranges (aget 0) (aget "characterRange"))]
-          (char-range->position char-range))})}))
+     :cursor-position (char-range->position char-range)}))
 
 (defn get-cursor-position :- [Int]
   "Returns the cursor position."
@@ -183,11 +172,11 @@
 (defn set-cursor-position!
   "Moves the cursor to the specified position."
   [content :- js/Object
-   &
-   [start-pos :- Int
-    end-pos :- Int]]
-  (let [{:keys [selection ranges char-range]} (get-selection content)]
-    (when (and selection ranges char-range)
+   start-pos :- Int
+   end-pos :- Int]
+  (let [selection (.getSelection js/rangy)
+        {:keys [ranges char-range]} (get-selection content)]
+    (when (and ranges char-range)
       (aset char-range "start" start-pos)
       (aset char-range "end" (or end-pos start-pos))
       (.restoreCharacterRanges selection content ranges))))
@@ -312,11 +301,14 @@
   "Returns the editor's state after sanitizing it."
   [content :- js/Object
    crop? :- Bool]
-  (let [sel (get-selection content)
-        pos (:cursor-position sel)
-        text (.-textContent content)
-        state {:cursor-position pos :text text}]
-    (if-let [cropped-selection (:cropped-selection sel)]
+  (let [selection (.getSelection js/rangy)
+        anchor (.-anchorNode selection)
+        focus (.-focusNode selection)
+        parent (when (and anchor focus)
+                 (common-ancestor anchor focus))
+        state {:cursor-position (-> content get-selection :cursor-position)
+               :text (.-textContent content)}]
+    (if-let [cropped-selection (some-> parent get-selection)]
       (if crop?
         (assoc state :cropped-state
           (assoc cropped-selection
