@@ -311,8 +311,7 @@
     (if-let [cropped-selection (some-> parent get-selection)]
       (if crop?
         (assoc state :cropped-state
-          (assoc cropped-selection
-            :text (.-textContent (:element cropped-selection))))
+          (assoc cropped-selection :text (.-textContent parent)))
         state)
       state)))
 
