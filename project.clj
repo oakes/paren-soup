@@ -3,7 +3,7 @@
   :url "https://github.com/oakes/paren-soup"
   :license {:name "Public Domain"
             :url "http://unlicense.org/UNLICENSE"}
-  :dependencies [[mistakes-were-made "1.6.2"]
+  :dependencies [[mistakes-were-made "1.6.3"]
                  [html-soup "1.2.2"]
                  [cross-parinfer "1.1.6"]
                  [cljsjs/rangy-core "1.3.0-1"]

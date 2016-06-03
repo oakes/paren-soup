@@ -366,6 +366,8 @@
       (set! (.-spellcheck paren-soup) false)
       (when-not content
         (throw (js/Error. "Can't find a div with class 'content'")))
+      ; set edit history limit
+      (swap! edit-history assoc :limit 100)
       ; refresh the editor every time the state is changed
       (add-watch current-state :render
         (fn [_ _ _ state]

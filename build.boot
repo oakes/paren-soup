@@ -6,7 +6,7 @@
                   [adzerk/boot-reload "0.3.1" :scope "test"]
                   [pandeiro/boot-http "0.6.3-SNAPSHOT" :scope "test"]
                   ; project deps
-                  [mistakes-were-made "1.6.2"]
+                  [mistakes-were-made "1.6.3"]
                   [html-soup "1.2.2"]
                   [cross-parinfer "1.1.6"]
                   [cljsjs/rangy-core "1.3.0-1"]
