@@ -149,23 +149,20 @@
            (top-level? first-node))
       first-node)))
 
-(defn char-range->position :- [Int]
-  "Returns the position from the given char range object."
-  [char-range :- (maybe js/Object)]
-  (if char-range
-    [(aget char-range "start") (aget char-range "end")]
-    [0 0]))
-
 (defn get-selection :- {Keyword Any}
   "Returns the objects related to selection for the given element."
   [element :- js/Object]
-  (let [selection (.getSelection js/rangy)
-        ranges (.saveCharacterRanges selection element)
-        char-range (some-> ranges (aget 0) (aget "characterRange"))]
-    {:element element
-     :ranges ranges
-     :char-range char-range
-     :cursor-position (char-range->position char-range)}))
+  {:element element
+   :cursor-position
+   (if (= 0 (.-rangeCount (.getSelection js/window)))
+     [0 0]
+     (let [selection (.getSelection js/window)
+           range (.getRangeAt selection 0)
+           pre-caret-range (doto (.cloneRange range)
+                             (.selectNodeContents element)
+                             (.setEnd (.-endContainer range) (.-endOffset range)))
+           pos (-> pre-caret-range .toString .-length)]
+       [pos pos]))})
 
 (defn get-cursor-position :- [Int]
   "Returns the cursor position."
