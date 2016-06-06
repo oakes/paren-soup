@@ -1,3 +1,0 @@
-{:require  [paren-soup.compiler]
- :init-fns []
- :compiler-options {}}
