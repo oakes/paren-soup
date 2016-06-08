@@ -2,9 +2,13 @@
   :source-paths #{"src"}
   :resource-paths #{"resources"}
   :dependencies '[[adzerk/boot-cljs "1.7.228-1" :scope "test"]
-                  [adzerk/boot-cljs-repl "0.1.10-SNAPSHOT" :scope "test"]
-                  [adzerk/boot-reload "0.3.1" :scope "test"]
-                  [pandeiro/boot-http "0.6.3-SNAPSHOT" :scope "test"]
+                  [adzerk/boot-cljs-repl "0.3.0" :scope "test"]
+                  [adzerk/boot-reload "0.4.8" :scope "test"]
+                  [pandeiro/boot-http "0.7.3" :scope "test"]
+		  ; for boot-cljs-repl
+		  [com.cemerick/piggieback "0.2.1" :scope "test"]
+		  [weasel "0.7.0"  :scope "test"]
+		  [org.clojure/tools.nrepl "0.2.12" :scope "test"]
                   ; project deps
                   [mistakes-were-made "1.6.3"]
                   [html-soup "1.2.2"]
@@ -23,7 +27,6 @@
   '[pandeiro.boot-http :refer [serve]])
 
 (deftask run []
-  (set-env! :source-paths #{"src" "test"})
   (comp (serve :dir "target/public")
         (watch)
         (reload :on-jsload 'paren-soup.core/init-debug!)
@@ -31,5 +34,4 @@
         (cljs :source-map true :optimizations :none)))
 
 (deftask build []
-  (set-env! :source-paths #{"src"})
-  (comp (cljs :optimizations :advanced)))
+  (comp (cljs :optimizations :advanced) (target)))
