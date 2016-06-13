@@ -32,7 +32,8 @@
     (watch)
     (reload :on-jsload 'paren-soup.core/init-debug!)
     (cljs-repl)
-    (cljs :source-map true :optimizations :none)))
+    (cljs :source-map true :optimizations :none)
+    (target)))
 
 (deftask build []
   (comp (cljs :optimizations :advanced) (target)))
