@@ -150,12 +150,23 @@
       first-node)))
 
 (defn get-selection :- {Keyword Any}
-  "Returns the objects related to selection for the given element."
-  [element :- js/Object]
+  "Returns the objects related to selection for the given element. If full-selection? is true,
+it will use rangy instead of the native selection API in order to get the beginning and ending
+of the selection (it is, however, much slower)."
+  [element :- js/Object
+   full-selection? :- Bool]
   {:element element
    :cursor-position
-   (if (= 0 (.-rangeCount (.getSelection js/window)))
+   (cond
+     full-selection?
+     (let [selection (.getSelection js/rangy)
+           ranges (.saveCharacterRanges selection element)]
+       (if-let [char-range (some-> ranges (aget 0) (aget "characterRange"))]
+         [(aget char-range "start") (aget char-range "end")]
+         [0 0]))
+     (= 0 (.-rangeCount (.getSelection js/window)))
      [0 0]
+     :else
      (let [selection (.getSelection js/window)
            range (.getRangeAt selection 0)
            pre-caret-range (doto (.cloneRange range)
@@ -167,7 +178,7 @@
 (defn get-cursor-position :- [Int]
   "Returns the cursor position."
   [element :- js/Object]
-  (-> element get-selection :cursor-position))
+  (-> element (get-selection false) :cursor-position))
 
 (defn set-cursor-position!
   "Moves the cursor to the specified position."
@@ -299,17 +310,19 @@
     state))
 
 (defn init-state :- {Keyword Any}
-  "Returns the editor's state."
+  "Returns the editor's state. If full-selection? is true, it will try to save
+the entire selection rather than just the cursor position."
   [content :- js/Object
-   crop? :- Bool]
+   crop? :- Bool
+   full-selection? :- Bool]
   (let [selection (.getSelection js/rangy)
         anchor (.-anchorNode selection)
         focus (.-focusNode selection)
         parent (when (and anchor focus)
                  (common-ancestor anchor focus))
-        state {:cursor-position (-> content get-selection :cursor-position)
+        state {:cursor-position (-> content (get-selection full-selection?) :cursor-position)
                :text (.-textContent content)}]
-    (if-let [cropped-selection (some-> parent get-selection)]
+    (if-let [cropped-selection (some-> parent (get-selection false))]
       (if crop?
         (assoc state :cropped-state
           (assoc cropped-selection :text (.-textContent parent)))
@@ -343,7 +356,7 @@
 (defn full-refresh!
   "Refreshes the content completely."
   [content current-state edit-history]
-  (->> (init-state content false)
+  (->> (init-state content false false)
        (add-parinfer :both)
        (adjust-state)
        (reset! current-state)
@@ -372,7 +385,7 @@
           (some-> numbers (refresh-numbers! (count (re-seq #"\n" (:text state)))))
           (some-> instarepl (refresh-instarepl-with-delay! content eval-worker))))
       ; initialize the editor
-      (->> (init-state content true)
+      (->> (init-state content true false)
            (add-parinfer :paren)
            (adjust-state)
            (reset! current-state)
@@ -411,7 +424,7 @@
                 (key-name? event :arrows)
                 (mwm/update-cursor-position! edit-history (get-cursor-position content))
                 (key-name? event :general)
-                (let [state (init-state content true)
+                (let [state (init-state content true (= 9 (.-keyCode event)))
                       last-state (mwm/get-current-state edit-history)
                       diff (- (-> state :text count) (-> last-state :text count))]
                   (if (< diff -1)
