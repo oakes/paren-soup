@@ -1,3 +1,3 @@
 {:require  [paren-soup.core]
- :init-fns [paren-soup.core/init!]
+ :init-fns [paren-soup.core/init]
  :compiler-options {}}

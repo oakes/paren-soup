@@ -362,13 +362,14 @@ the entire selection rather than just the cursor position."
        (reset! current-state)
        (mwm/update-edit-history! edit-history)))
 
-(defn init! []
+(defn ^:export init []
   (.init js/rangy)
   (doseq [paren-soup (-> js/document (.querySelectorAll ".paren-soup") array-seq)]
     (let [instarepl (.querySelector paren-soup ".instarepl")
           numbers (.querySelector paren-soup ".numbers")
           content (.querySelector paren-soup ".content")
-          eval-worker (when instarepl (js/Worker. "paren-soup-compiler.js"))
+          eval-worker (try (js/Worker. "paren-soup-compiler.js")
+                        (catch js/Error _))
           edit-history (mwm/create-edit-history)
           current-state (atom nil)
           refresh-instarepl-with-delay! (debounce refresh-instarepl! 300)
@@ -449,7 +450,7 @@ the entire selection rather than just the cursor position."
               (hide-error-messages! paren-soup)
               nil)))))))
 
-(defn init-debug! []
-  (.log js/console (with-out-str (time (with-fn-validation (init!))))))
+(defn init-debug []
+  (.log js/console (with-out-str (time (with-fn-validation (init))))))
 
-(set! (.-onload js/window) init!)
+(set! (.-onload js/window) init)
