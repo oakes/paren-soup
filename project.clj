@@ -1,4 +1,4 @@
-(defproject paren-soup "2.0.10"
+(defproject paren-soup "2.0.11"
   :description "A viewer and editor for ClojureScript"
   :url "https://github.com/oakes/paren-soup"
   :license {:name "Public Domain"
