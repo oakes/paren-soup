@@ -210,7 +210,7 @@ of the selection (it is, however, much slower)."
     (set! (.-onmessage eval-worker)
           (fn [e]
             (let [results (.-data e)]
-              (when (some-> elems first .-parentNode)
+              (when (.-parentElement instarepl)
                 (set! (.-innerHTML instarepl)
                       (results->html results locations))))))
     (.postMessage eval-worker forms)))
@@ -364,9 +364,7 @@ the entire selection rather than just the cursor position."
 
 (defn ^:export init [paren-soup change-callback]
   (.init js/rangy)
-  (let [instarepl (.querySelector paren-soup ".instarepl")
-        numbers (.querySelector paren-soup ".numbers")
-        content (.querySelector paren-soup ".content")
+  (let [content (.querySelector paren-soup ".content")
         eval-worker (try (js/Worker. "paren-soup-compiler.js")
                       (catch js/Error _))
         edit-history (mwm/create-edit-history)
@@ -384,8 +382,10 @@ the entire selection rather than just the cursor position."
     (add-watch current-state :render
       (fn [_ _ _ state]
         (post-refresh-content! content events-chan (refresh-content! content state))
-        (some-> numbers (refresh-numbers! (count (re-seq #"\n" (:text state)))))
-        (some-> instarepl (refresh-instarepl-with-delay! content eval-worker))))
+        (some-> (.querySelector paren-soup ".numbers")
+                (refresh-numbers! (count (re-seq #"\n" (:text state)))))
+        (some-> (.querySelector paren-soup ".instarepl")
+                (refresh-instarepl-with-delay! content eval-worker))))
     ; initialize the editor
     (->> (init-state content true false)
          (add-parinfer :paren)
