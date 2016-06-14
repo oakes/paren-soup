@@ -18,6 +18,9 @@ To use paren-soup in your own website, just go to [the releases section](https:/
   <div class="content" contenteditable="true">(+ 1 1) ; put initial code here</div>
 </div>
 <script type="text/javascript" src="paren-soup.js"></script>
+<script type="text/javascript">
+  paren_soup.core.init_all();
+</script>
 ```
 If you just want a viewer, not an editor, leave out the `contenteditable` attribute. If you don’t want the instaREPL or line numbers, remove the relevant divs and they will not appear. To get the code out of the content element via JavaScript or ClojureScript, read its `textContent` property. There is no API to learn!
 
