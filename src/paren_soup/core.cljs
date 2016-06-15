@@ -362,9 +362,12 @@ the entire selection rather than just the cursor position."
        (reset! current-state)
        (mwm/update-edit-history! edit-history)))
 
-(defn ^:export init [paren-soup change-callback]
+(defn ^:export init [paren-soup opts]
   (.init js/rangy)
-  (let [content (.querySelector paren-soup ".content")
+  (let [{:keys [change-callback disable-undo-redo? history-limit]
+         :or {history-limit 100}}
+        (js->clj opts :keywordize-keys true)
+        content (.querySelector paren-soup ".content")
         eval-worker (try (js/Worker. "paren-soup-compiler.js")
                       (catch js/Error _))
         edit-history (mwm/create-edit-history)
@@ -377,7 +380,7 @@ the entire selection rather than just the cursor position."
     (when-not content
       (throw (js/Error. "Can't find a div with class 'content'")))
     ; set edit history limit
-    (swap! edit-history assoc :limit 100)
+    (swap! edit-history assoc :limit history-limit)
     ; refresh the editor every time the state is changed
     (add-watch current-state :render
       (fn [_ _ _ state]
@@ -413,7 +416,7 @@ the entire selection rather than just the cursor position."
           (case (.-type event)
             "keydown"
             (cond
-              (key-name? event :undo-or-redo)
+              (and (key-name? event :undo-or-redo) (not disable-undo-redo?))
               (if (.-shiftKey event) (redo!) (undo!))
               (key-name? event :enter)
               (.execCommand js/document "insertHTML" false "\n"))
@@ -446,7 +449,7 @@ the entire selection rather than just the cursor position."
             "mouseleave"
             (hide-error-messages! paren-soup)
             nil)
-          (change-callback event))))
+          (when change-callback (change-callback event)))))
     ; return functions in map so our exported functions can call them
     {:undo! undo!
      :redo! redo!
@@ -455,7 +458,7 @@ the entire selection rather than just the cursor position."
 
 (defn ^:export init-all []
   (doseq [paren-soup (-> js/document (.querySelectorAll ".paren-soup") array-seq)]
-    (init paren-soup (fn [_]))))
+    (init paren-soup #js {})))
 
 (defn ^:export undo [{:keys [undo!]}] (undo!))
 (defn ^:export redo [{:keys [redo!]}] (redo!))
