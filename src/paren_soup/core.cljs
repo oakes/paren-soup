@@ -291,18 +291,19 @@ of the selection (it is, however, much slower)."
 
 (defn adjust-state :- {Keyword Any}
   "Adds a newline and indentation to the state if necessary."
-  [state :- {Keyword Any}]
+  [adjust-indent? :- Bool
+   state :- {Keyword Any}]
   (let [{:keys [text indent-type cropped-state]} state
         ; add newline at end if necessary
         state (if-not (= \newline (last text))
                 (assoc state :text (str text \newline))
                 state)
         ; fix indentation of the state
-        state (if indent-type
+        state (if (and adjust-indent? indent-type)
                 (cp/add-indent state)
                 state)
         ; fix indentation of the cropped state
-        state (if (and indent-type cropped-state)
+        state (if (and adjust-indent? indent-type cropped-state)
                 (assoc state :cropped-state
                   (merge cropped-state
                     (cp/add-indent (assoc cropped-state :indent-type indent-type))))
@@ -353,18 +354,29 @@ the entire selection rather than just the cursor position."
              (.-metaKey event)))
     false))
 
+(defn update-edit-history! [edit-history state]
+  (try
+    (mwm/update-edit-history! edit-history (dissoc state :cropped-state))
+    state
+    (catch js/Error _ (mwm/get-current-state edit-history))))
+
 (defn full-refresh!
   "Refreshes the content completely."
-  [content current-state edit-history]
+  [adjust-indent? content current-state edit-history]
   (->> (init-state content false false)
        (add-parinfer :both)
-       (adjust-state)
-       (reset! current-state)
-       (mwm/update-edit-history! edit-history)))
+       (adjust-state adjust-indent?)
+       (update-edit-history! edit-history)
+       (reset! current-state)))
+
+(defn prevent-default? [event]
+  (or (key-name? event :undo-or-redo)
+      (key-name? event :tab)
+      (key-name? event :enter)))
 
 (defn ^:export init [paren-soup opts]
   (.init js/rangy)
-  (let [{:keys [change-callback disable-undo-redo? history-limit]
+  (let [{:keys [change-callback disable-undo-redo? history-limit console-callback]
          :or {history-limit 100}}
         (js->clj opts :keywordize-keys true)
         content (.querySelector paren-soup ".content")
@@ -374,8 +386,25 @@ the entire selection rather than just the cursor position."
         current-state (atom nil)
         refresh-instarepl-with-delay! (debounce refresh-instarepl! 300)
         events-chan (chan)
-        undo! #(some->> edit-history mwm/undo! adjust-state (reset! current-state))
-        redo! #(some->> edit-history mwm/redo! adjust-state (reset! current-state))]
+        undo! #(some->> edit-history mwm/undo! (adjust-state (nil? console-callback)) (reset! current-state))
+        redo! #(some->> edit-history mwm/redo! (adjust-state (nil? console-callback)) (reset! current-state))
+        console-start (atom 0)
+        go-to-console-start! #(let [n @console-start] (set-cursor-position! content [n n]))
+        update-cursor-position! (fn [position]
+                                  (try
+                                    (mwm/update-cursor-position! edit-history position)
+                                    (catch js/Error _ (go-to-console-start!))))
+        reset-edit-history! (fn []
+                              (let [new-edit-history (mwm/create-edit-history)]
+                                (update-edit-history! new-edit-history (init-state content false false))
+                                (reset! edit-history @new-edit-history)))
+        append-text! (fn [text]
+                       (let [node (.createTextNode js/document text)
+                             _ (.appendChild content node)
+                             all-text (.-textContent content)]
+                         (reset! console-start (count all-text))
+                         (go-to-console-start!)
+                         (reset-edit-history!)))]
     (set! (.-spellcheck paren-soup) false)
     (when-not content
       (throw (js/Error. "Can't find a div with class 'content'")))
@@ -389,22 +418,26 @@ the entire selection rather than just the cursor position."
                 (refresh-numbers! (count (re-seq #"\n" (:text state)))))
         (some-> (.querySelector paren-soup ".instarepl")
                 (refresh-instarepl-with-delay! content eval-worker))))
+    ; in console mode, don't allow text before console-start to be edited
+    (when console-callback
+      (set-validator! edit-history
+        (fn [{:keys [current-state states]}]
+          (if-let [state (get states current-state)]
+            (-> state :cursor-position first (>= @console-start))
+            true))))
     ; initialize the editor
     (->> (init-state content true false)
          (add-parinfer :paren)
-         (adjust-state)
-         (reset! current-state)
-         (#(dissoc % :cropped-state))
-         (mwm/update-edit-history! edit-history))
+         (adjust-state (nil? console-callback))
+         (update-edit-history! edit-history)
+         (reset! current-state))
     ; set up event listeners
     (doto content
       (events/removeAll)
       (events/listen "keydown" (fn [e]
-                                 (put! events-chan e)
-                                 (when (or (key-name? e :undo-or-redo)
-                                           (key-name? e :tab)
-                                           (key-name? e :enter))
-                                   (.preventDefault e))))
+                                 (when (prevent-default? e)
+                                   (.preventDefault e))
+                                 (put! events-chan e)))
       (events/listen "keyup" #(put! events-chan %))
       (events/listen "cut" #(put! events-chan %))
       (events/listen "paste" #(put! events-chan %))
@@ -418,32 +451,40 @@ the entire selection rather than just the cursor position."
             (cond
               (and (key-name? event :undo-or-redo) (not disable-undo-redo?))
               (if (.-shiftKey event) (redo!) (undo!))
+              console-callback
+              (cond
+                (key-name? event :enter)
+                (let [text (.-textContent content)
+                      entered-text (subs text @console-start)]
+                  (reset! console-start (-> text count dec))
+                  (go-to-console-start!)
+                  (reset-edit-history!)
+                  (console-callback entered-text)))
               (key-name? event :enter)
               (.execCommand js/document "insertHTML" false "\n"))
             "keyup"
             (cond
               (key-name? event :arrows)
-              (mwm/update-cursor-position! edit-history (get-cursor-position content))
+              (update-cursor-position! (get-cursor-position content))
               (key-name? event :general)
               (let [state (init-state content true (= 9 (.-keyCode event)))
                     last-state (mwm/get-current-state edit-history)
                     diff (- (-> state :text count) (-> last-state :text count))]
                 (if (< diff -1)
-                  (full-refresh! content current-state edit-history)
+                  (full-refresh! (nil? console-callback) content current-state edit-history)
                   (->> (case (.-keyCode event)
                          13 (assoc state :indent-type :return)
                          9 (assoc state :indent-type (if (.-shiftKey event) :back :forward))
                          (add-parinfer :indent state))
-                       (adjust-state)
-                       (reset! current-state)
-                       (#(dissoc % :cropped-state))
-                       (mwm/update-edit-history! edit-history)))))
+                       (adjust-state (nil? console-callback))
+                       (update-edit-history! edit-history)
+                       (reset! current-state)))))
             "cut"
-            (full-refresh! content current-state edit-history)
+            (full-refresh! (nil? console-callback) content current-state edit-history)
             "paste"
-            (full-refresh! content current-state edit-history)
+            (full-refresh! (nil? console-callback) content current-state edit-history)
             "mouseup"
-            (mwm/update-cursor-position! edit-history (get-cursor-position content))
+            (update-cursor-position! (get-cursor-position content))
             "mouseenter"
             (show-error-message! paren-soup event)
             "mouseleave"
@@ -454,7 +495,8 @@ the entire selection rather than just the cursor position."
     {:undo! undo!
      :redo! redo!
      :can-undo? #(mwm/can-undo? edit-history)
-     :can-redo? #(mwm/can-redo? edit-history)}))
+     :can-redo? #(mwm/can-redo? edit-history)
+     :append-text! append-text!}))
 
 (defn ^:export init-all []
   (doseq [paren-soup (-> js/document (.querySelectorAll ".paren-soup") array-seq)]
@@ -464,6 +506,7 @@ the entire selection rather than just the cursor position."
 (defn ^:export redo [{:keys [redo!]}] (redo!))
 (defn ^:export can-undo [{:keys [can-undo?]}] (can-undo?))
 (defn ^:export can-redo [{:keys [can-redo?]}] (can-redo?))
+(defn ^:export append-text [{:keys [append-text!]} text] (append-text! text))
 
 (defn init-debug []
   (.log js/console (with-out-str (time (with-fn-validation (init-all))))))

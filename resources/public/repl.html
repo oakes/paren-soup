@@ -1,0 +1,30 @@
+<!doctype html>
+<html>
+    <head>
+    <title>paren-soup</title>
+    <link rel="stylesheet" type="text/css" href="paren-soup-light.css">
+    <style>
+    	.paren-soup {
+        	width: 100%;
+        	height: 200px;
+        }
+        .content {
+        	height: 100%;
+        }
+    </style>
+    </head>
+    <body>
+    <div class="paren-soup">
+		<div class="content" contenteditable="true"></div>
+    </div>
+    <script type="text/javascript" src="paren-soup.js"></script>
+    <script type="text/javascript">
+    	var parent = document.querySelector('.paren-soup');
+        var editor = paren_soup.core.init(parent, {
+        	"console-callback": function(text) {
+            	paren_soup.core.append_text(editor, text);
+            }
+        });
+    </script>
+    <body>
+</html>
