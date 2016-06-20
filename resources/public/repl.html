@@ -22,9 +22,10 @@
     	var parent = document.querySelector('.paren-soup');
         var editor = paren_soup.core.init(parent, {
         	"console-callback": function(text) {
-            	paren_soup.core.append_text(editor, text);
+            	paren_soup.core.append_text(editor, "You said \"" + text + "\"!\nSay something: ");
             }
         });
+        paren_soup.core.append_text(editor, "Say something: ");
     </script>
     <body>
 </html>

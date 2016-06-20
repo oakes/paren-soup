@@ -279,6 +279,12 @@ of the selection (it is, however, much slower)."
       (set! (.-innerHTML content) (hs/code->html (:text state)))
       state)))
 
+(defn refresh-console-content! [content state console-start-num]
+  (let [pre-text (-> state :text (subs 0 console-start-num))
+        post-text (-> state :text (subs console-start-num) hs/code->html)]
+    (set! (.-innerHTML content) (str pre-text post-text)))
+  (dissoc state :cropped-state))
+
 (defn add-parinfer :- {Keyword Any}
   "Adds parinfer to the state."
   [mode-type :- Keyword
@@ -413,11 +419,15 @@ the entire selection rather than just the cursor position."
     ; refresh the editor every time the state is changed
     (add-watch current-state :render
       (fn [_ _ _ state]
-        (post-refresh-content! content events-chan (refresh-content! content state))
-        (some-> (.querySelector paren-soup ".numbers")
-                (refresh-numbers! (count (re-seq #"\n" (:text state)))))
-        (some-> (.querySelector paren-soup ".instarepl")
-                (refresh-instarepl-with-delay! content eval-worker))))
+        (post-refresh-content! content events-chan
+          (if console-callback
+            (refresh-console-content! content state @console-start)
+            (refresh-content! content state)))
+        (when-not console-callback
+          (some-> (.querySelector paren-soup ".numbers")
+                  (refresh-numbers! (count (re-seq #"\n" (:text state)))))
+          (some-> (.querySelector paren-soup ".instarepl")
+                  (refresh-instarepl-with-delay! content eval-worker)))))
     ; in console mode, don't allow text before console-start to be edited
     (when console-callback
       (set-validator! edit-history
@@ -426,11 +436,12 @@ the entire selection rather than just the cursor position."
             (-> state :cursor-position first (>= @console-start))
             true))))
     ; initialize the editor
-    (->> (init-state content true false)
-         (add-parinfer :paren)
-         (adjust-state (nil? console-callback))
-         (update-edit-history! edit-history)
-         (reset! current-state))
+    (when-not console-callback
+      (->> (init-state content true false)
+           (add-parinfer :paren)
+           (adjust-state (nil? console-callback))
+           (update-edit-history! edit-history)
+           (reset! current-state)))
     ; set up event listeners
     (doto content
       (events/removeAll)
@@ -455,8 +466,9 @@ the entire selection rather than just the cursor position."
               (cond
                 (key-name? event :enter)
                 (let [text (.-textContent content)
+                      text (subs text 0 (dec (count text)))
                       entered-text (subs text @console-start)]
-                  (reset! console-start (-> text count dec))
+                  (reset! console-start (count text))
                   (go-to-console-start!)
                   (reset-edit-history!)
                   (console-callback entered-text)))
