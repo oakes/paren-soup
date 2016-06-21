@@ -395,22 +395,26 @@ the entire selection rather than just the cursor position."
         undo! #(some->> edit-history mwm/undo! (adjust-state (nil? console-callback)) (reset! current-state))
         redo! #(some->> edit-history mwm/redo! (adjust-state (nil? console-callback)) (reset! current-state))
         console-start (atom 0)
-        go-to-console-start! #(let [n @console-start] (set-cursor-position! content [n n]))
         update-cursor-position! (fn [position]
                                   (try
                                     (mwm/update-cursor-position! edit-history position)
-                                    (catch js/Error _ (go-to-console-start!))))
-        reset-edit-history! (fn []
+                                    (catch js/Error _
+                                      (let [start @console-start]
+                                        (set-cursor-position! content [start start])
+                                        (mwm/update-cursor-position! edit-history [start start])))))
+        reset-edit-history! (fn [start]
+                              (reset! console-start start)
+                              (set-cursor-position! content [start start])
                               (let [new-edit-history (mwm/create-edit-history)]
                                 (update-edit-history! new-edit-history (init-state content false false))
-                                (reset! edit-history @new-edit-history)))
+                                (try
+                                  (reset! edit-history @new-edit-history)
+                                  (catch js/Error _))))
         append-text! (fn [text]
                        (let [node (.createTextNode js/document text)
                              _ (.appendChild content node)
                              all-text (.-textContent content)]
-                         (reset! console-start (count all-text))
-                         (go-to-console-start!)
-                         (reset-edit-history!)))]
+                         (reset-edit-history! (count all-text))))]
     (set! (.-spellcheck paren-soup) false)
     (when-not content
       (throw (js/Error. "Can't find a div with class 'content'")))
@@ -468,9 +472,7 @@ the entire selection rather than just the cursor position."
                 (let [text (.-textContent content)
                       text (subs text 0 (dec (count text)))
                       entered-text (subs text @console-start)]
-                  (reset! console-start (count text))
-                  (go-to-console-start!)
-                  (reset-edit-history!)
+                  (reset-edit-history! (count text))
                   (console-callback entered-text)))
               (key-name? event :enter)
               (.execCommand js/document "insertHTML" false "\n"))
