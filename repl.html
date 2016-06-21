@@ -1,0 +1,50 @@
+<!doctype html>
+<html>
+    <head>
+    <title>paren-soup</title>
+    <link rel="stylesheet" type="text/css" href="paren-soup-light.css">
+    <style>
+    	.paren-soup {
+        	width: 100%;
+        	height: 200px;
+        }
+        .content {
+        	height: 100%;
+        }
+        .code {
+        	font-family: "Lucida Console", Monaco, monospace;
+        }
+    </style>
+    </head>
+    <body>
+    In the REPL, try typing an expression, such as <span class="code">(+ 1 2 3)</span> and hit enter. It's running entirely in your browser!
+    <div class="paren-soup">
+		<div class="content" contenteditable="true"></div>
+    </div>
+    <script type="text/javascript" src="paren-soup.js"></script>
+    <script type="text/javascript">
+    	var parent = document.querySelector('.paren-soup');
+        var content = document.querySelector('.content');
+        var editor = paren_soup.core.init(parent, {
+        	"change-callback": function(e) {
+            	if (e.type == "keyup") {
+                	content.scrollTop = content.scrollHeight;
+                }
+            },
+        	"console-callback": function(text) {
+            	paren_soup.core.eval(editor, text, function(result) {
+                	// result will either be a string or an array of strings.
+                    // if it's an array of strings, the first item in it is an error message
+                    if (result instanceof Array) {
+                    	result = "Error: " + result[0];
+                    }
+                	paren_soup.core.append_text(editor, result + "\n");
+                    paren_soup.core.append_text(editor, "=> ");
+                    content.scrollTop = content.scrollHeight;
+                });
+            }
+        });
+        paren_soup.core.append_text(editor, "=> ");
+    </script>
+    <body>
+</html>
