@@ -1,14 +1,17 @@
 ## Introduction
 
-A library providing a ClojureScript viewer and editor that you can embed in any website. No, that was not a complete sentence. And neither is this. Be a rebel, like me, by using paren-soup. CodeMirror is nice if you want to support other languages, but why would you? Here are the features:
+A library providing a ClojureScript viewer and editor that you can embed in any website. No, that was not a complete sentence. And neither is this. Be a rebel, like me, by using paren-soup. CodeMirror is nice if you want to support other languages, but why would you?
+
+### [Try the demo!](http://oakes.github.io/paren-soup)
+
+Here are the features:
 
 * [Parinfer](http://shaunlebron.github.io/parinfer/)
 * Syntax highlighting
 * Rainbow delimiters
 * Inline reader errors
 * InstaREPL (à la Light Table)
-
-### [Try the demo!](http://oakes.github.io/paren-soup)
+* Console mode (can be used for browser-based REPLs [like this](http://oakes.github.io/paren-soup/repl.html))
 
 To use paren-soup in your own website, just go to [the releases section](https://github.com/oakes/paren-soup/releases) and download the latest files. In your HTML, link to one of the CSS files and use the following markup:
 ```html

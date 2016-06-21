@@ -510,7 +510,15 @@ the entire selection rather than just the cursor position."
      :redo! redo!
      :can-undo? #(mwm/can-undo? edit-history)
      :can-redo? #(mwm/can-redo? edit-history)
-     :append-text! append-text!}))
+     :append-text! append-text!
+     :eval! (fn [form callback]
+              (when-not eval-worker
+                (throw (js/Error. "Can't find paren-soup-compiler.js")))
+              (set! (.-onmessage eval-worker)
+                (fn [e]
+                  (let [results (.-data e)]
+                    (callback (aget results 0)))))
+              (.postMessage eval-worker (array form)))}))
 
 (defn ^:export init-all []
   (doseq [paren-soup (-> js/document (.querySelectorAll ".paren-soup") array-seq)]
@@ -521,6 +529,7 @@ the entire selection rather than just the cursor position."
 (defn ^:export can-undo [{:keys [can-undo?]}] (can-undo?))
 (defn ^:export can-redo [{:keys [can-redo?]}] (can-redo?))
 (defn ^:export append-text [{:keys [append-text!]} text] (append-text! text))
+(defn ^:export eval [{:keys [eval!]} form callback] (eval! form callback))
 
 (defn init-debug []
   (.log js/console (with-out-str (time (with-fn-validation (init-all))))))
