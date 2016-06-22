@@ -280,19 +280,33 @@ of the selection (it is, however, much slower)."
       state)))
 
 (defn refresh-console-content! [content state console-start-num clj?]
-  (let [pre-text (-> state :text (subs 0 console-start-num))
-        post-text (-> state :text (subs console-start-num))
-        post-text (if clj? (hs/code->html post-text) post-text)]
-    (set! (.-innerHTML content) (str pre-text post-text)))
+  (set! (.-innerHTML content)
+    (if clj?
+      (let [pre-text (subs (:text state) 0 console-start-num)
+            post-text (subs (:text state) console-start-num)]
+        (str pre-text (hs/code->html post-text)))
+      (:text state)))
   (dissoc state :cropped-state))
+
+(defn add-parinfer-after-console-start [console-start-num mode-type state]
+  (let [pre-text (subs (:text state) 0 console-start-num)
+        post-text (subs (:text state) console-start-num)
+        cleared-text (str (replace pre-text #"[^\r^\n]" " ") post-text)
+        temp-state (assoc state :text cleared-text)
+        temp-state (cp/add-parinfer mode-type temp-state)
+        new-text (str pre-text (subs (:text temp-state) console-start-num))]
+    (assoc state :text new-text)))
 
 (defn add-parinfer :- {Keyword Any}
   "Adds parinfer to the state."
   [enable? :- Bool
+   console-start-num
    mode-type :- Keyword
    state :- {Keyword Any}]
   (if enable?
-    (let [state (cp/add-parinfer mode-type state)]
+    (let [state (if (pos? console-start-num)
+                  (add-parinfer-after-console-start console-start-num mode-type state)
+                  (cp/add-parinfer mode-type state))]
       (if-let [crop (:cropped-state state)]
         (assoc state :cropped-state
           (merge crop (cp/add-parinfer mode-type crop)))
@@ -417,7 +431,7 @@ the entire selection rather than just the cursor position."
                          (reset-edit-history! (count all-text))))
         full-refresh! (fn []
                         (->> (init-state content false false)
-                             (add-parinfer clj? :indent)
+                             (add-parinfer clj? @console-start :indent)
                              (add-newline)
                              (adjust-indent editor?)
                              (update-edit-history! edit-history)
@@ -450,7 +464,7 @@ the entire selection rather than just the cursor position."
     ; initialize the editor
     (when editor?
       (->> (init-state content true false)
-           (add-parinfer clj? :paren)
+           (add-parinfer clj? @console-start :paren)
            (add-newline)
            (adjust-indent editor?)
            (update-edit-history! edit-history)
@@ -498,7 +512,7 @@ the entire selection rather than just the cursor position."
                   (->> (case (.-keyCode event)
                          13 (assoc state :indent-type :return)
                          9 (assoc state :indent-type (if (.-shiftKey event) :back :forward))
-                         (add-parinfer clj? :indent state))
+                         (add-parinfer clj? @console-start :indent state))
                        (add-newline)
                        (adjust-indent editor?)
                        (update-edit-history! edit-history)
