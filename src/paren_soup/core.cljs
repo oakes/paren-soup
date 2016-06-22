@@ -6,17 +6,14 @@
             [goog.string :refer [format]]
             [cljsjs.rangy-core]
             [cljsjs.rangy-textrange]
-            [schema.core :refer [maybe either Any Str Int Keyword Bool]]
             [mistakes-were-made.core :as mwm]
             [html-soup.core :as hs]
             [cross-parinfer.core :as cp])
-  (:require-macros [schema.core :refer [defn with-fn-validation]]
-                   [cljs.core.async.macros :refer [go]]))
+  (:require-macros [cljs.core.async.macros :refer [go]]))
 
 (defn show-error-message!
   "Shows a popup with an error message."
-  [parent-elem :- js/Object
-   event :- js/Object]
+  [parent-elem event]
   (let [elem (.-target event)
         x (.-clientX event)
         y (.-clientY event)
@@ -35,14 +32,13 @@
 
 (defn hide-error-messages!
   "Hides all error popups."
-  [parent-elem :- js/Object]
+  [parent-elem]
   (doseq [elem (-> parent-elem (.querySelectorAll ".error-text") array-seq)]
     (.removeChild parent-elem elem)))
 
-(defn elems->locations :- [{Keyword Any}]
+(defn elems->locations
   "Returns the location of each elem."
-  [elems :- [js/Object]
-   top-offset :- Int]
+  [elems top-offset]
   (loop [i 0
          locations (transient [])]
     (if-let [elem (get elems i)]
@@ -51,10 +47,9 @@
         (recur (inc i) (conj! locations {:top top :height height})))
       (persistent! locations))))
 
-(defn results->html :- Str
+(defn results->html
   "Returns HTML for the given eval results."
-  [results :- [Any]
-   locations :- [{Keyword Any}]]
+  [results locations]
   (loop [i 0
          evals (transient [])]
     (let [res (get results i)
@@ -72,9 +67,9 @@
                            hs/escape-html-str))))
         (join (persistent! evals))))))
 
-(defn get-collections :- [js/Object]
+(defn get-collections
   "Returns collections from the given DOM node."
-  [element :- js/Object]
+  [element]
   (vec (for [elem (-> element .-children array-seq)
              :let [classes (.-classList elem)]
              :when (or (.contains classes "collection")
@@ -83,14 +78,11 @@
 
 (def ^:const rainbow-count 10)
 
-(defn rainbow-delimiters :- Any
+(defn rainbow-delimiters
   "Returns a map of elements and class names."
-  ([parent :- js/Object
-    level :- Int]
+  ([parent level]
    (persistent! (rainbow-delimiters parent level (transient {}))))
-  ([parent :- js/Object
-    level :- Int
-    m :- Any]
+  ([parent level m]
    (reduce
      (fn [m elem]
        (let [classes (.-classList elem)]
@@ -104,15 +96,15 @@
      m
      (-> parent .-children array-seq))))
 
-(defn line-numbers :- Str
+(defn line-numbers
   "Adds line numbers to the numbers."
-  [line-count :- Int]
+  [line-count]
   (join (for [i (range line-count)]
           (str "<div>" (inc i) "</div>"))))
 
-(defn get-parents :- js/Object
+(defn get-parents
   "Returns the parents of the given node."
-  [node :- js/Object]
+  [node]
   (loop [node node
          nodes '()]
     (if-let [parent (.-parentElement node)]
@@ -121,22 +113,21 @@
         (recur parent nodes))
       nodes)))
 
-(defn text-node? :- Bool
-  [node :- js/Object]
+(defn text-node?
+  [node]
   (= 3 (.-nodeType node)))
 
-(defn error-node? :- Bool
-  [node :- js/Object]
+(defn error-node?
+  [node]
   (some-> node .-classList (.contains "error")))
 
-(defn top-level? :- Bool
-  [node :- js/Object]
+(defn top-level?
+  [node]
   (some-> node .-parentElement .-classList (.contains "content")))
 
-(defn common-ancestor :- (maybe js/Object)
+(defn common-ancestor
   "Returns the common ancestor of the given nodes."
-  [first-node :- js/Object
-   second-node :- js/Object]
+  [first-node second-node]
   (let [first-parent (first (get-parents first-node))
         second-parent (first (get-parents second-node))]
     (cond
@@ -149,12 +140,11 @@
            (top-level? first-node))
       first-node)))
 
-(defn get-selection :- {Keyword Any}
+(defn get-selection
   "Returns the objects related to selection for the given element. If full-selection? is true,
 it will use rangy instead of the native selection API in order to get the beginning and ending
 of the selection (it is, however, much slower)."
-  [element :- js/Object
-   full-selection? :- Bool]
+  [element full-selection?]
   {:element element
    :cursor-position
    (cond
@@ -175,15 +165,14 @@ of the selection (it is, however, much slower)."
            pos (-> pre-caret-range .toString .-length)]
        [pos pos]))})
 
-(defn get-cursor-position :- [Int]
+(defn get-cursor-position
   "Returns the cursor position."
-  [element :- js/Object]
+  [element]
   (-> element (get-selection false) :cursor-position))
 
 (defn set-cursor-position!
   "Moves the cursor to the specified position."
-  [element :- js/Object
-   position :- [Int]]
+  [element position]
   (let [[start-pos end-pos] position
         selection (.getSelection js/rangy)
         char-range #js {:start start-pos :end end-pos}
@@ -195,15 +184,12 @@ of the selection (it is, however, much slower)."
 
 (defn refresh-numbers!
   "Refreshes the line numbers."
-  [numbers :- js/Object
-   line-count :- Int]
+  [numbers line-count]
   (set! (.-innerHTML numbers) (line-numbers line-count)))
 
 (defn refresh-instarepl!
   "Refreshes the InstaREPL."
-  [instarepl :- js/Object
-   content :- js/Object
-   eval-worker :- js/Object]
+  [instarepl content eval-worker]
   (let [elems (get-collections content)
         locations (elems->locations elems (.-offsetTop instarepl))
         forms (into-array (map #(-> % .-textContent (replace \u00a0 " ")) elems))]
@@ -217,9 +203,7 @@ of the selection (it is, however, much slower)."
 
 (defn post-refresh-content!
   "Does additional work on the content after it is rendered."
-  [content :- js/Object
-   events-chan :- Any
-   state :- {Keyword Any}]
+  [content events-chan state]
   ; set the cursor position
   (if-let [crop (:cropped-state state)]
     (set-cursor-position! (:element crop) (:cursor-position crop))
@@ -265,10 +249,9 @@ of the selection (it is, however, much slower)."
       (.removeChild parent old-elem))
     (assoc cropped-state :element (first new-elems))))
 
-(defn refresh-content! :- {Keyword Any}
+(defn refresh-content!
   "Refreshes the content."
-  [content :- js/Object
-   state :- {Keyword Any}]
+  [content state]
   (if-let [crop (:cropped-state state)]
     (let [crop (refresh-content-element! crop)]
       ; if there were changes outside the node, we need to run it on the whole document instead
@@ -297,12 +280,9 @@ of the selection (it is, however, much slower)."
         new-text (str pre-text (subs (:text temp-state) console-start-num))]
     (assoc state :text new-text)))
 
-(defn add-parinfer :- {Keyword Any}
+(defn add-parinfer
   "Adds parinfer to the state."
-  [enable? :- Bool
-   console-start-num
-   mode-type :- Keyword
-   state :- {Keyword Any}]
+  [enable? console-start-num mode-type state]
   (if enable?
     (let [state (if (pos? console-start-num)
                   (add-parinfer-after-console-start console-start-num mode-type state)
@@ -318,10 +298,9 @@ of the selection (it is, however, much slower)."
     (assoc state :text (str text \newline))
     state))
 
-(defn adjust-indent :- {Keyword Any}
+(defn adjust-indent
   "Adds a newline and indentation to the state if necessary."
-  [enable? :- Bool
-   state :- {Keyword Any}]
+  [enable? state]
   (if enable?
     (let [{:keys [indent-type cropped-state]} state
           ; fix indentation of the state
@@ -337,12 +316,10 @@ of the selection (it is, however, much slower)."
       state)
     state))
 
-(defn init-state :- {Keyword Any}
+(defn init-state
   "Returns the editor's state. If full-selection? is true, it will try to save
 the entire selection rather than just the cursor position."
-  [content :- js/Object
-   crop? :- Bool
-   full-selection? :- Bool]
+  [content crop? full-selection?]
   (let [selection (.getSelection js/rangy)
         anchor (.-anchorNode selection)
         focus (.-focusNode selection)
@@ -357,10 +334,9 @@ the entire selection rather than just the cursor position."
         state)
       state)))
 
-(defn key-name? :- Bool
+(defn key-name?
   "Returns true if the supplied key event involves the key(s) described by key-name."
-  [event :- js/Object
-   key-name :- Keyword]
+  [event key-name]
   (case key-name
     :undo-or-redo
     (and (or (.-metaKey event) (.-ctrlKey event))
@@ -556,4 +532,4 @@ the entire selection rather than just the cursor position."
 (defn ^:export eval [{:keys [eval!]} form callback] (eval! form callback))
 
 (defn init-debug []
-  (.log js/console (with-out-str (time (with-fn-validation (init-all))))))
+  (.log js/console (with-out-str (time (init-all)))))
