@@ -405,11 +405,11 @@ the entire selection rather than just the cursor position."
         reset-edit-history! (fn [start]
                               (reset! console-start start)
                               (set-cursor-position! content [start start])
-                              (let [new-edit-history (mwm/create-edit-history)]
-                                (update-edit-history! new-edit-history (init-state content false false))
-                                (try
-                                  (reset! edit-history @new-edit-history)
-                                  (catch js/Error _))))
+                              (let [new-edit-history (mwm/create-edit-history)
+                                    state {:cursor-position [start start]
+                                           :text (.-textContent content)}]
+                                (update-edit-history! new-edit-history state)
+                                (reset! edit-history @new-edit-history)))
         append-text! (fn [text]
                        (let [node (.createTextNode js/document text)
                              _ (.appendChild content node)
