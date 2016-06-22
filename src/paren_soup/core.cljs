@@ -279,41 +279,48 @@ of the selection (it is, however, much slower)."
       (set! (.-innerHTML content) (hs/code->html (:text state)))
       state)))
 
-(defn refresh-console-content! [content state console-start-num]
+(defn refresh-console-content! [content state console-start-num clj?]
   (let [pre-text (-> state :text (subs 0 console-start-num))
-        post-text (-> state :text (subs console-start-num) hs/code->html)]
+        post-text (-> state :text (subs console-start-num))
+        post-text (if clj? (hs/code->html post-text) post-text)]
     (set! (.-innerHTML content) (str pre-text post-text)))
   (dissoc state :cropped-state))
 
 (defn add-parinfer :- {Keyword Any}
   "Adds parinfer to the state."
-  [mode-type :- Keyword
+  [enable? :- Bool
+   mode-type :- Keyword
    state :- {Keyword Any}]
-  (let [state (cp/add-parinfer mode-type state)]
-    (if-let [crop (:cropped-state state)]
-      (assoc state :cropped-state
-        (merge crop (cp/add-parinfer mode-type crop)))
-      state)))
+  (if enable?
+    (let [state (cp/add-parinfer mode-type state)]
+      (if-let [crop (:cropped-state state)]
+        (assoc state :cropped-state
+          (merge crop (cp/add-parinfer mode-type crop)))
+        state))
+    state))
 
-(defn adjust-state :- {Keyword Any}
+(defn add-newline [{:keys [text] :as state}]
+  (if-not (= \newline (last text))
+    (assoc state :text (str text \newline))
+    state))
+
+(defn adjust-indent :- {Keyword Any}
   "Adds a newline and indentation to the state if necessary."
-  [adjust-indent? :- Bool
+  [enable? :- Bool
    state :- {Keyword Any}]
-  (let [{:keys [text indent-type cropped-state]} state
-        ; add newline at end if necessary
-        state (if-not (= \newline (last text))
-                (assoc state :text (str text \newline))
-                state)
-        ; fix indentation of the state
-        state (if (and adjust-indent? indent-type)
-                (cp/add-indent state)
-                state)
-        ; fix indentation of the cropped state
-        state (if (and adjust-indent? indent-type cropped-state)
-                (assoc state :cropped-state
-                  (merge cropped-state
-                    (cp/add-indent (assoc cropped-state :indent-type indent-type))))
-                state)]
+  (if enable?
+    (let [{:keys [indent-type cropped-state]} state
+          ; fix indentation of the state
+          state (if indent-type
+                  (cp/add-indent state)
+                  state)
+          ; fix indentation of the cropped state
+          state (if (and indent-type cropped-state)
+                  (assoc state :cropped-state
+                    (merge cropped-state
+                      (cp/add-indent (assoc cropped-state :indent-type indent-type))))
+                  state)]
+      state)
     state))
 
 (defn init-state :- {Keyword Any}
@@ -366,15 +373,6 @@ the entire selection rather than just the cursor position."
     state
     (catch js/Error _ (mwm/get-current-state edit-history))))
 
-(defn full-refresh!
-  "Refreshes the content completely."
-  [adjust-indent? content current-state edit-history]
-  (->> (init-state content false false)
-       (add-parinfer :both)
-       (adjust-state adjust-indent?)
-       (update-edit-history! edit-history)
-       (reset! current-state)))
-
 (defn prevent-default? [event]
   (or (key-name? event :undo-or-redo)
       (key-name? event :tab)
@@ -382,9 +380,11 @@ the entire selection rather than just the cursor position."
 
 (defn ^:export init [paren-soup opts]
   (.init js/rangy)
-  (let [{:keys [change-callback disable-undo-redo? history-limit console-callback]
+  (let [{:keys [change-callback disable-undo-redo? history-limit console-callback not-clj?]
          :or {history-limit 100}}
         (js->clj opts :keywordize-keys true)
+        clj? (not not-clj?)
+        editor? (not console-callback)
         content (.querySelector paren-soup ".content")
         eval-worker (try (js/Worker. "paren-soup-compiler.js")
                       (catch js/Error _))
@@ -392,8 +392,8 @@ the entire selection rather than just the cursor position."
         current-state (atom nil)
         refresh-instarepl-with-delay! (debounce refresh-instarepl! 300)
         events-chan (chan)
-        undo! #(some->> edit-history mwm/undo! (adjust-state (nil? console-callback)) (reset! current-state))
-        redo! #(some->> edit-history mwm/redo! (adjust-state (nil? console-callback)) (reset! current-state))
+        undo! #(some->> edit-history mwm/undo! add-newline (adjust-indent editor?) (reset! current-state))
+        redo! #(some->> edit-history mwm/redo! add-newline (adjust-indent editor?) (reset! current-state))
         console-start (atom 0)
         update-cursor-position! (fn [position]
                                   (try
@@ -414,7 +414,14 @@ the entire selection rather than just the cursor position."
                        (let [node (.createTextNode js/document text)
                              _ (.appendChild content node)
                              all-text (.-textContent content)]
-                         (reset-edit-history! (count all-text))))]
+                         (reset-edit-history! (count all-text))))
+        full-refresh! (fn []
+                        (->> (init-state content false false)
+                             (add-parinfer clj? :indent)
+                             (add-newline)
+                             (adjust-indent editor?)
+                             (update-edit-history! edit-history)
+                             (reset! current-state)))]
     (set! (.-spellcheck paren-soup) false)
     (when-not content
       (throw (js/Error. "Can't find a div with class 'content'")))
@@ -424,26 +431,28 @@ the entire selection rather than just the cursor position."
     (add-watch current-state :render
       (fn [_ _ _ state]
         (post-refresh-content! content events-chan
-          (if console-callback
-            (refresh-console-content! content state @console-start)
-            (refresh-content! content state)))
-        (when-not console-callback
+          (if editor?
+            (refresh-content! content state)
+            (refresh-console-content! content state @console-start clj?)))
+        (when editor?
           (some-> (.querySelector paren-soup ".numbers")
                   (refresh-numbers! (count (re-seq #"\n" (:text state)))))
-          (some-> (.querySelector paren-soup ".instarepl")
-                  (refresh-instarepl-with-delay! content eval-worker)))))
+          (when clj?
+            (some-> (.querySelector paren-soup ".instarepl")
+                    (refresh-instarepl-with-delay! content eval-worker))))))
     ; in console mode, don't allow text before console-start to be edited
-    (when console-callback
+    (when-not editor?
       (set-validator! edit-history
         (fn [{:keys [current-state states]}]
           (if-let [state (get states current-state)]
             (-> state :cursor-position first (>= @console-start))
             true))))
     ; initialize the editor
-    (when-not console-callback
+    (when editor?
       (->> (init-state content true false)
-           (add-parinfer :paren)
-           (adjust-state (nil? console-callback))
+           (add-parinfer clj? :paren)
+           (add-newline)
+           (adjust-indent editor?)
            (update-edit-history! edit-history)
            (reset! current-state)))
     ; set up event listeners
@@ -485,18 +494,19 @@ the entire selection rather than just the cursor position."
                     last-state (mwm/get-current-state edit-history)
                     diff (- (-> state :text count) (-> last-state :text count))]
                 (if (< diff -1)
-                  (full-refresh! (nil? console-callback) content current-state edit-history)
+                  (full-refresh!)
                   (->> (case (.-keyCode event)
                          13 (assoc state :indent-type :return)
                          9 (assoc state :indent-type (if (.-shiftKey event) :back :forward))
-                         (add-parinfer :indent state))
-                       (adjust-state (nil? console-callback))
+                         (add-parinfer clj? :indent state))
+                       (add-newline)
+                       (adjust-indent editor?)
                        (update-edit-history! edit-history)
                        (reset! current-state)))))
             "cut"
-            (full-refresh! (nil? console-callback) content current-state edit-history)
+            (full-refresh!)
             "paste"
-            (full-refresh! (nil? console-callback) content current-state edit-history)
+            (full-refresh!)
             "mouseup"
             (update-cursor-position! (get-cursor-position content))
             "mouseenter"
