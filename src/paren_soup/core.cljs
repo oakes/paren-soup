@@ -370,10 +370,10 @@ the entire selection rather than just the cursor position."
 
 (defn ^:export init [paren-soup opts]
   (.init js/rangy)
-  (let [{:keys [change-callback disable-undo-redo? history-limit console-callback not-clj?]
+  (let [{:keys [change-callback disable-undo-redo? history-limit console-callback disable-clj?]
          :or {history-limit 100}}
         (js->clj opts :keywordize-keys true)
-        clj? (not not-clj?)
+        clj? (not disable-clj?)
         editor? (not console-callback)
         content (.querySelector paren-soup ".content")
         eval-worker (try (js/Worker. "paren-soup-compiler.js")
