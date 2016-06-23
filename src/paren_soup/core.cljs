@@ -465,7 +465,7 @@ the entire selection rather than just the cursor position."
             (cond
               (and (key-name? event :undo-or-redo) (not disable-undo-redo?))
               (if (.-shiftKey event) (redo!) (undo!))
-              console-callback
+              (not editor?)
               (cond
                 (key-name? event :enter)
                 (let [text (.-textContent content)
