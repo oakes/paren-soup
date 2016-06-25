@@ -24,12 +24,6 @@
     (aset popup "className" "error-text")
     (.appendChild parent-elem popup)))
 
-(def show-error-icon!
-  (debounce
-    (fn [elem]
-      (set! (.-display (.-style elem)) "inline-block"))
-    1000))
-
 (defn hide-error-messages!
   "Hides all error popups."
   [parent-elem]
@@ -211,7 +205,10 @@ of the selection (it is, however, much slower)."
   ; set up errors
   (hide-error-messages! (.-parentElement content))
   (doseq [elem (-> content (.querySelectorAll ".error") array-seq)]
-    (show-error-icon! elem)
+    (let [show-error-icon! (fn [elem]
+                             (set! (.-display (.-style elem)) "inline-block"))
+          show-error-icon! (debounce show-error-icon! 1000)]
+      (show-error-icon! elem))
     (events/listen elem "mouseenter" #(put! events-chan %))
     (events/listen elem "mouseleave" #(put! events-chan %)))
   ; add rainbow delimiters
