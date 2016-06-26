@@ -5,7 +5,7 @@
             :url "http://unlicense.org/UNLICENSE"}
   :dependencies [[mistakes-were-made "1.6.4"]
                  [html-soup "1.2.2"]
-                 [cross-parinfer "1.1.8"]
+                 [cross-parinfer "1.1.9"]
                  [cljsjs/rangy-core "1.3.0-1"]
                  [cljsjs/rangy-textrange "1.3.0-1"]
                  [org.clojure/clojure "1.8.0"]
