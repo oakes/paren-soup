@@ -409,9 +409,9 @@ the entire selection rather than just the cursor position."
                              _ (.appendChild content node)
                              all-text (.-textContent content)]
                          (reset-edit-history! (count all-text))))
-        full-refresh! (fn []
+        full-refresh! (fn [mode-type]
                         (->> (init-state content false false)
-                             (add-parinfer clj? @console-start :indent)
+                             (add-parinfer clj? @console-start mode-type)
                              (add-newline)
                              (adjust-indent editor?)
                              (update-edit-history! edit-history)
@@ -488,7 +488,7 @@ the entire selection rather than just the cursor position."
                     last-state (mwm/get-current-state edit-history)
                     diff (- (-> state :text count) (-> last-state :text count))]
                 (if (< diff -1)
-                  (full-refresh!)
+                  (full-refresh! :indent)
                   (->> (case (.-keyCode event)
                          13 (assoc state :indent-type :return)
                          9 (assoc state :indent-type (if (.-shiftKey event) :back :forward))
@@ -498,9 +498,9 @@ the entire selection rather than just the cursor position."
                        (update-edit-history! edit-history)
                        (reset! current-state)))))
             "cut"
-            (full-refresh!)
+            (full-refresh! (if editor? :indent :both))
             "paste"
-            (full-refresh!)
+            (full-refresh! (if editor? :indent :both))
             "mouseup"
             (update-cursor-position! (get-cursor-position content))
             "mouseenter"
