@@ -1398,14 +1398,14 @@ x
 ;; new one, you can use 'update-in', like with maps.
 
 (update-in (contact "Bob" "Smith" "bob.smith@acme.com")
-           [:person :first] #(string/replace %1 #"Bob" %2) "Robert")
+           [:person :first] (fn [s1 s2] (string/replace s1 #"Bob" s2)) "Robert")
 
 ;; As said, the main difference with the majority of OO languages is that your
 ;; instances of deftypes/defrecords are immutable.
 
 (def bob (contact "Bob" "Smith" "bob.smith@acme.com"))
 
-(update-in bob [:person :first] #(string/replace %1 #"Bob" %2) "Robert")
+(update-in bob [:person :first] (fn [s1 s2] (string/replace s1 #"Bob" s2)) "Robert")
 
 (get-in bob [:person :first])
 
