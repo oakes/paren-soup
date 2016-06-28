@@ -374,13 +374,14 @@ the entire selection rather than just the cursor position."
 
 (defn ^:export init [paren-soup opts]
   (.init js/rangy)
-  (let [{:keys [change-callback disable-undo-redo? history-limit console-callback disable-clj?]
-         :or {history-limit 100}}
+  (let [{:keys [change-callback disable-undo-redo? history-limit console-callback disable-clj? compiler-file]
+         :or {history-limit 100
+              compiler-file "paren-soup-compiler.js"}}
         (js->clj opts :keywordize-keys true)
         clj? (not disable-clj?)
         editor? (not console-callback)
         content (.querySelector paren-soup ".content")
-        eval-worker (try (js/Worker. "paren-soup-compiler.js")
+        eval-worker (try (js/Worker. compiler-file)
                       (catch js/Error _))
         edit-history (mwm/create-edit-history)
         current-state (atom nil)
@@ -517,7 +518,7 @@ the entire selection rather than just the cursor position."
      :append-text! append-text!
      :eval! (fn [form callback]
               (when-not eval-worker
-                (throw (js/Error. "Can't find paren-soup-compiler.js")))
+                (throw (js/Error. "Can't find " + compiler-file)))
               (set! (.-onmessage eval-worker)
                 (fn [e]
                   (let [results (.-data e)]
