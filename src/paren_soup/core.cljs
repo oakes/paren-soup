@@ -361,6 +361,16 @@ the entire selection rather than just the cursor position."
     state
     (catch js/Error _ (mwm/get-current-state edit-history))))
 
+(defn update-highlight! [content last-elem]
+  (when-let [elem @last-elem]
+    (set! (.-backgroundColor (.-style elem)) nil)
+    (reset! last-elem nil))
+  (when-let [elem (some-> js/rangy .getSelection .-anchorNode get-parents last)]
+    (when-let [color (.getPropertyValue (.getComputedStyle js/window (.-firstChild elem)) "color")]
+      (let [new-color (-> color (replace #"rgb\(" "") (replace #"\)" ""))]
+        (set! (.-backgroundColor (.-style elem)) (str "rgba(" new-color ", 0.1)"))
+        (reset! last-elem elem)))))
+
 (defn prevent-default? [event]
   (or (key-name? event :undo-or-redo)
       (key-name? event :tab)
@@ -410,7 +420,8 @@ the entire selection rather than just the cursor position."
                              (add-newline)
                              (adjust-indent editor?)
                              (update-edit-history! edit-history)
-                             (reset! current-state)))]
+                             (reset! current-state)))
+        last-highlight-elem (atom nil)]
     (set! (.-spellcheck paren-soup) false)
     (when-not content
       (throw (js/Error. "Can't find a div with class 'content'")))
@@ -428,7 +439,12 @@ the entire selection rather than just the cursor position."
                   (refresh-numbers! (count (re-seq #"\n" (:text state)))))
           (when clj?
             (some-> (.querySelector paren-soup ".instarepl")
-                    (refresh-instarepl-with-delay! content eval-worker))))))
+                    (refresh-instarepl-with-delay! content eval-worker))))
+        (update-highlight! content last-highlight-elem)))
+    ; highlight the current form
+    (add-watch edit-history :cursor-moved
+      (fn [_ _ _ _]
+        (update-highlight! content last-highlight-elem)))
     ; in console mode, don't allow text before console-start to be edited
     (when-not editor?
       (set-validator! edit-history
