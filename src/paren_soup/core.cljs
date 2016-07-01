@@ -485,19 +485,15 @@ the entire selection rather than just the cursor position."
               (key-name? event :arrows)
               (update-cursor-position! (get-cursor-position content))
               (key-name? event :general)
-              (let [state (init-state content true (= 9 (.-keyCode event)))
-                    last-state (mwm/get-current-state edit-history)
-                    diff (- (-> state :text count) (-> last-state :text count))]
-                (if (< diff -1)
-                  (full-refresh! :indent)
-                  (->> (case (.-keyCode event)
-                         13 (assoc state :indent-type :return)
-                         9 (assoc state :indent-type (if (.-shiftKey event) :back :forward))
-                         (add-parinfer clj? @console-start :indent state))
-                       (add-newline)
-                       (adjust-indent editor?)
-                       (update-edit-history! edit-history)
-                       (reset! current-state)))))
+              (let [state (init-state content true (= 9 (.-keyCode event)))]
+                (->> (case (.-keyCode event)
+                       13 (assoc state :indent-type :return)
+                       9 (assoc state :indent-type (if (.-shiftKey event) :back :forward))
+                       (add-parinfer clj? @console-start :indent state))
+                     (add-newline)
+                     (adjust-indent editor?)
+                     (update-edit-history! edit-history)
+                     (reset! current-state))))
             "cut"
             (full-refresh! (if editor? :indent :both))
             "paste"
