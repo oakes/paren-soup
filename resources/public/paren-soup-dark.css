@@ -97,7 +97,7 @@
 }
 
 .paren-soup .content .rainbow-1 {
-	color: darksalmon;
+	color: orange;
 }
 
 .paren-soup .content .rainbow-2 {
@@ -109,15 +109,15 @@
 }
 
 .paren-soup .content .rainbow-4 {
-	color: orange;
-}
-
-.paren-soup .content .rainbow-5 {
 	color: lime;
 }
 
-.paren-soup .content .rainbow-6 {
+.paren-soup .content .rainbow-5 {
 	color: steelblue;
+}
+
+.paren-soup .content .rainbow-6 {
+	color: olivedrab;
 }
 
 .paren-soup .content .rainbow-7 {
@@ -129,5 +129,5 @@
 }
 
 .paren-soup .content .rainbow-9 {
-	color: gold;
+	color: darkcyan;
 }
