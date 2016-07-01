@@ -223,16 +223,9 @@ of the selection (it is, however, much slower)."
         ; find all siblings that should be refreshed as well
         siblings (loop [elems []
                         current-elem element]
-                   (if-let [sibling (.-nextSibling current-elem)]
-                     (recur (conj elems sibling) sibling)
-                     elems))
-        siblings (loop [elems []
-                        siblings siblings]
-                   (if-let [elem (first siblings)]
-                     (if (or (text-node? elem)
-                             (error-node? elem)
-                             (some error-node? siblings))
-                       (recur (conj elems elem) (rest siblings))
+                   (if (or (text-node? current-elem) (error-node? current-elem))
+                     (if-let [sibling (.-nextSibling current-elem)]
+                       (recur (conj elems sibling) sibling)
                        elems)
                      elems))
         ; add siblings' text to the string
