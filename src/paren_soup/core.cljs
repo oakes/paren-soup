@@ -223,7 +223,8 @@ of the selection (it is, however, much slower)."
         ; find all siblings that should be refreshed as well
         siblings (loop [elems []
                         current-elem element]
-                   (if (or (text-node? current-elem) (error-node? current-elem))
+                   (if (or (text-node? current-elem)
+                           (some? (.querySelector parent ".error")))
                      (if-let [sibling (.-nextSibling current-elem)]
                        (recur (conj elems sibling) sibling)
                        elems)
