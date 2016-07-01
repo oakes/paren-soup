@@ -11,8 +11,8 @@
                   [org.clojure/tools.nrepl "0.2.12" :scope "test"]
                   ; project deps
                   [mistakes-were-made "1.6.4"]
-                  [html-soup "1.2.2"]
-                  [cross-parinfer "1.1.9"]
+                  [html-soup "1.2.3"]
+                  [cross-parinfer "1.1.10"]
                   [cljsjs/rangy-core "1.3.0-1"]
                   [cljsjs/rangy-textrange "1.3.0-1"]
                   [org.clojure/clojure "1.8.0"]
