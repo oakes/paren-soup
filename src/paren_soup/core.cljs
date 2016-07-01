@@ -394,13 +394,15 @@ the entire selection rather than just the cursor position."
         undo! #(some->> edit-history mwm/undo! add-newline (adjust-indent editor?) (reset! current-state))
         redo! #(some->> edit-history mwm/redo! add-newline (adjust-indent editor?) (reset! current-state))
         console-start (atom 0)
+        last-highlight-elem (atom nil)
         update-cursor-position! (fn [position]
                                   (try
                                     (mwm/update-cursor-position! edit-history position)
                                     (catch js/Error _
                                       (let [start @console-start]
                                         (set-cursor-position! content [start start])
-                                        (mwm/update-cursor-position! edit-history [start start])))))
+                                        (mwm/update-cursor-position! edit-history [start start]))))
+                                  (update-highlight! content last-highlight-elem))
         reset-edit-history! (fn [start]
                               (reset! console-start start)
                               (set-cursor-position! content [start start])
@@ -420,8 +422,7 @@ the entire selection rather than just the cursor position."
                              (add-newline)
                              (adjust-indent editor?)
                              (update-edit-history! edit-history)
-                             (reset! current-state)))
-        last-highlight-elem (atom nil)]
+                             (reset! current-state)))]
     (set! (.-spellcheck paren-soup) false)
     (when-not content
       (throw (js/Error. "Can't find a div with class 'content'")))
@@ -440,10 +441,6 @@ the entire selection rather than just the cursor position."
           (when clj?
             (some-> (.querySelector paren-soup ".instarepl")
                     (refresh-instarepl-with-delay! content eval-worker))))
-        (update-highlight! content last-highlight-elem)))
-    ; highlight the current form
-    (add-watch edit-history :cursor-moved
-      (fn [_ _ _ _]
         (update-highlight! content last-highlight-elem)))
     ; in console mode, don't allow text before console-start to be edited
     (when-not editor?
