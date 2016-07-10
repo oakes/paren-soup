@@ -346,7 +346,8 @@ the entire selection rather than just the cursor position."
     :arrows
     (contains? #{37 38 39 40} (.-keyCode event))
     :general
-    (not (or (contains? #{16 ; shift
+    (not (or (contains? #{0 ; invalid (possible webkit bug)
+                          16 ; shift
                           17 ; ctrl
                           18 ; alt
                           91 93} ; meta
