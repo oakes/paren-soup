@@ -403,10 +403,9 @@ the entire selection rather than just the cursor position."
           all-text (.-textContent content)]
       (reset-edit-history! (count all-text)))))
 
-(defn full-refresh-fn [content clj? editor? console-start edit-history current-state]
-  (fn [crop? mode-type]
-    (->> (init-state content crop? false)
-         (add-parinfer clj? @console-start mode-type)
+(defn refresh-fn [editor? edit-history current-state]
+  (fn [state]
+    (->> state
          (add-newline)
          (adjust-indent editor?)
          (update-edit-history! edit-history)
@@ -456,7 +455,7 @@ the entire selection rather than just the cursor position."
         update-cursor-position! (update-cursor-position-fn edit-history console-start content last-highlight-elem)
         reset-edit-history! (reset-edit-history-fn edit-history console-start content)
         append-text! (append-text-fn content reset-edit-history!)
-        full-refresh! (full-refresh-fn content clj? editor? console-start edit-history current-state)]
+        refresh! (refresh-fn editor? edit-history current-state)]
     (set! (.-spellcheck paren-soup) false)
     (when-not content
       (throw (js/Error. "Can't find a div with class 'content'")))
@@ -485,7 +484,9 @@ the entire selection rather than just the cursor position."
             true))))
     ; initialize the editor
     (when editor?
-      (full-refresh! true :paren))
+      (->> (init-state content true false)
+           (add-parinfer clj? @console-start :paren)
+           (refresh!)))
     ; set up event listeners
     (add-event-listeners! content events-chan)
     ; run event loop
@@ -513,18 +514,18 @@ the entire selection rather than just the cursor position."
               (update-cursor-position! (get-cursor-position content))
               (key-name? event :general)
               (let [state (init-state content true (= 9 (.-keyCode event)))]
-                (->> (case (.-keyCode event)
-                       13 (assoc state :indent-type :return)
-                       9 (assoc state :indent-type (if (.-shiftKey event) :back :forward))
-                       (add-parinfer clj? @console-start :indent state))
-                     (add-newline)
-                     (adjust-indent editor?)
-                     (update-edit-history! edit-history)
-                     (reset! current-state))))
+                (refresh! (case (.-keyCode event)
+                            13 (assoc state :indent-type :return)
+                            9 (assoc state :indent-type (if (.-shiftKey event) :back :forward))
+                            (add-parinfer clj? @console-start :indent state)))))
             "cut"
-            (full-refresh! false (if editor? :indent :both))
+            (->> (init-state content false false)
+                 (add-parinfer clj? @console-start (if editor? :indent :both))
+                 (refresh!))
             "paste"
-            (full-refresh! false (if editor? :indent :both))
+            (->> (init-state content false false)
+                 (add-parinfer clj? @console-start (if editor? :indent :both))
+                 (refresh!))
             "mouseup"
             (update-cursor-position! (get-cursor-position content))
             "mouseenter"
