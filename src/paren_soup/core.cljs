@@ -376,6 +376,64 @@ the entire selection rather than just the cursor position."
       (key-name? event :tab)
       (key-name? event :enter)))
 
+(defn update-cursor-position-fn [edit-history console-start content last-highlight-elem]
+  (fn [position]
+    (try
+      (mwm/update-cursor-position! edit-history position)
+      (catch js/Error _
+        (let [start @console-start]
+          (set-cursor-position! content [start start])
+          (mwm/update-cursor-position! edit-history [start start]))))
+    (update-highlight! content last-highlight-elem)))
+
+(defn reset-edit-history-fn [edit-history console-start content]
+  (fn [start]
+    (reset! console-start start)
+    (set-cursor-position! content [start start])
+    (let [new-edit-history (mwm/create-edit-history)
+          state {:cursor-position [start start]
+                 :text (.-textContent content)}]
+      (update-edit-history! new-edit-history state)
+      (reset! edit-history @new-edit-history))))
+
+(defn append-text-fn [content reset-edit-history!]
+  (fn [text]
+    (let [node (.createTextNode js/document text)
+          _ (.appendChild content node)
+          all-text (.-textContent content)]
+      (reset-edit-history! (count all-text)))))
+
+(defn full-refresh-fn [content clj? editor? console-start edit-history current-state]
+  (fn [crop? mode-type]
+    (->> (init-state content crop? false)
+         (add-parinfer clj? @console-start mode-type)
+         (add-newline)
+         (adjust-indent editor?)
+         (update-edit-history! edit-history)
+         (reset! current-state))))
+
+(defn add-event-listeners! [content events-chan]
+  (doto content
+    (events/removeAll)
+    (events/listen "keydown" (fn [e]
+                               (when (prevent-default? e)
+                                 (.preventDefault e))
+                               (put! events-chan e)))
+    (events/listen "keyup" #(put! events-chan %))
+    (events/listen "cut" #(put! events-chan %))
+    (events/listen "paste" #(put! events-chan %))
+    (events/listen "mouseup" #(put! events-chan %))))
+
+(defn eval-fn [eval-worker compiler-file]
+  (fn [form callback]
+    (when-not eval-worker
+      (throw (js/Error. "Can't find " + compiler-file)))
+    (set! (.-onmessage eval-worker)
+      (fn [e]
+        (let [results (.-data e)]
+          (callback (aget results 0)))))
+    (.postMessage eval-worker (array form))))
+
 (defn ^:export init [paren-soup opts]
   (.init js/rangy)
   (let [{:keys [change-callback disable-undo-redo? history-limit console-callback disable-clj? compiler-file]
@@ -395,34 +453,10 @@ the entire selection rather than just the cursor position."
         redo! #(some->> edit-history mwm/redo! add-newline (adjust-indent editor?) (reset! current-state))
         console-start (atom 0)
         last-highlight-elem (atom nil)
-        update-cursor-position! (fn [position]
-                                  (try
-                                    (mwm/update-cursor-position! edit-history position)
-                                    (catch js/Error _
-                                      (let [start @console-start]
-                                        (set-cursor-position! content [start start])
-                                        (mwm/update-cursor-position! edit-history [start start]))))
-                                  (update-highlight! content last-highlight-elem))
-        reset-edit-history! (fn [start]
-                              (reset! console-start start)
-                              (set-cursor-position! content [start start])
-                              (let [new-edit-history (mwm/create-edit-history)
-                                    state {:cursor-position [start start]
-                                           :text (.-textContent content)}]
-                                (update-edit-history! new-edit-history state)
-                                (reset! edit-history @new-edit-history)))
-        append-text! (fn [text]
-                       (let [node (.createTextNode js/document text)
-                             _ (.appendChild content node)
-                             all-text (.-textContent content)]
-                         (reset-edit-history! (count all-text))))
-        full-refresh! (fn [mode-type]
-                        (->> (init-state content false false)
-                             (add-parinfer clj? @console-start mode-type)
-                             (add-newline)
-                             (adjust-indent editor?)
-                             (update-edit-history! edit-history)
-                             (reset! current-state)))]
+        update-cursor-position! (update-cursor-position-fn edit-history console-start content last-highlight-elem)
+        reset-edit-history! (reset-edit-history-fn edit-history console-start content)
+        append-text! (append-text-fn content reset-edit-history!)
+        full-refresh! (full-refresh-fn content clj? editor? console-start edit-history current-state)]
     (set! (.-spellcheck paren-soup) false)
     (when-not content
       (throw (js/Error. "Can't find a div with class 'content'")))
@@ -451,23 +485,9 @@ the entire selection rather than just the cursor position."
             true))))
     ; initialize the editor
     (when editor?
-      (->> (init-state content true false)
-           (add-parinfer clj? @console-start :paren)
-           (add-newline)
-           (adjust-indent editor?)
-           (update-edit-history! edit-history)
-           (reset! current-state)))
+      (full-refresh! true :paren))
     ; set up event listeners
-    (doto content
-      (events/removeAll)
-      (events/listen "keydown" (fn [e]
-                                 (when (prevent-default? e)
-                                   (.preventDefault e))
-                                 (put! events-chan e)))
-      (events/listen "keyup" #(put! events-chan %))
-      (events/listen "cut" #(put! events-chan %))
-      (events/listen "paste" #(put! events-chan %))
-      (events/listen "mouseup" #(put! events-chan %)))
+    (add-event-listeners! content events-chan)
     ; run event loop
     (go
       (while true
@@ -502,9 +522,9 @@ the entire selection rather than just the cursor position."
                      (update-edit-history! edit-history)
                      (reset! current-state))))
             "cut"
-            (full-refresh! (if editor? :indent :both))
+            (full-refresh! false (if editor? :indent :both))
             "paste"
-            (full-refresh! (if editor? :indent :both))
+            (full-refresh! false (if editor? :indent :both))
             "mouseup"
             (update-cursor-position! (get-cursor-position content))
             "mouseenter"
@@ -519,14 +539,7 @@ the entire selection rather than just the cursor position."
      :can-undo? #(mwm/can-undo? edit-history)
      :can-redo? #(mwm/can-redo? edit-history)
      :append-text! append-text!
-     :eval! (fn [form callback]
-              (when-not eval-worker
-                (throw (js/Error. "Can't find " + compiler-file)))
-              (set! (.-onmessage eval-worker)
-                (fn [e]
-                  (let [results (.-data e)]
-                    (callback (aget results 0)))))
-              (.postMessage eval-worker (array form)))}))
+     :eval! (eval-fn eval-worker compiler-file)}))
 
 (defn ^:export init-all []
   (doseq [paren-soup (-> js/document (.querySelectorAll ".paren-soup") array-seq)]
