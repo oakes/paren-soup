@@ -220,18 +220,18 @@ of the selection (it is, however, much slower)."
   [cropped-state]
   (let [{:keys [text element]} cropped-state
         parent (.-parentElement element)
-        error? (->> (.querySelectorAll parent ".error")
-                    array-seq
-                    (some #(= "inline-block" (-> % .-style .-display)))
-                    some?)
         ; find all siblings that should be refreshed as well
-        siblings (loop [elems []
-                        current-elem element]
-                   (if (or error? (text-node? current-elem))
-                     (if-let [sibling (.-nextSibling current-elem)]
-                       (recur (conj elems sibling) sibling)
-                       elems)
-                     elems))
+        siblings (if (->> (.querySelectorAll parent ".error")
+                          array-seq
+                          (some #(= "inline-block" (-> % .-style .-display))))
+                   (-> parent .-childNodes array-seq)
+                   (loop [elems []
+                          current-elem element]
+                     (if (text-node? current-elem)
+                       (if-let [sibling (.-nextSibling current-elem)]
+                         (recur (conj elems sibling) sibling)
+                         elems)
+                       elems)))
         ; add siblings' text to the string
         text (str text (join (map #(.-textContent %) siblings)))
         ; create temporary element
