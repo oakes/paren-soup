@@ -335,30 +335,6 @@ the entire selection rather than just the cursor position."
         state)
       state)))
 
-(defn key-name?
-  "Returns true if the supplied key event involves the key(s) described by key-name."
-  [event key-name]
-  (case key-name
-    :undo-or-redo
-    (and (or (.-metaKey event) (.-ctrlKey event))
-       (= (.-keyCode event) 90))
-    :tab
-    (= (.-keyCode event) 9)
-    :enter
-    (= (.-keyCode event) 13)
-    :arrows
-    (contains? #{37 38 39 40} (.-keyCode event))
-    :general
-    (not (or (contains? #{0 ; invalid (possible webkit bug)
-                          16 ; shift
-                          17 ; ctrl
-                          18 ; alt
-                          91 93} ; meta
-               (.-keyCode event))
-             (.-ctrlKey event)
-             (.-metaKey event)))
-    false))
-
 (defn update-edit-history! [edit-history state]
   (try
     (mwm/update-edit-history! edit-history (dissoc state :cropped-state))
@@ -374,23 +350,6 @@ the entire selection rather than just the cursor position."
       (let [new-color (-> color (replace #"rgb\(" "") (replace #"\)" ""))]
         (set! (.-backgroundColor (.-style elem)) (str "rgba(" new-color ", 0.1)"))
         (reset! last-elem elem)))))
-
-(defn prevent-default? [event]
-  (or (key-name? event :undo-or-redo)
-      (key-name? event :tab)
-      (key-name? event :enter)))
-
-(defn add-event-listeners! [content events-chan]
-  (doto content
-    (events/removeAll)
-    (events/listen "keydown" (fn [e]
-                               (when (prevent-default? e)
-                                 (.preventDefault e))
-                               (put! events-chan e)))
-    (events/listen "keyup" #(put! events-chan %))
-    (events/listen "cut" #(put! events-chan %))
-    (events/listen "paste" #(put! events-chan %))
-    (events/listen "mouseup" #(put! events-chan %))))
 
 (defprotocol Editor
   (undo! [this])
@@ -510,6 +469,47 @@ the entire selection rather than just the cursor position."
               (callback (aget results 0)))))
         (.postMessage eval-worker (array form))))))
 
+(defn key-name?
+  "Returns true if the supplied key event involves the key(s) described by key-name."
+  [event key-name]
+  (case key-name
+    :undo-or-redo
+    (and (or (.-metaKey event) (.-ctrlKey event))
+       (= (.-keyCode event) 90))
+    :tab
+    (= (.-keyCode event) 9)
+    :enter
+    (= (.-keyCode event) 13)
+    :arrows
+    (contains? #{37 38 39 40} (.-keyCode event))
+    :general
+    (not (or (contains? #{0 ; invalid (possible webkit bug)
+                          16 ; shift
+                          17 ; ctrl
+                          18 ; alt
+                          91 93} ; meta
+               (.-keyCode event))
+             (.-ctrlKey event)
+             (.-metaKey event)))
+    false))
+
+(defn prevent-default? [event]
+  (or (key-name? event :undo-or-redo)
+      (key-name? event :tab)
+      (key-name? event :enter)))
+
+(defn add-event-listeners! [content events-chan]
+  (doto content
+    (events/removeAll)
+    (events/listen "keydown" (fn [e]
+                               (when (prevent-default? e)
+                                 (.preventDefault e))
+                               (put! events-chan e)))
+    (events/listen "keyup" #(put! events-chan %))
+    (events/listen "cut" #(put! events-chan %))
+    (events/listen "paste" #(put! events-chan %))
+    (events/listen "mouseup" #(put! events-chan %))))
+
 (defn ^:export init [paren-soup opts]
   (.init js/rangy)
   (let [opts (js->clj opts :keywordize-keys true)
@@ -567,3 +567,4 @@ the entire selection rather than just the cursor position."
 
 (defn init-debug []
   (.log js/console (with-out-str (time (init-all)))))
+
