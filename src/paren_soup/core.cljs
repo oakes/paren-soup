@@ -269,8 +269,8 @@ of the selection (it is, however, much slower)."
     (if clj?
       (let [pre-text (subs (:text state) 0 console-start-num)
             post-text (subs (:text state) console-start-num)]
-        (str pre-text (hs/code->html post-text)))
-      (:text state)))
+        (str (hs/escape-html-str pre-text) (hs/code->html post-text)))
+      (hs/escape-html-str (:text state))))
   (dissoc state :cropped-state))
 
 (defn add-parinfer-after-console-start [console-start-num mode-type state]
