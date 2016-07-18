@@ -1,6 +1,6 @@
 (ns paren-soup.core
   (:require [cljs.core.async :refer [chan put! <!]]
-            [clojure.string :refer [join replace]]
+            [clojure.string :refer [join replace trimr]]
             [goog.events :as events]
             [goog.functions :refer [debounce]]
             [goog.string :refer [format]]
@@ -8,7 +8,8 @@
             [cljsjs.rangy-textrange]
             [mistakes-were-made.core :as mwm]
             [html-soup.core :as hs]
-            [cross-parinfer.core :as cp])
+            [cross-parinfer.core :as cp]
+            [paren-soup.console :as c])
   (:require-macros [cljs.core.async.macros :refer [go]]))
 
 (defn show-error-message!
@@ -360,6 +361,8 @@ the entire selection rather than just the cursor position."
   (reset-edit-history! [this start])
   (append-text! [this text])
   (enter! [this])
+  (up! [this])
+  (down! [this])
   (refresh! [this state])
   (edit-and-refresh! [this state])
   (initialize! [this])
@@ -378,14 +381,14 @@ the entire selection rather than just the cursor position."
         edit-history (doto (mwm/create-edit-history)
                        (swap! assoc :limit history-limit))
         refresh-instarepl-with-delay! (debounce refresh-instarepl! 300)
-        console-start (atom 0)
+        console-history (c/create-console-history)
         last-highlight-elem (atom nil)]
-    ; in console mode, don't allow text before console-start to be edited
+    ; in console mode, don't allow text before console start to be edited
     (when-not editor?
       (set-validator! edit-history
         (fn [{:keys [current-state states]}]
           (if-let [state (get states current-state)]
-            (-> state :cursor-position first (>= @console-start))
+            (-> state :cursor-position first (>= (c/get-console-start console-history)))
             true))))
     ; reify the protocol
     (reify Editor
@@ -401,12 +404,12 @@ the entire selection rather than just the cursor position."
         (try
           (mwm/update-cursor-position! edit-history position)
           (catch js/Error _
-            (let [start @console-start]
+            (let [start (c/get-console-start console-history)]
               (set-cursor-position! content [start start])
               (mwm/update-cursor-position! edit-history [start start]))))
         (update-highlight! content last-highlight-elem))
       (reset-edit-history! [this start]
-        (reset! console-start start)
+        (c/update-console-start! console-history start)
         (set-cursor-position! content [start start])
         (let [new-edit-history (mwm/create-edit-history)
               state {:cursor-position [start start]
@@ -421,16 +424,36 @@ the entire selection rather than just the cursor position."
       (enter! [this]
         (if editor?
           (.execCommand js/document "insertHTML" false "\n")
-          (let [text (.-textContent content)
-                text (subs text 0 (dec (count text)))
-                entered-text (subs text @console-start)]
+          (let [text (trimr (.-textContent content))
+                post-text (subs text (c/get-console-start console-history))]
             (reset-edit-history! this (count text))
-            (console-callback entered-text))))
+            (c/update-console-history! console-history post-text)
+            (console-callback post-text))))
+      (up! [this]
+        (when-not editor?
+          (let [text (.-textContent content)
+                pre-text (subs text 0 (c/get-console-start console-history))
+                line (or (c/up! console-history) "")
+                state {:cursor-position (get-cursor-position content)
+                       :text (str pre-text line \newline)}]
+            (->> state
+                 (update-edit-history! edit-history)
+                 (refresh! this)))))
+      (down! [this]
+        (when-not editor?
+          (let [text (.-textContent content)
+                pre-text (subs text 0 (c/get-console-start console-history))
+                line (or (c/down! console-history) "")
+                state {:cursor-position (get-cursor-position content)
+                       :text (str pre-text line \newline)}]
+            (->> state
+                 (update-edit-history! edit-history)
+                 (refresh! this)))))
       (refresh! [this state]
         (post-refresh-content! content events-chan
           (if editor?
             (refresh-content! content state)
-            (refresh-console-content! content state @console-start clj?)))
+            (refresh-console-content! content state (c/get-console-start console-history) clj?)))
         (when editor?
           (some-> (.querySelector paren-soup ".numbers")
                   (refresh-numbers! (count (re-seq #"\n" (:text state)))))
@@ -447,7 +470,7 @@ the entire selection rather than just the cursor position."
       (initialize! [this]
         (when editor?
           (->> (init-state content true false)
-               (add-parinfer clj? @console-start :paren)
+               (add-parinfer clj? (c/get-console-start console-history) :paren)
                (edit-and-refresh! this))))
       (refresh-after-key-event! [this event]
         (let [state (init-state content true (= 9 (.-keyCode event)))]
@@ -455,10 +478,10 @@ the entire selection rather than just the cursor position."
             (case (.-keyCode event)
               13 (assoc state :indent-type :return)
               9 (assoc state :indent-type (if (.-shiftKey event) :back :forward))
-              (add-parinfer clj? @console-start :indent state)))))
+              (add-parinfer clj? (c/get-console-start console-history) :indent state)))))
       (refresh-after-cut-paste! [this]
         (->> (init-state content false false)
-             (add-parinfer clj? @console-start (if editor? :indent :both))
+             (add-parinfer clj? (c/get-console-start console-history) (if editor? :indent :both))
              (edit-and-refresh! this)))
       (eval! [this form callback]
         (when-not eval-worker
@@ -482,6 +505,10 @@ the entire selection rather than just the cursor position."
     (= (.-keyCode event) 13)
     :arrows
     (contains? #{37 38 39 40} (.-keyCode event))
+    :up-arrow
+    (= (.-keyCode event) 38)
+    :down-arrow
+    (= (.-keyCode event) 40)
     :general
     (not (or (contains? #{0 ; invalid (possible webkit bug)
                           16 ; shift
@@ -493,16 +520,19 @@ the entire selection rather than just the cursor position."
              (.-metaKey event)))
     false))
 
-(defn prevent-default? [event]
+(defn prevent-default? [event opts]
   (or (key-name? event :undo-or-redo)
       (key-name? event :tab)
-      (key-name? event :enter)))
+      (key-name? event :enter)
+      (and (:console-callback opts)
+           (or (key-name? event :up-arrow)
+               (key-name? event :down-arrow)))))
 
-(defn add-event-listeners! [content events-chan]
+(defn add-event-listeners! [content events-chan opts]
   (doto content
     (events/removeAll)
     (events/listen "keydown" (fn [e]
-                               (when (prevent-default? e)
+                               (when (prevent-default? e opts)
                                  (.preventDefault e))
                                (put! events-chan e)))
     (events/listen "keyup" #(put! events-chan %))
@@ -521,7 +551,7 @@ the entire selection rather than just the cursor position."
       (throw (js/Error. "Can't find a div with class 'content'")))
     (initialize! editor)
     ; set up event listeners
-    (add-event-listeners! content events-chan)
+    (add-event-listeners! content events-chan opts)
     ; run event loop
     (go
       (while true
@@ -532,7 +562,11 @@ the entire selection rather than just the cursor position."
               (and (key-name? event :undo-or-redo) (-> opts :disable-undo-redo? not))
               (if (.-shiftKey event) (redo! editor) (undo! editor))
               (key-name? event :enter)
-              (enter! editor))
+              (enter! editor)
+              (key-name? event :up-arrow)
+              (up! editor)
+              (key-name? event :down-arrow)
+              (down! editor))
             "keyup"
             (cond
               (key-name? event :arrows)
