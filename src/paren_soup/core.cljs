@@ -162,8 +162,8 @@ of the selection (it is, however, much slower)."
 
 (defn get-cursor-position
   "Returns the cursor position."
-  [element]
-  (-> element (get-selection false) :cursor-position))
+  [element full-selection?]
+  (-> element (get-selection full-selection?) :cursor-position))
 
 (defn set-cursor-position!
   "Moves the cursor to the specified position."
@@ -404,9 +404,10 @@ the entire selection rather than just the cursor position."
         (try
           (mwm/update-cursor-position! edit-history position)
           (catch js/Error _
-            (let [start (c/get-console-start console-history)]
-              (set-cursor-position! content [start start])
-              (mwm/update-cursor-position! edit-history [start start]))))
+            (when (apply = position)
+              (let [start (c/get-console-start console-history)]
+                (set-cursor-position! content [start start])
+                (mwm/update-cursor-position! edit-history [start start])))))
         (update-highlight! content last-highlight-elem))
       (reset-edit-history! [this start]
         (c/update-console-start! console-history start)
@@ -434,7 +435,7 @@ the entire selection rather than just the cursor position."
           (let [text (.-textContent content)
                 pre-text (subs text 0 (c/get-console-start console-history))
                 line (or (c/up! console-history) "")
-                state {:cursor-position (get-cursor-position content)
+                state {:cursor-position (get-cursor-position content false)
                        :text (str pre-text line \newline)}]
             (->> state
                  (update-edit-history! edit-history)
@@ -444,7 +445,7 @@ the entire selection rather than just the cursor position."
           (let [text (.-textContent content)
                 pre-text (subs text 0 (c/get-console-start console-history))
                 line (or (c/down! console-history) "")
-                state {:cursor-position (get-cursor-position content)
+                state {:cursor-position (get-cursor-position content false)
                        :text (str pre-text line \newline)}]
             (->> state
                  (update-edit-history! edit-history)
@@ -570,7 +571,7 @@ the entire selection rather than just the cursor position."
             "keyup"
             (cond
               (key-name? event :arrows)
-              (update-cursor-position! editor (get-cursor-position content))
+              (update-cursor-position! editor (get-cursor-position content false))
               (key-name? event :general)
               (refresh-after-key-event! editor event))
             "cut"
@@ -578,7 +579,7 @@ the entire selection rather than just the cursor position."
             "paste"
             (refresh-after-cut-paste! editor)
             "mouseup"
-            (update-cursor-position! editor (get-cursor-position content))
+            (update-cursor-position! editor (get-cursor-position content true))
             "mouseenter"
             (show-error-message! paren-soup event)
             "mouseleave"
