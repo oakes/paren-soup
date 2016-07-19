@@ -579,7 +579,7 @@ the entire selection rather than just the cursor position."
             "paste"
             (refresh-after-cut-paste! editor)
             "mouseup"
-            (update-cursor-position! editor (get-cursor-position content true))
+            (update-cursor-position! editor (get-cursor-position content (some? (:console-callback opts))))
             "mouseenter"
             (show-error-message! paren-soup event)
             "mouseleave"
