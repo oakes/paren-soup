@@ -371,8 +371,9 @@ the entire selection rather than just the cursor position."
   (eval! [this form callback]))
 
 (defn create-editor [paren-soup content events-chan
-                     {:keys [history-limit compiler-file console-callback disable-clj?]
+                     {:keys [history-limit append-limit compiler-file console-callback disable-clj?]
                       :or {history-limit 100
+                           append-limit 5000
                            compiler-file "paren-soup-compiler.js"}}]
   (let [clj? (not disable-clj?)
         editor? (not console-callback)
@@ -420,8 +421,12 @@ the entire selection rather than just the cursor position."
       (append-text! [this text]
         (let [node (.createTextNode js/document text)
               _ (.appendChild content node)
-              all-text (.-textContent content)]
-          (reset-edit-history! this (count all-text))))
+              all-text (.-textContent content)
+              char-count (max 0 (- (count all-text) append-limit))
+              new-all-text (subs all-text char-count)]
+          (when (not= all-text new-all-text)
+            (set! (.-textContent content) new-all-text))
+          (reset-edit-history! this (count new-all-text))))
       (enter! [this]
         (if editor?
           (.execCommand js/document "insertHTML" false "\n")
