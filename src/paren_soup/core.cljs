@@ -352,6 +352,34 @@ the entire selection rather than just the cursor position."
         (set! (.-backgroundColor (.-style elem)) (str "rgba(" new-color ", 0.1)"))
         (reset! last-elem elem)))))
 
+(defn key-name?
+  "Returns true if the supplied key event involves the key(s) described by key-name."
+  [event key-name]
+  (case key-name
+    :undo-or-redo
+    (and (or (.-metaKey event) (.-ctrlKey event))
+       (= (.-keyCode event) 90))
+    :tab
+    (= (.-keyCode event) 9)
+    :enter
+    (= (.-keyCode event) 13)
+    :arrows
+    (contains? #{37 38 39 40} (.-keyCode event))
+    :up-arrow
+    (= (.-keyCode event) 38)
+    :down-arrow
+    (= (.-keyCode event) 40)
+    :general
+    (not (or (contains? #{0 ; invalid (possible webkit bug)
+                          16 ; shift
+                          17 ; ctrl
+                          18 ; alt
+                          91 93} ; meta
+               (.-keyCode event))
+             (.-ctrlKey event)
+             (.-metaKey event)))
+    false))
+
 (defprotocol Editor
   (undo! [this])
   (redo! [this])
@@ -363,6 +391,7 @@ the entire selection rather than just the cursor position."
   (enter! [this])
   (up! [this])
   (down! [this])
+  (tab! [this])
   (refresh! [this state])
   (edit-and-refresh! [this state])
   (initialize! [this])
@@ -383,7 +412,8 @@ the entire selection rather than just the cursor position."
                        (swap! assoc :limit history-limit))
         refresh-instarepl-with-delay! (debounce refresh-instarepl! 300)
         console-history (c/create-console-history)
-        last-highlight-elem (atom nil)]
+        last-highlight-elem (atom nil)
+        allow-tab? (atom false)]
     ; in console mode, don't allow text before console start to be edited
     (when-not editor?
       (set-validator! edit-history
@@ -455,6 +485,12 @@ the entire selection rather than just the cursor position."
             (->> state
                  (update-edit-history! edit-history)
                  (refresh! this)))))
+      (tab! [this]
+        ; on Windows, alt+tab causes the browser to receive the tab's keyup event
+        ; this caused the code to be tabbed after using alt+tab
+        ; this boolean atom will be set to true only on keydown in order to prevent this issue
+        (when editor?
+          (reset! allow-tab? true)))
       (refresh! [this state]
         (post-refresh-content! content events-chan
           (if editor?
@@ -479,12 +515,16 @@ the entire selection rather than just the cursor position."
                (add-parinfer clj? (c/get-console-start console-history) :paren)
                (edit-and-refresh! this))))
       (refresh-after-key-event! [this event]
-        (let [state (init-state content true (= 9 (.-keyCode event)))]
-          (edit-and-refresh! this
-            (case (.-keyCode event)
-              13 (assoc state :indent-type :return)
-              9 (assoc state :indent-type (if (.-shiftKey event) :back :forward))
-              (add-parinfer clj? (c/get-console-start console-history) :indent state)))))
+        (let [tab? (key-name? event :tab)
+              state (init-state content true tab?)]
+          (when-not (and tab? (not @allow-tab?))
+            (edit-and-refresh! this
+              (case (.-keyCode event)
+                13 (assoc state :indent-type :return)
+                9 (assoc state :indent-type (if (.-shiftKey event) :back :forward))
+                (add-parinfer clj? (c/get-console-start console-history) :indent state))))
+          (when tab?
+            (reset! allow-tab? false))))
       (refresh-after-cut-paste! [this]
         (->> (init-state content false false)
              (add-parinfer clj? (c/get-console-start console-history) (if editor? :indent :both))
@@ -497,34 +537,6 @@ the entire selection rather than just the cursor position."
             (let [results (.-data e)]
               (callback (aget results 0)))))
         (.postMessage eval-worker (array form))))))
-
-(defn key-name?
-  "Returns true if the supplied key event involves the key(s) described by key-name."
-  [event key-name]
-  (case key-name
-    :undo-or-redo
-    (and (or (.-metaKey event) (.-ctrlKey event))
-       (= (.-keyCode event) 90))
-    :tab
-    (= (.-keyCode event) 9)
-    :enter
-    (= (.-keyCode event) 13)
-    :arrows
-    (contains? #{37 38 39 40} (.-keyCode event))
-    :up-arrow
-    (= (.-keyCode event) 38)
-    :down-arrow
-    (= (.-keyCode event) 40)
-    :general
-    (not (or (contains? #{0 ; invalid (possible webkit bug)
-                          16 ; shift
-                          17 ; ctrl
-                          18 ; alt
-                          91 93} ; meta
-               (.-keyCode event))
-             (.-ctrlKey event)
-             (.-metaKey event)))
-    false))
 
 (defn prevent-default? [event opts]
   (or (key-name? event :undo-or-redo)
@@ -572,7 +584,9 @@ the entire selection rather than just the cursor position."
               (key-name? event :up-arrow)
               (up! editor)
               (key-name? event :down-arrow)
-              (down! editor))
+              (down! editor)
+              (key-name? event :tab)
+              (tab! editor))
             "keyup"
             (cond
               (key-name? event :arrows)
