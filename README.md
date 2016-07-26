@@ -29,7 +29,7 @@ If you just want a viewer, not an editor, leave out the `contenteditable` attrib
 
 ## Build Instructions
 
-I use [Boot](http://boot-clj.com/). To build the editor and run a server on http://localhost:3000, run `boot run`. To build a release version, run `boot build`. I included a project.clj for Leiningen users, but haven't thoroughly tested it.
+I use [Boot](http://boot-clj.com/). To build the editor and run a server on http://localhost:3000, run `boot run`. To build a release version, run `boot build`.
 
 A prebuilt copy of the compiler is already in the `resources` directory. If you want to build it yourself, go in the `compiler` directory and run `boot build`.
 
