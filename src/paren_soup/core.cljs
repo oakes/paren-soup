@@ -626,6 +626,7 @@ the entire selection rather than just the cursor position."
 (defn ^:export can-redo [editor] (can-redo? editor))
 (defn ^:export append-text [editor text] (append-text! editor text))
 (defn ^:export eval [editor form callback] (eval! editor form callback))
+(defn ^:export debounce-function [f millis] (debounce f millis))
 
 (defn init-debug []
   (.log js/console (with-out-str (time (init-all)))))
