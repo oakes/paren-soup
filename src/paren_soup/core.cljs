@@ -168,14 +168,22 @@ of the selection (it is, however, much slower)."
 (defn set-cursor-position!
   "Moves the cursor to the specified position."
   [element position]
-  (let [[start-pos end-pos] position
-        selection (.getSelection js/rangy)
-        char-range #js {:start start-pos :end end-pos}
-        range #js {:characterRange char-range
-                   :backward false
-                   :characterOptions nil}
-        ranges (array range)]
-    (.restoreCharacterRanges selection element ranges)))
+  (if (and (apply = position) js/Selection.prototype.modify)
+    (let [range (doto (.createRange js/document)
+                  (.setStart element 0))
+          selection (doto (.getSelection js/window)
+                      (.removeAllRanges)
+                      (.addRange range))]
+      (dotimes [n (first position)]
+        (.modify selection "move" "right" "character")))
+    (let [[start-pos end-pos] position
+          selection (.getSelection js/rangy)
+          char-range #js {:start start-pos :end end-pos}
+          range #js {:characterRange char-range
+                     :backward false
+                     :characterOptions nil}
+          ranges (array range)]
+      (.restoreCharacterRanges selection element ranges))))
 
 (defn refresh-numbers!
   "Refreshes the line numbers."
