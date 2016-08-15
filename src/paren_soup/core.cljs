@@ -4,6 +4,7 @@
             [goog.events :as events]
             [goog.functions :refer [debounce]]
             [goog.string :refer [format]]
+            [goog.string.format]
             [cljsjs.rangy-core]
             [cljsjs.rangy-textrange]
             [mistakes-were-made.core :as mwm]
@@ -627,7 +628,4 @@ the entire selection rather than just the cursor position."
 (defn ^:export append-text [editor text] (append-text! editor text))
 (defn ^:export eval [editor form callback] (eval! editor form callback))
 (defn ^:export debounce-function [f millis] (debounce f millis))
-
-(defn init-debug []
-  (.log js/console (with-out-str (time (init-all)))))
 
