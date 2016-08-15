@@ -2,8 +2,7 @@
   :source-paths #{"src"}
   :dependencies '[[adzerk/boot-cljs "1.7.228-1" :scope "test"]
                   ; project deps
-                  [org.clojure/clojure "1.8.0"]
-                  [org.clojure/clojurescript "1.8.51"]
+                  [org.clojure/clojurescript "1.9.216"]
                   [org.clojure/core.async "0.2.374"]])
 
 (require
@@ -24,3 +23,4 @@
             to (io/file "../resources/public/paren-soup-compiler.js")]
         (.renameTo from to))
       fileset)))
+

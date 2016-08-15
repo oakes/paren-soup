@@ -9,7 +9,7 @@
                   [cross-parinfer "1.1.11-SNAPSHOT"]
                   [cljsjs/rangy-core "1.3.0-1"]
                   [cljsjs/rangy-textrange "1.3.0-1"]
-                  [org.clojure/clojurescript "1.9.211"]
+                  [org.clojure/clojurescript "1.9.216"]
                   [org.clojure/core.async "0.2.374"]]
   :repositories (conj (get-env :repositories)
                   ["clojars" {:url "https://clojars.org/repo/"
