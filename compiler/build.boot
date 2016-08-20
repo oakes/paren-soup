@@ -2,7 +2,7 @@
   :source-paths #{"src"}
   :dependencies '[[adzerk/boot-cljs "1.7.228-1" :scope "test"]
                   ; project deps
-                  [org.clojure/clojurescript "1.9.216"]
+                  [org.clojure/clojurescript "1.9.225"]
                   [org.clojure/core.async "0.2.374"]])
 
 (require
