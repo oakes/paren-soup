@@ -3,14 +3,15 @@
             [clojure.string :refer [join replace trimr]]
             [goog.events :as events]
             [goog.functions :refer [debounce]]
-            [goog.string :refer [format]]
-            [goog.string.format]
             [cljsjs.rangy-core]
             [cljsjs.rangy-textrange]
             [mistakes-were-made.core :as mwm]
             [html-soup.core :as hs]
             [cross-parinfer.core :as cp]
-            [paren-soup.console :as c])
+            [paren-soup.console :as console]
+            [paren-soup.instarepl :as ir]
+            [paren-soup.crop :as crop]
+            [paren-soup.cursor :as cursor])
   (:require-macros [cljs.core.async.macros :refer [go]]))
 
 (defn show-error-message!
@@ -31,46 +32,6 @@
   [parent-elem]
   (doseq [elem (-> parent-elem (.querySelectorAll ".error-text") array-seq)]
     (.removeChild parent-elem elem)))
-
-(defn elems->locations
-  "Returns the location of each elem."
-  [elems top-offset]
-  (loop [i 0
-         locations (transient [])]
-    (if-let [elem (get elems i)]
-      (let [top (-> elem .-offsetTop (- top-offset))
-            height (-> elem .-offsetHeight)]
-        (recur (inc i) (conj! locations {:top top :height height})))
-      (persistent! locations))))
-
-(defn results->html
-  "Returns HTML for the given eval results."
-  [results locations]
-  (loop [i 0
-         evals (transient [])]
-    (let [res (get results i)
-          {:keys [top height]} (get locations i)]
-      (if (and res top height)
-        (recur (inc i)
-               (conj! evals
-                 (format
-                   "<div class='%s' style='top: %spx; height: %spx; min-height: %spx'>%s</div>"
-                   (if (array? res) "result error" "result")
-                   top
-                   height
-                   height
-                   (some-> (if (array? res) (first res) res)
-                           hs/escape-html-str))))
-        (join (persistent! evals))))))
-
-(defn get-collections
-  "Returns collections from the given DOM node."
-  [element]
-  (vec (for [elem (-> element .-children array-seq)
-             :let [classes (.-classList elem)]
-             :when (or (.contains classes "collection")
-                       (.contains classes "symbol"))]
-         elem)))
 
 (def ^:const rainbow-count 10)
 
@@ -98,94 +59,6 @@
   (join (for [i (range line-count)]
           (str "<div>" (inc i) "</div>"))))
 
-(defn get-parents
-  "Returns the parents of the given node."
-  [node]
-  (loop [node node
-         nodes '()]
-    (if-let [parent (.-parentElement node)]
-      (if (.contains (.-classList parent) "collection")
-        (recur parent (conj nodes parent))
-        (recur parent nodes))
-      nodes)))
-
-(defn text-node?
-  [node]
-  (= 3 (.-nodeType node)))
-
-(defn error-node?
-  [node]
-  (some-> node .-classList (.contains "error")))
-
-(defn top-level?
-  [node]
-  (some-> node .-parentElement .-classList (.contains "content")))
-
-(defn common-ancestor
-  "Returns the common ancestor of the given nodes."
-  [first-node second-node]
-  (let [first-parent (first (get-parents first-node))
-        second-parent (first (get-parents second-node))]
-    (cond
-      ; a parent element
-      (and first-parent second-parent (= first-parent second-parent))
-      first-parent
-      ; a top-level text node
-      (and (= first-node second-node)
-           (text-node? first-node)
-           (top-level? first-node))
-      first-node)))
-
-(defn get-selection
-  "Returns the objects related to selection for the given element. If full-selection? is true,
-it will use rangy instead of the native selection API in order to get the beginning and ending
-of the selection (it is, however, much slower)."
-  [element full-selection?]
-  {:element element
-   :cursor-position
-   (cond
-     full-selection?
-     (let [selection (.getSelection js/rangy)
-           ranges (.saveCharacterRanges selection element)]
-       (if-let [char-range (some-> ranges (aget 0) (aget "characterRange"))]
-         [(aget char-range "start") (aget char-range "end")]
-         [0 0]))
-     (= 0 (.-rangeCount (.getSelection js/window)))
-     [0 0]
-     :else
-     (let [selection (.getSelection js/window)
-           range (.getRangeAt selection 0)
-           pre-caret-range (doto (.cloneRange range)
-                             (.selectNodeContents element)
-                             (.setEnd (.-endContainer range) (.-endOffset range)))
-           pos (-> pre-caret-range .toString .-length)]
-       [pos pos]))})
-
-(defn get-cursor-position
-  "Returns the cursor position."
-  [element full-selection?]
-  (-> element (get-selection full-selection?) :cursor-position))
-
-(defn set-cursor-position!
-  "Moves the cursor to the specified position."
-  [element position]
-  (if (and (apply = position) js/Selection.prototype.modify)
-    (let [range (doto (.createRange js/document)
-                  (.setStart element 0))
-          selection (doto (.getSelection js/window)
-                      (.removeAllRanges)
-                      (.addRange range))]
-      (dotimes [n (first position)]
-        (.modify selection "move" "right" "character")))
-    (let [[start-pos end-pos] position
-          selection (.getSelection js/rangy)
-          char-range #js {:start start-pos :end end-pos}
-          range #js {:characterRange char-range
-                     :backward false
-                     :characterOptions nil}
-          ranges (array range)]
-      (.restoreCharacterRanges selection element ranges))))
-
 (defn refresh-numbers!
   "Refreshes the line numbers."
   [numbers line-count]
@@ -194,15 +67,15 @@ of the selection (it is, however, much slower)."
 (defn refresh-instarepl!
   "Refreshes the InstaREPL."
   [instarepl content eval-worker]
-  (let [elems (get-collections content)
-        locations (elems->locations elems (.-offsetTop instarepl))
+  (let [elems (ir/get-collections content)
+        locations (ir/elems->locations elems (.-offsetTop instarepl))
         forms (into-array (map #(-> % .-textContent (replace \u00a0 " ")) elems))]
     (set! (.-onmessage eval-worker)
           (fn [e]
             (let [results (.-data e)]
               (when (.-parentElement instarepl)
                 (set! (.-innerHTML instarepl)
-                      (results->html results locations))))))
+                      (ir/results->html results locations))))))
     (.postMessage eval-worker forms)))
 
 (defn post-refresh-content!
@@ -210,8 +83,8 @@ of the selection (it is, however, much slower)."
   [content events-chan state]
   ; set the cursor position
   (if-let [crop (:cropped-state state)]
-    (set-cursor-position! (:element crop) (:cursor-position crop))
-    (set-cursor-position! content (:cursor-position state)))
+    (cursor/set-cursor-position! (:element crop) (:cursor-position crop))
+    (cursor/set-cursor-position! content (:cursor-position state)))
   ; set up errors
   (hide-error-messages! (.-parentElement content))
   (doseq [elem (-> content (.querySelectorAll ".error") array-seq)]
@@ -233,7 +106,7 @@ of the selection (it is, however, much slower)."
         ; find all siblings that should be refreshed as well
         siblings (loop [elems []
                         current-elem element]
-                   (if (text-node? current-elem)
+                   (if (crop/text-node? current-elem)
                      (if-let [sibling (.-nextSibling current-elem)]
                        (recur (conj elems sibling) sibling)
                        elems)
@@ -335,10 +208,10 @@ the entire selection rather than just the cursor position."
         anchor (.-anchorNode selection)
         focus (.-focusNode selection)
         parent (when (and anchor focus)
-                 (common-ancestor anchor focus))
-        state {:cursor-position (-> content (get-selection full-selection?) :cursor-position)
+                 (crop/common-ancestor anchor focus))
+        state {:cursor-position (-> content (cursor/get-selection full-selection?) :cursor-position)
                :text (.-textContent content)}]
-    (if-let [cropped-selection (some-> parent (get-selection false))]
+    (if-let [cropped-selection (some-> parent (cursor/get-selection false))]
       (if crop?
         (assoc state :cropped-state
           (assoc cropped-selection :text (.-textContent parent)))
@@ -355,7 +228,7 @@ the entire selection rather than just the cursor position."
   (when-let [elem @last-elem]
     (set! (.-backgroundColor (.-style elem)) nil)
     (reset! last-elem nil))
-  (when-let [elem (some-> js/rangy .getSelection .-anchorNode get-parents last)]
+  (when-let [elem (some-> js/rangy .getSelection .-anchorNode crop/get-parents last)]
     (when-let [color (.getPropertyValue (.getComputedStyle js/window (.-firstChild elem)) "color")]
       (let [new-color (-> color (replace #"rgb\(" "") (replace #"\)" ""))]
         (set! (.-backgroundColor (.-style elem)) (str "rgba(" new-color ", 0.1)"))
@@ -420,7 +293,7 @@ the entire selection rather than just the cursor position."
         edit-history (doto (mwm/create-edit-history)
                        (swap! assoc :limit history-limit))
         refresh-instarepl-with-delay! (debounce refresh-instarepl! 300)
-        console-history (c/create-console-history)
+        console-history (console/create-console-history)
         last-highlight-elem (atom nil)
         allow-tab? (atom false)]
     ; in console mode, don't allow text before console start to be edited
@@ -428,7 +301,7 @@ the entire selection rather than just the cursor position."
       (set-validator! edit-history
         (fn [{:keys [current-state states]}]
           (if-let [state (get states current-state)]
-            (-> state :cursor-position first (>= (c/get-console-start console-history)))
+            (-> state :cursor-position first (>= (console/get-console-start console-history)))
             true))))
     ; reify the protocol
     (reify Editor
@@ -445,13 +318,13 @@ the entire selection rather than just the cursor position."
           (mwm/update-cursor-position! edit-history position)
           (catch js/Error _
             (when (apply = position)
-              (let [start (c/get-console-start console-history)]
-                (set-cursor-position! content [start start])
+              (let [start (console/get-console-start console-history)]
+                (cursor/set-cursor-position! content [start start])
                 (mwm/update-cursor-position! edit-history [start start])))))
         (update-highlight! content last-highlight-elem))
       (reset-edit-history! [this start]
-        (c/update-console-start! console-history start)
-        (set-cursor-position! content [start start])
+        (console/update-console-start! console-history start)
+        (cursor/set-cursor-position! content [start start])
         (let [new-edit-history (mwm/create-edit-history)
               state {:cursor-position [start start]
                      :text (.-textContent content)}]
@@ -470,16 +343,16 @@ the entire selection rather than just the cursor position."
         (if editor?
           (.execCommand js/document "insertHTML" false "\n")
           (let [text (trimr (.-textContent content))
-                post-text (subs text (c/get-console-start console-history))]
+                post-text (subs text (console/get-console-start console-history))]
             (reset-edit-history! this (count text))
-            (c/update-console-history! console-history post-text)
+            (console/update-console-history! console-history post-text)
             (console-callback post-text))))
       (up! [this]
         (when-not editor?
           (let [text (.-textContent content)
-                pre-text (subs text 0 (c/get-console-start console-history))
-                line (or (c/up! console-history) "")
-                state {:cursor-position (get-cursor-position content false)
+                pre-text (subs text 0 (console/get-console-start console-history))
+                line (or (console/up! console-history) "")
+                state {:cursor-position (cursor/get-cursor-position content false)
                        :text (str pre-text line \newline)}]
             (->> state
                  (update-edit-history! edit-history)
@@ -487,9 +360,9 @@ the entire selection rather than just the cursor position."
       (down! [this]
         (when-not editor?
           (let [text (.-textContent content)
-                pre-text (subs text 0 (c/get-console-start console-history))
-                line (or (c/down! console-history) "")
-                state {:cursor-position (get-cursor-position content false)
+                pre-text (subs text 0 (console/get-console-start console-history))
+                line (or (console/down! console-history) "")
+                state {:cursor-position (cursor/get-cursor-position content false)
                        :text (str pre-text line \newline)}]
             (->> state
                  (update-edit-history! edit-history)
@@ -504,7 +377,7 @@ the entire selection rather than just the cursor position."
         (post-refresh-content! content events-chan
           (if editor?
             (refresh-content! content state)
-            (refresh-console-content! content state (c/get-console-start console-history) clj?)))
+            (refresh-console-content! content state (console/get-console-start console-history) clj?)))
         (when editor?
           (some-> (.querySelector paren-soup ".numbers")
                   (refresh-numbers! (count (re-seq #"\n" (:text state)))))
@@ -521,7 +394,7 @@ the entire selection rather than just the cursor position."
       (initialize! [this]
         (when editor?
           (->> (init-state content true false)
-               (add-parinfer clj? (c/get-console-start console-history) :paren)
+               (add-parinfer clj? (console/get-console-start console-history) :paren)
                (edit-and-refresh! this))))
       (refresh-after-key-event! [this event]
         (let [tab? (key-name? event :tab)
@@ -531,12 +404,12 @@ the entire selection rather than just the cursor position."
               (case (.-keyCode event)
                 13 (assoc state :indent-type :return)
                 9 (assoc state :indent-type (if (.-shiftKey event) :back :forward))
-                (add-parinfer clj? (c/get-console-start console-history) :indent state))))
+                (add-parinfer clj? (console/get-console-start console-history) :indent state))))
           (when tab?
             (reset! allow-tab? false))))
       (refresh-after-cut-paste! [this]
         (->> (init-state content false false)
-             (add-parinfer clj? (c/get-console-start console-history) (if editor? :indent :both))
+             (add-parinfer clj? (console/get-console-start console-history) (if editor? :indent :both))
              (edit-and-refresh! this)))
       (eval! [this form callback]
         (when-not eval-worker
@@ -599,7 +472,8 @@ the entire selection rather than just the cursor position."
             "keyup"
             (cond
               (key-name? event :arrows)
-              (update-cursor-position! editor (get-cursor-position content false))
+              (update-cursor-position! editor
+                (cursor/get-cursor-position content false))
               (key-name? event :general)
               (refresh-after-key-event! editor event))
             "cut"
@@ -607,7 +481,8 @@ the entire selection rather than just the cursor position."
             "paste"
             (refresh-after-cut-paste! editor)
             "mouseup"
-            (update-cursor-position! editor (get-cursor-position content (some? (:console-callback opts))))
+            (update-cursor-position! editor
+              (cursor/get-cursor-position content (some? (:console-callback opts))))
             "mouseenter"
             (show-error-message! paren-soup event)
             "mouseleave"
