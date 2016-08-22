@@ -101,26 +101,26 @@
 (defn refresh-content-element!
   "Replaces a single node in the content, and siblings if necessary."
   [cropped-state]
-  (let [{:keys [text element]} cropped-state
+  (let [{:keys [element]} cropped-state
         parent (.-parentElement element)
-        ; find all siblings that should be refreshed as well
-        siblings (loop [elems []
-                        current-elem element]
-                   (if (crop/text-node? current-elem)
-                     (if-let [sibling (.-nextSibling current-elem)]
-                       (recur (conj elems sibling) sibling)
-                       elems)
-                     elems))
-        ; add siblings' text to the string
-        text (str text (join (map #(.-textContent %) siblings)))
+        ; find all elements that should be refreshed
+        old-elems (loop [elems [element]
+                         current-elem element]
+                    (if (or (crop/text-node? current-elem)
+                            (crop/error-node? current-elem))
+                      (if-let [sibling (.-nextSibling current-elem)]
+                        (recur (conj elems sibling) sibling)
+                        elems)
+                      elems))
+        ; add old elems' text to the string
+        text (join (map #(.-textContent %) old-elems))
         ; create temporary element
         temp-elem (.createElement js/document "span")
         _ (set! (.-innerHTML temp-elem) (hs/code->html text))
         ; collect elements
         new-elems (doall
                     (for [i (range (-> temp-elem .-childNodes .-length))]
-                      (-> temp-elem .-childNodes (.item i))))
-        old-elems (cons element siblings)]
+                      (-> temp-elem .-childNodes (.item i))))]
     ; insert the new nodes
     (doseq [new-elem new-elems]
       (.insertBefore parent new-elem element))
