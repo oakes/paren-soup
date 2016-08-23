@@ -504,5 +504,7 @@ the entire selection rather than just the cursor position."
 (defn ^:export eval [editor form callback] (eval! editor form callback))
 (defn ^:export debounce-function [f millis] (debounce f millis))
 (defn ^:export focused-text [] (some-> (crop/get-focused-form) .-textContent))
-(defn ^:export selected-text [] (-> js/window .getSelection .toString))
+(defn ^:export selected-text []
+  (let [s (-> js/window .getSelection .toString)]
+    (when-not (empty? s) s)))
 
