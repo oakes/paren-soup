@@ -224,14 +224,11 @@ the entire selection rather than just the cursor position."
     state
     (catch js/Error _ (mwm/get-current-state edit-history))))
 
-(defn get-selected-form []
-  (some-> js/rangy .getSelection .-anchorNode crop/get-parents last))
-
 (defn update-highlight! [content last-elem]
   (when-let [elem @last-elem]
     (set! (.-backgroundColor (.-style elem)) nil)
     (reset! last-elem nil))
-  (when-let [elem (get-selected-form)]
+  (when-let [elem (crop/get-focused-form)]
     (when-let [color (.getPropertyValue (.getComputedStyle js/window (.-firstChild elem)) "color")]
       (let [new-color (-> color (replace #"rgb\(" "") (replace #"\)" ""))]
         (set! (.-backgroundColor (.-style elem)) (str "rgba(" new-color ", 0.1)"))
@@ -506,6 +503,6 @@ the entire selection rather than just the cursor position."
 (defn ^:export append-text [editor text] (append-text! editor text))
 (defn ^:export eval [editor form callback] (eval! editor form callback))
 (defn ^:export debounce-function [f millis] (debounce f millis))
-(defn ^:export selected-form [] (some-> (get-selected-form) .-textContent))
+(defn ^:export focused-text [] (some-> (crop/get-focused-form) .-textContent))
 (defn ^:export selected-text [] (-> js/window .getSelection .toString))
 

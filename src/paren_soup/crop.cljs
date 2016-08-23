@@ -38,3 +38,6 @@
            (top-level? first-node))
       first-node)))
 
+(defn get-focused-form []
+  (some-> js/rangy .getSelection .-anchorNode get-parents last))
+
