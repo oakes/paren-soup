@@ -10,7 +10,6 @@
             [cross-parinfer.core :as cp]
             [paren-soup.console :as console]
             [paren-soup.instarepl :as ir]
-            [paren-soup.crop :as crop]
             [paren-soup.cursor :as cursor])
   (:require-macros [cljs.core.async.macros :refer [go]]))
 
@@ -106,8 +105,8 @@
         ; find all elements that should be refreshed
         old-elems (loop [elems [element]
                          current-elem element]
-                    (if (or (crop/text-node? current-elem)
-                            (crop/error-node? current-elem))
+                    (if (or (cursor/text-node? current-elem)
+                            (cursor/error-node? current-elem))
                       (if-let [sibling (.-nextSibling current-elem)]
                         (recur (conj elems sibling) sibling)
                         elems)
@@ -208,7 +207,7 @@ the entire selection rather than just the cursor position."
         anchor (.-anchorNode selection)
         focus (.-focusNode selection)
         parent (when (and anchor focus)
-                 (crop/common-ancestor anchor focus))
+                 (cursor/common-ancestor anchor focus))
         state {:cursor-position (-> content (cursor/get-selection full-selection?) :cursor-position)
                :text (.-textContent content)}]
     (if-let [cropped-selection (some-> parent (cursor/get-selection false))]
@@ -228,7 +227,7 @@ the entire selection rather than just the cursor position."
   (when-let [elem @last-elem]
     (set! (.-backgroundColor (.-style elem)) nil)
     (reset! last-elem nil))
-  (when-let [elem (crop/get-focused-form)]
+  (when-let [elem (cursor/get-focused-form)]
     (when-let [color (.getPropertyValue (.getComputedStyle js/window (.-firstChild elem)) "color")]
       (let [new-color (-> color (replace #"rgb\(" "") (replace #"\)" ""))]
         (set! (.-backgroundColor (.-style elem)) (str "rgba(" new-color ", 0.1)"))
@@ -503,7 +502,7 @@ the entire selection rather than just the cursor position."
 (defn ^:export append-text [editor text] (append-text! editor text))
 (defn ^:export eval [editor form callback] (eval! editor form callback))
 (defn ^:export debounce-function [f millis] (debounce f millis))
-(defn ^:export focused-text [] (some-> (crop/get-focused-form) .-textContent))
+(defn ^:export focused-text [] (some-> (cursor/get-focused-form) .-textContent))
 (defn ^:export selected-text []
   (let [s (-> js/window .getSelection .toString)]
     (when-not (empty? s) s)))
