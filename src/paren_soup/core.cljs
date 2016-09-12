@@ -68,7 +68,10 @@
   [instarepl content eval-worker]
   (let [elems (ir/get-collections content)
         locations (ir/elems->locations elems (.-offsetTop instarepl))
-        forms (into-array (map #(-> % .-textContent (replace \u00a0 " ")) elems))]
+        forms (->> elems
+                   (map ir/collection->content)
+                   (map #(replace % \u00a0 " "))
+                   into-array)]
     (set! (.-onmessage eval-worker)
           (fn [e]
             (let [results (.-data e)]

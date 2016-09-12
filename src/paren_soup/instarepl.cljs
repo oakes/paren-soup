@@ -2,7 +2,8 @@
   (:require [goog.string :refer [format]]
             [goog.string.format]
             [html-soup.core :as hs]
-            [clojure.string :refer [join]]))
+            [clojure.string :refer [join]]
+            [paren-soup.cursor :refer [text-node?]]))
 
 (defn elems->locations
   "Returns the location of each elem."
@@ -43,4 +44,13 @@
              :when (or (.contains classes "collection")
                        (.contains classes "symbol"))]
          elem)))
+
+(defn collection->content [elem]
+  (loop [e elem
+         content (.-textContent elem)]
+    (if-let [prev (.-previousSibling e)]
+      (if (text-node? prev)
+        (recur prev (str (.-textContent prev) content))
+        content)
+      content)))
 
