@@ -3,7 +3,7 @@
             [goog.string.format]
             [html-soup.core :as hs]
             [clojure.string :refer [join]]
-            [paren-soup.cursor :refer [text-node?]]))
+            [paren-soup.dom :refer [text-node?]]))
 
 (defn elems->locations
   "Returns the location of each elem."

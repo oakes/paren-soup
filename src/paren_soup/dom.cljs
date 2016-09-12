@@ -1,4 +1,4 @@
-(ns paren-soup.cursor)
+(ns paren-soup.dom)
 
 (defn get-selection
   "Returns the objects related to selection for the given element. If full-selection? is true,

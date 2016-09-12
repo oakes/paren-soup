@@ -10,7 +10,7 @@
             [cross-parinfer.core :as cp]
             [paren-soup.console :as console]
             [paren-soup.instarepl :as ir]
-            [paren-soup.cursor :as cursor])
+            [paren-soup.dom :as dom])
   (:require-macros [cljs.core.async.macros :refer [go]]))
 
 (defn show-error-message!
@@ -85,8 +85,8 @@
   [content events-chan state]
   ; set the cursor position
   (if-let [crop (:cropped-state state)]
-    (cursor/set-cursor-position! (:element crop) (:cursor-position crop))
-    (cursor/set-cursor-position! content (:cursor-position state)))
+    (dom/set-cursor-position! (:element crop) (:cursor-position crop))
+    (dom/set-cursor-position! content (:cursor-position state)))
   ; set up errors
   (hide-error-messages! (.-parentElement content))
   (doseq [elem (-> content (.querySelectorAll ".error") array-seq)]
@@ -108,8 +108,8 @@
         ; find all elements that should be refreshed
         old-elems (loop [elems [element]
                          current-elem element]
-                    (if (or (cursor/text-node? current-elem)
-                            (cursor/error-node? current-elem))
+                    (if (or (dom/text-node? current-elem)
+                            (dom/error-node? current-elem))
                       (if-let [sibling (.-nextSibling current-elem)]
                         (recur (conj elems sibling) sibling)
                         elems)
@@ -210,10 +210,10 @@ the entire selection rather than just the cursor position."
         anchor (.-anchorNode selection)
         focus (.-focusNode selection)
         parent (when (and anchor focus)
-                 (cursor/common-ancestor anchor focus))
-        state {:cursor-position (-> content (cursor/get-selection full-selection?) :cursor-position)
+                 (dom/common-ancestor anchor focus))
+        state {:cursor-position (-> content (dom/get-selection full-selection?) :cursor-position)
                :text (.-textContent content)}]
-    (if-let [cropped-selection (some-> parent (cursor/get-selection false))]
+    (if-let [cropped-selection (some-> parent (dom/get-selection false))]
       (if crop?
         (assoc state :cropped-state
           (assoc cropped-selection :text (.-textContent parent)))
@@ -230,7 +230,7 @@ the entire selection rather than just the cursor position."
   (when-let [elem @last-elem]
     (set! (.-backgroundColor (.-style elem)) nil)
     (reset! last-elem nil))
-  (when-let [elem (cursor/get-focused-form)]
+  (when-let [elem (dom/get-focused-form)]
     (when-let [color (.getPropertyValue (.getComputedStyle js/window (.-firstChild elem)) "color")]
       (let [new-color (-> color (replace #"rgb\(" "") (replace #"\)" ""))]
         (set! (.-backgroundColor (.-style elem)) (str "rgba(" new-color ", 0.1)"))
@@ -321,12 +321,12 @@ the entire selection rather than just the cursor position."
           (catch js/Error _
             (when (apply = position)
               (let [start (console/get-console-start console-history)]
-                (cursor/set-cursor-position! content [start start])
+                (dom/set-cursor-position! content [start start])
                 (mwm/update-cursor-position! edit-history [start start])))))
         (update-highlight! content last-highlight-elem))
       (reset-edit-history! [this start]
         (console/update-console-start! console-history start)
-        (cursor/set-cursor-position! content [start start])
+        (dom/set-cursor-position! content [start start])
         (let [new-edit-history (mwm/create-edit-history)
               state {:cursor-position [start start]
                      :text (.-textContent content)}]
@@ -354,7 +354,7 @@ the entire selection rather than just the cursor position."
           (let [text (.-textContent content)
                 pre-text (subs text 0 (console/get-console-start console-history))
                 line (or (console/up! console-history) "")
-                state {:cursor-position (cursor/get-cursor-position content false)
+                state {:cursor-position (dom/get-cursor-position content false)
                        :text (str pre-text line \newline)}]
             (->> state
                  (update-edit-history! edit-history)
@@ -364,7 +364,7 @@ the entire selection rather than just the cursor position."
           (let [text (.-textContent content)
                 pre-text (subs text 0 (console/get-console-start console-history))
                 line (or (console/down! console-history) "")
-                state {:cursor-position (cursor/get-cursor-position content false)
+                state {:cursor-position (dom/get-cursor-position content false)
                        :text (str pre-text line \newline)}]
             (->> state
                  (update-edit-history! edit-history)
@@ -475,7 +475,7 @@ the entire selection rather than just the cursor position."
             (cond
               (key-name? event :arrows)
               (update-cursor-position! editor
-                (cursor/get-cursor-position content false))
+                (dom/get-cursor-position content false))
               (key-name? event :general)
               (refresh-after-key-event! editor event))
             "cut"
@@ -484,7 +484,7 @@ the entire selection rather than just the cursor position."
             (refresh-after-cut-paste! editor)
             "mouseup"
             (update-cursor-position! editor
-              (cursor/get-cursor-position content (some? (:console-callback opts))))
+              (dom/get-cursor-position content (some? (:console-callback opts))))
             "mouseenter"
             (show-error-message! paren-soup event)
             "mouseleave"
@@ -505,7 +505,7 @@ the entire selection rather than just the cursor position."
 (defn ^:export append-text [editor text] (append-text! editor text))
 (defn ^:export eval [editor form callback] (eval! editor form callback))
 (defn ^:export debounce-function [f millis] (debounce f millis))
-(defn ^:export focused-text [] (some-> (cursor/get-focused-form) .-textContent))
+(defn ^:export focused-text [] (some-> (dom/get-focused-form) .-textContent))
 (defn ^:export selected-text []
   (let [s (-> js/window .getSelection .toString)]
     (when-not (empty? s) s)))
