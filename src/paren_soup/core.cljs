@@ -105,14 +105,29 @@
   [cropped-state]
   (let [{:keys [element]} cropped-state
         parent (.-parentElement element)
+        ; find the last error after the element
+        last-elem (.-lastChild parent)
+        last-error (loop [current-elem last-elem]
+                     (cond
+                       (dom/error-node? current-elem)
+                       current-elem
+                       (or (nil? current-elem)
+                           (= element current-elem))
+                       nil
+                       :else
+                       (recur (.-previousSibling current-elem))))
         ; find all elements that should be refreshed
         old-elems (loop [elems [element]
                          current-elem element]
-                    (if (or (dom/text-node? current-elem)
-                            (dom/error-node? current-elem))
+                    (cond
+                      (= last-error current-elem)
+                      elems
+                      (or (some? last-error)
+                          (dom/text-node? current-elem))
                       (if-let [sibling (.-nextSibling current-elem)]
                         (recur (conj elems sibling) sibling)
                         elems)
+                      :else
                       elems))
         ; add old elems' text to the string
         text (join (map #(.-textContent %) old-elems))
@@ -134,19 +149,15 @@
 (defn refresh-content!
   "Refreshes the content."
   [content state]
-  (let [crop (:cropped-state state)
-        errors? (->> (.querySelectorAll content ".error")
-                     array-seq
-                     (some #(= "inline-block" (-> % .-style .-display))))]
-    (if (and crop (not errors?))
-      (let [crop (refresh-content-element! crop)]
-        ; if there were changes outside the node, we need to run it on the whole document instead
-        (if (not= (:text state) (.-textContent content))
-          (refresh-content! content (dissoc state :cropped-state))
-          (assoc state :cropped-state crop)))
-      (do
-        (set! (.-innerHTML content) (hs/code->html (:text state)))
-        (dissoc state :cropped-state)))))
+  (if-let [crop (:cropped-state state)]
+    (let [crop (refresh-content-element! crop)]
+      ; if there were changes outside the node, we need to run it on the whole document instead
+      (if (not= (:text state) (.-textContent content))
+        (refresh-content! content (dissoc state :cropped-state))
+        (assoc state :cropped-state crop)))
+    (do
+      (set! (.-innerHTML content) (hs/code->html (:text state)))
+      (dissoc state :cropped-state))))
 
 (defn refresh-console-content! [content state console-start-num clj?]
   (set! (.-innerHTML content)
