@@ -4,6 +4,5 @@ pom.xml
 pom.xml.asc
 **/gen
 **/target
-*~
 .*
-main.js
+!.gitignore
