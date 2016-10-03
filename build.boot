@@ -42,6 +42,10 @@
   (set-env! :source-paths #{"src"} :resource-paths #{"resources" "prod-resources"})
   (comp (cljs :optimizations :advanced) (target)))
 
+(deftask local []
+  (set-env! :source-paths #{} :resource-paths #{"src" "resources" "prod-resources"})
+  (comp (pom) (jar) (install)))
+
 (deftask deploy []
   (set-env! :source-paths #{} :resource-paths #{"src" "resources" "prod-resources"})
   (comp (pom) (jar) (push)))
