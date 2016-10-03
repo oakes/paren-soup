@@ -395,8 +395,9 @@ the entire selection rather than just the cursor position."
           (some-> (.querySelector paren-soup ".numbers")
                   (refresh-numbers! (count (re-seq #"\n" (:text state)))))
           (when clj?
-            (some-> (.querySelector paren-soup ".instarepl")
-                    (refresh-instarepl-with-delay! content eval-worker))))
+            (when-let [elem (.querySelector paren-soup ".instarepl")]
+              (when-not (-> elem .-style .-display (= "none"))
+                (refresh-instarepl-with-delay! elem content eval-worker)))))
         (update-highlight! content last-highlight-elem))
       (edit-and-refresh! [this state]
         (->> state
