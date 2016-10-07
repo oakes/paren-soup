@@ -121,11 +121,8 @@ of the selection (it is, however, much slower)."
           prefix-start (- pos cursor-offset)
           text (.-textContent top-level-elem)]
       {:ns (get-nearest-ns top-level-elem)
-       :context
-       (str
-         (subs text 0 prefix-start)
-         "__prefix__"
-         (subs text (+ prefix-start symbol-length)))
+       :context-before (subs text 0 prefix-start)
+       :context-after (subs text (+ prefix-start symbol-length))
        :start-position prefix-start})))
 
 (defn get-completion-info []
