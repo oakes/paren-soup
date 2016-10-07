@@ -427,7 +427,7 @@ the entire selection rather than just the cursor position."
              (edit-and-refresh! this)))
       (eval! [this form callback]
         (when-not eval-worker
-          (throw (js/Error. "Can't find " + compiler-file)))
+          (throw (js/Error. "Can't find " compiler-file)))
         (set! (.-onmessage eval-worker)
           (fn [e]
             (let [results (.-data e)]
