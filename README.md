@@ -1,3 +1,5 @@
+[![Clojars Project](https://img.shields.io/clojars/v/paren-soup.svg)](https://clojars.org/paren-soup)
+
 ## Introduction
 
 A library providing a ClojureScript viewer and editor that you can embed in any website. No, that was not a complete sentence. And neither is this. Be a rebel, like me, by using paren-soup. CodeMirror is nice if you want to support other languages, but why would you?
