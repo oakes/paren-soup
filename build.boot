@@ -4,9 +4,9 @@
                   [pandeiro/boot-http "0.7.3" :scope "test"]
                   [org.clojure/test.check "0.9.0" :scope "test"]
                   ; project deps
-                  [mistakes-were-made "1.6.5-SNAPSHOT"]
-                  [html-soup "1.2.4-SNAPSHOT"]
-                  [cross-parinfer "1.1.11-SNAPSHOT"]
+                  [mistakes-were-made "1.6.5"]
+                  [html-soup "1.2.4"]
+                  [cross-parinfer "1.1.12"]
                   [cljsjs/rangy-core "1.3.0-1"]
                   [cljsjs/rangy-textrange "1.3.0-1"]
                   [org.clojure/clojurescript "1.9.225"]
