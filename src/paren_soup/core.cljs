@@ -470,39 +470,40 @@ the entire selection rather than just the cursor position."
     (go
       (while true
         (let [event (<! events-chan)]
-          (case (.-type event)
-            "keydown"
-            (cond
-              (and (key-name? event :undo-or-redo) (-> opts :disable-undo-redo? not))
-              (if (.-shiftKey event) (redo! editor) (undo! editor))
-              (key-name? event :enter)
-              (enter! editor)
-              (key-name? event :up-arrow)
-              (up! editor)
-              (key-name? event :down-arrow)
-              (down! editor)
-              (key-name? event :tab)
-              (tab! editor))
-            "keyup"
-            (cond
-              (key-name? event :arrows)
+          (when-not (some-> opts :before-change-callback (#(% event)))
+            (case (.-type event)
+              "keydown"
+              (cond
+                (and (key-name? event :undo-or-redo) (-> opts :disable-undo-redo? not))
+                (if (.-shiftKey event) (redo! editor) (undo! editor))
+                (key-name? event :enter)
+                (enter! editor)
+                (key-name? event :up-arrow)
+                (up! editor)
+                (key-name? event :down-arrow)
+                (down! editor)
+                (key-name? event :tab)
+                (tab! editor))
+              "keyup"
+              (cond
+                (key-name? event :arrows)
+                (update-cursor-position! editor
+                  (dom/get-cursor-position content false))
+                (key-name? event :general)
+                (refresh-after-key-event! editor event))
+              "cut"
+              (refresh-after-cut-paste! editor)
+              "paste"
+              (refresh-after-cut-paste! editor)
+              "mouseup"
               (update-cursor-position! editor
-                (dom/get-cursor-position content false))
-              (key-name? event :general)
-              (refresh-after-key-event! editor event))
-            "cut"
-            (refresh-after-cut-paste! editor)
-            "paste"
-            (refresh-after-cut-paste! editor)
-            "mouseup"
-            (update-cursor-position! editor
-              (dom/get-cursor-position content (some? (:console-callback opts))))
-            "mouseenter"
-            (show-error-message! paren-soup event)
-            "mouseleave"
-            (hide-error-messages! paren-soup)
-            nil)
-          (some-> opts :change-callback (apply [event])))))
+                (dom/get-cursor-position content (some? (:console-callback opts))))
+              "mouseenter"
+              (show-error-message! paren-soup event)
+              "mouseleave"
+              (hide-error-messages! paren-soup)
+              nil)
+            (some-> opts :change-callback (#(% event)))))))
     ; return editor
     editor))
 
