@@ -50,15 +50,22 @@ of the selection (it is, however, much slower)."
           ranges (array range)]
       (.restoreCharacterRanges selection element ranges))))
 
+(defn get-parent
+  "Returns the nearest parent with the given class name."
+  [node class-name]
+  (loop [node node]
+    (when-let [parent (.-parentElement node)]
+      (if (.contains (.-classList parent) class-name)
+        parent
+        (recur parent)))))
+
 (defn get-parents
-  "Returns the parents of the given node."
-  [node]
+  "Returns all the parents with the given class name."
+  [node class-name]
   (loop [node node
          nodes '()]
-    (if-let [parent (.-parentElement node)]
-      (if (.contains (.-classList parent) "collection")
-        (recur parent (conj nodes parent))
-        (recur parent nodes))
+    (if-let [parent (get-parent node class-name)]
+      (recur parent (conj nodes parent))
       nodes)))
 
 (defn text-node?
@@ -76,8 +83,8 @@ of the selection (it is, however, much slower)."
 (defn common-ancestor
   "Returns the common ancestor of the given nodes."
   [first-node second-node]
-  (let [first-parent (first (get-parents first-node))
-        second-parent (first (get-parents second-node))]
+  (let [first-parent (first (get-parents first-node "collection"))
+        second-parent (first (get-parents second-node "collection"))]
     (cond
       ; a parent element
       (and first-parent second-parent (= first-parent second-parent))
@@ -88,6 +95,45 @@ of the selection (it is, however, much slower)."
            (top-level? first-node))
       first-node)))
 
-(defn get-focused-form []
-  (some-> js/rangy .getSelection .-anchorNode get-parents last))
+(defn get-focused-elem [class-name]
+  (some-> js/rangy .getSelection .-anchorNode (get-parent class-name)))
+
+(def get-focused-form #(get-focused-elem "collection"))
+
+(defn get-nearest-ns [node]
+  (loop [node node]
+    (if (some-> node .-childNodes (.item 1) .-textContent (= "ns"))
+      (some-> node .-childNodes (.item 3) .-textContent symbol)
+      (when-let [sibling (.-previousSibling node)]
+        (recur sibling)))))
+
+(defn get-focused-top-level []
+  (when-let [node (some-> js/rangy .getSelection .-anchorNode)]
+    (loop [node node]
+      (if (top-level? node)
+        node
+        (when-let [parent (.-parentElement node)]
+          (recur parent))))))
+
+(defn get-completion-context [symbol-length cursor-offset]
+  (when-let [top-level-elem (get-focused-top-level)]
+    (let [pos (-> top-level-elem (get-cursor-position false) first)
+          prefix-start (- pos cursor-offset)
+          text (.-textContent top-level-elem)]
+      {:ns (get-nearest-ns top-level-elem)
+       :context
+       (str
+         (subs text 0 prefix-start)
+         "__prefix__"
+         (subs text (+ prefix-start symbol-length)))
+       :start-position prefix-start})))
+
+(defn get-completion-info []
+  (when-let [prefix-elem (get-focused-elem "symbol")]
+    (let [pos (-> prefix-elem (get-cursor-position false) first)
+          text (.-textContent prefix-elem)
+          prefix (subs text 0 pos)]
+      (assoc (get-completion-context (count text) (count prefix))
+        :text text
+        :prefix prefix))))
 
