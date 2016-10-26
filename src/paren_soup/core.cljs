@@ -294,10 +294,10 @@ the entire selection rather than just the cursor position."
 (defn create-editor [paren-soup content events-chan
                      {:keys [history-limit append-limit compiler-fn console-callback disable-clj?]
                       :or {history-limit 100
-                           append-limit 5000
-                           compiler-fn (ir/create-compiler-fn)}}]
+                           append-limit 5000}}]
   (let [clj? (not disable-clj?)
         editor? (not console-callback)
+        compiler-fn (or compiler-fn (ir/create-compiler-fn))
         edit-history (doto (mwm/create-edit-history)
                        (swap! assoc :limit history-limit))
         refresh-instarepl-with-delay! (debounce refresh-instarepl! 300)
