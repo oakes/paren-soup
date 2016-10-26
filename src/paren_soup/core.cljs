@@ -65,20 +65,17 @@
 
 (defn refresh-instarepl!
   "Refreshes the InstaREPL."
-  [instarepl content eval-worker]
+  [instarepl content compiler-fn]
   (let [elems (ir/get-collections content)
         locations (ir/elems->locations elems (.-offsetTop instarepl))
         forms (->> elems
                    (map ir/collection->content)
-                   (map #(replace % \u00a0 " "))
-                   into-array)]
-    (set! (.-onmessage eval-worker)
-          (fn [e]
-            (let [results (.-data e)]
-              (when (.-parentElement instarepl)
-                (set! (.-innerHTML instarepl)
-                      (ir/results->html results locations))))))
-    (.postMessage eval-worker forms)))
+                   (map #(replace % \u00a0 " ")))]
+    (compiler-fn forms
+      (fn [results]
+        (when (.-parentElement instarepl)
+          (set! (.-innerHTML instarepl)
+                (ir/results->html results locations)))))))
 
 (defn post-refresh-content!
   "Does additional work on the content after it is rendered."
@@ -295,14 +292,12 @@ the entire selection rather than just the cursor position."
   (eval! [this form callback]))
 
 (defn create-editor [paren-soup content events-chan
-                     {:keys [history-limit append-limit compiler-file console-callback disable-clj?]
+                     {:keys [history-limit append-limit compiler-fn console-callback disable-clj?]
                       :or {history-limit 100
                            append-limit 5000
-                           compiler-file "paren-soup-compiler.js"}}]
+                           compiler-fn (ir/create-compiler-fn)}}]
   (let [clj? (not disable-clj?)
         editor? (not console-callback)
-        eval-worker (try (js/Worker. compiler-file)
-                      (catch js/Error _))
         edit-history (doto (mwm/create-edit-history)
                        (swap! assoc :limit history-limit))
         refresh-instarepl-with-delay! (debounce refresh-instarepl! 300)
@@ -397,7 +392,7 @@ the entire selection rather than just the cursor position."
           (when clj?
             (when-let [elem (.querySelector paren-soup ".instarepl")]
               (when-not (-> elem .-style .-display (= "none"))
-                (refresh-instarepl-with-delay! elem content eval-worker)))))
+                (refresh-instarepl-with-delay! elem content compiler-fn)))))
         (update-highlight! content last-highlight-elem))
       (edit-and-refresh! [this state]
         (->> state
@@ -426,13 +421,7 @@ the entire selection rather than just the cursor position."
              (add-parinfer clj? (console/get-console-start console-history) (if editor? :indent :both))
              (edit-and-refresh! this)))
       (eval! [this form callback]
-        (when-not eval-worker
-          (throw (js/Error. "Can't find " compiler-file)))
-        (set! (.-onmessage eval-worker)
-          (fn [e]
-            (let [results (.-data e)]
-              (callback (aget results 0)))))
-        (.postMessage eval-worker (array form))))))
+        (compiler-fn [form] #(callback (first %)))))))
 
 (defn prevent-default? [event opts]
   (or (key-name? event :undo-or-redo)

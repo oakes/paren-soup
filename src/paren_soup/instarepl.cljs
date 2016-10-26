@@ -54,3 +54,11 @@
         content)
       content)))
 
+(defn create-compiler-fn []
+  (try
+    (let [eval-worker (js/Worker. "paren-soup-compiler.js")]
+      (fn [coll receive-fn]
+        (set! (.-onmessage eval-worker) #(receive-fn (vec (.-data %))))
+        (.postMessage eval-worker (into-array coll))))
+    (catch js/Error _ (fn [_ _] (throw js/Error "Can't compile!")))))
+
