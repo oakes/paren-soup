@@ -32,7 +32,7 @@
   (doseq [elem (-> parent-elem (.querySelectorAll ".error-text") array-seq)]
     (.removeChild parent-elem elem)))
 
-(def ^:const rainbow-count 10)
+(def ^:const rainbow-count 5)
 
 (defn rainbow-delimiters
   "Returns a map of elements and class names."
