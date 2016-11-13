@@ -68,6 +68,10 @@ of the selection (it is, however, much slower)."
   [node]
   (some-> node .-classList (.contains "error")))
 
+(defn coll-node?
+  [node]
+  (some-> node .-classList (.contains "collection")))
+
 (defn top-level?
   [node]
   (some-> node .-parentElement .-classList (.contains "content")))

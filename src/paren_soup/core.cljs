@@ -102,7 +102,7 @@
   [cropped-state]
   (let [{:keys [element]} cropped-state
         parent (.-parentElement element)
-        ; find the last error after the element
+        ; find the last element to refresh
         last-elem (.-lastChild parent)
         last-error (loop [current-elem last-elem]
                      (cond
@@ -113,13 +113,20 @@
                        nil
                        :else
                        (recur (.-previousSibling current-elem))))
+        last-elem-to-refresh (when last-error
+                               (loop [current-elem last-error]
+                                 (if-let [sibling (.-nextSibling current-elem)]
+                                   (if (dom/coll-node? sibling)
+                                     current-elem
+                                     (recur sibling))
+                                   current-elem)))
         ; find all elements that should be refreshed
         old-elems (loop [elems [element]
                          current-elem element]
                     (cond
-                      (= last-error current-elem)
+                      (= last-elem-to-refresh current-elem)
                       elems
-                      (or (some? last-error)
+                      (or (some? last-elem-to-refresh)
                           (dom/text-node? current-elem))
                       (if-let [sibling (.-nextSibling current-elem)]
                         (recur (conj elems sibling) sibling)
