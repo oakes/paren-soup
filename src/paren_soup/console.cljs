@@ -14,11 +14,10 @@
 (defn update-console-history!
   "Updates the console history atom."
   [console-history line]
-  (let [{:keys [current-line lines]} @console-history
-        old-line (get lines current-line)]
+  (let [{:keys [current-line lines]} @console-history]
     (swap! console-history
       (fn [console-history-map]
-        (let [lines (if (and (seq line) (not= line old-line))
+        (let [lines (if (and (seq line) (not= line (last lines)))
                       (conj lines line)
                       lines)]
           (assoc console-history-map
