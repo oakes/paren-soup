@@ -55,10 +55,10 @@ of the selection (it is, however, much slower)."
   "Returns all the parents with the given class name."
   [node class-name]
   (loop [node node
-         nodes '()]
+         elems '()]
     (if-let [parent (get-parent node class-name)]
-      (recur parent (conj nodes parent))
-      nodes)))
+      (recur parent (conj elems parent))
+      elems)))
 
 (defn text-node?
   [node]
