@@ -4,12 +4,12 @@
                   [pandeiro/boot-http "0.7.3" :scope "test"]
                   [org.clojure/test.check "0.9.0" :scope "test"]
                   ; project deps
-                  [mistakes-were-made "1.6.6"]
-                  [html-soup "1.2.5"]
-                  [cross-parinfer "1.1.13"]
+                  [mistakes-were-made "1.7.0"]
+                  [html-soup "1.3.0"]
+                  [cross-parinfer "1.2.0"]
                   [cljsjs/rangy-core "1.3.0-1"]
                   [cljsjs/rangy-textrange "1.3.0-1"]
-                  [org.clojure/clojurescript "1.9.225" :scope "provided"]
+                  [org.clojure/clojurescript "1.9.293" :scope "provided"]
                   [org.clojure/core.async "0.2.395"]]
   :repositories (conj (get-env :repositories)
                   ["clojars" {:url "https://clojars.org/repo/"
