@@ -2,6 +2,7 @@
   (:require [mistakes-were-made.core-spec]
             [html-soup.core-spec]
             [cross-parinfer.core-spec]
+            [paren-soup.console-spec]
             [paren-soup.core :as c]
             [clojure.spec :as s :refer [fdef]]
             [cljs.spec.test :refer [instrument]]))
