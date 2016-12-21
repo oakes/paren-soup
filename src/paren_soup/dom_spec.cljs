@@ -2,28 +2,27 @@
   (:require [paren-soup.dom :as d]
             [clojure.spec :as s :refer [fdef]]))
 
-(def elem? #(instance? js/Element %))
 (def node? #(instance? js/Node %))
 (def position? (s/coll-of number?))
 
 (fdef d/get-selection
-  :args (s/cat :element elem? :full-selection? boolean?)
+  :args (s/cat :element node? :full-selection? boolean?)
   :ret map?)
 
 (fdef d/get-cursor-position
-  :args (s/cat :element elem? :full-selection? boolean?)
+  :args (s/cat :element node? :full-selection? boolean?)
   :ret (s/coll-of position?))
 
 (fdef d/set-cursor-position!
-  :args (s/cat :element elem? :position position?))
+  :args (s/cat :element node? :position position?))
 
 (fdef d/get-parent
   :args (s/cat :node node? :class-name string?)
-  :ret (s/nilable elem?))
+  :ret (s/nilable node?))
 
 (fdef d/get-parents
   :args (s/cat :node node? :class-name string?)
-  :ret (s/coll-of elem?))
+  :ret (s/coll-of node?))
 
 (fdef d/text-node?
   :args (s/cat :node node?)
