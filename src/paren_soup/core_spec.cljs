@@ -24,7 +24,7 @@
   :args (s/alt
           :two-args (s/cat :parent elem? :level number?)
           :three-args (s/cat :parent elem? :level number? :m transient-map?))
-  :ret (s/or map? transient-map?))
+  :ret (s/or :two-args map? :three-args transient-map?))
 
 (fdef c/line-numbers
   :args (s/cat :line-count number?)
