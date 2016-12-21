@@ -1,5 +1,5 @@
 (ns paren-soup.core-spec
-  (:require [mistakes-were-made.core-spec]
+  (:require [mistakes-were-made.core-spec :refer [atom?]]
             [html-soup.core-spec]
             [cross-parinfer.core-spec]
             [paren-soup.console-spec]
@@ -8,6 +8,9 @@
             [paren-soup.core :as c]
             [clojure.spec :as s :refer [fdef]]))
 
+(def channel? any?) ; TODO
+(def transient-map? #(or (instance? cljs.core/TransientArrayMap %)
+                         (instance? cljs.core/TransientHashMap %)))
 (def elem? #(instance? js/Element %))
 (def obj? #(instance? js/Object %))
 
@@ -20,7 +23,7 @@
 (fdef c/rainbow-delimiters
   :args (s/alt
           :two-args (s/cat :parent elem? :level number?)
-          :three-args (s/cat :parent elem? :level number? :m any?))
+          :three-args (s/cat :parent elem? :level number? :m transient-map?))
   :ret map?)
 
 (fdef c/line-numbers
@@ -34,7 +37,7 @@
   :args (s/cat :instarepl elem? :content elem? :compiler-fn fn?))
 
 (fdef c/post-refresh-content!
-  :args (s/cat :content elem? :events-chan any? :state map?))
+  :args (s/cat :content elem? :events-chan channel? :state map?))
 
 (fdef c/refresh-content-element!
   :args (s/cat :cropped-state map?))
@@ -66,18 +69,18 @@
   :ret map?)
 
 (fdef c/update-edit-history!
-  :args (s/cat :edit-history any? :state map?)
+  :args (s/cat :edit-history atom? :state map?)
   :ret map?)
 
 (fdef c/update-highlight!
-  :args (s/cat :content elem? :last-elem any?))
+  :args (s/cat :content elem? :last-elem atom?))
 
 (fdef c/key-name?
   :args (s/cat :event obj? :key-name keyword?)
   :ret boolean?)
 
 (fdef c/create-editor
-  :args (s/cat :paren-soup elem? :content elem? :events-chan any? :opts map?)
+  :args (s/cat :paren-soup elem? :content elem? :events-chan channel? :opts map?)
   :ret #(instance? c/Editor %))
 
 (fdef c/prevent-default?
@@ -85,7 +88,7 @@
   :ret boolean?)
 
 (fdef c/add-event-listeners!
-  :args (s/cat :content elem? :events-chan any? :opts map?))
+  :args (s/cat :content elem? :events-chan channel? :opts map?))
 
 (fdef c/init
   :args (s/cat :paren-soup elem? :opts obj?))
