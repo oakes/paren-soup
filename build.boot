@@ -4,7 +4,7 @@
                   [pandeiro/boot-http "0.7.3" :scope "test"]
                   [org.clojure/test.check "0.9.0" :scope "test"]
                   ; project deps
-                  [mistakes-were-made "1.7.0"]
+                  [mistakes-were-made "1.7.1"]
                   [html-soup "1.3.0"]
                   [cross-parinfer "1.2.0"]
                   [cljsjs/rangy-core "1.3.0-1"]
