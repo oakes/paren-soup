@@ -1,9 +1,9 @@
 (ns paren-soup.dom-spec
   (:require [paren-soup.dom :as d]
+            [mistakes-were-made.core-spec :as mm]
             [clojure.spec :as s :refer [fdef]]))
 
 (def node? #(instance? js/Node %))
-(def position? (s/coll-of number?))
 
 (fdef d/get-selection
   :args (s/cat :element node? :full-selection? boolean?)
@@ -11,10 +11,10 @@
 
 (fdef d/get-cursor-position
   :args (s/cat :element node? :full-selection? boolean?)
-  :ret (s/coll-of position?))
+  :ret ::mm/cursor-position)
 
 (fdef d/set-cursor-position!
-  :args (s/cat :element node? :position position?))
+  :args (s/cat :element node? :position ::mm/cursor-position))
 
 (fdef d/get-parent
   :args (s/cat :node node? :class-name string?)
