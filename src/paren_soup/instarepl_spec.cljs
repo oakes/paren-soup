@@ -9,7 +9,7 @@
   :ret (s/coll-of map?))
 
 (fdef i/results->html
-  :args (s/cat :results (s/coll-of (s/or :error array? :success string?)) :locations (s/coll-of map?))
+  :args (s/cat :results array? :locations (s/coll-of map?))
   :ret (s/coll-of string?))
 
 (fdef i/get-collections
