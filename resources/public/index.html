@@ -26,8 +26,10 @@
 
 (map inc [0 1 2 3 4])
 
-(def my-transducer (comp (map inc) (filter odd?)))
-(sequence my-transducer (range 10))
+; try renaming this var! the indentation will be fixed automatically.
+(def nums [1
+           2
+           3])
 
 ; try uncommenting this! infinite loops should safely time out.
 ;(while true)</div>

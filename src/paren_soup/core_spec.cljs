@@ -49,19 +49,15 @@
   :args (s/cat :content elem? :state map? :console-start-num number? :clj? boolean?))
 
 (fdef c/add-parinfer-after-console-start
-  :args (s/cat :console-start-num number? :mode-type keyword? :state map?)
+  :args (s/cat :console-start-num number? :state map?)
   :ret map?)
 
 (fdef c/add-parinfer
-  :args (s/cat :enable? boolean? :console-start-num number? :mode-type keyword? :state map?)
+  :args (s/cat :enable? boolean? :console-start-num number? :state map?)
   :ret map?)
 
 (fdef c/add-newline
   :args (s/cat :state map?)
-  :ret map?)
-
-(fdef c/adjust-indent
-  :args (s/cat :enable? boolean? :state map?)
   :ret map?)
 
 (fdef c/init-state

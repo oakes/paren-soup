@@ -10,7 +10,8 @@
             [cross-parinfer.core :as cp]
             [paren-soup.console :as console]
             [paren-soup.instarepl :as ir]
-            [paren-soup.dom :as dom])
+            [paren-soup.dom :as dom]
+            [goog.dom :as gdom])
   (:require-macros [cljs.core.async.macros :refer [go]]))
 
 (defn show-error-message!
@@ -100,7 +101,7 @@
 (defn refresh-content-element!
   "Replaces a single node in the content, and siblings if necessary."
   [cropped-state]
-  (let [{:keys [element]} cropped-state
+  (let [{:keys [element text]} cropped-state
         parent (.-parentElement element)
         ; find the last element to refresh
         last-elem (.-lastChild parent)
@@ -134,6 +135,7 @@
                       :else
                       elems))
         ; add old elems' text to the string
+        _ (gdom/setTextContent element text)
         text (join (map #(.-textContent %) old-elems))
         ; create temporary element
         temp-elem (.createElement js/document "span")
@@ -170,51 +172,37 @@
             post-text (subs (:text state) console-start-num)]
         (str (hs/escape-html-str pre-text) (hs/code->html post-text)))
       (hs/escape-html-str (:text state))))
-  (dissoc state :cropped-state))
+  state)
 
-(defn add-parinfer-after-console-start [console-start-num mode-type state]
+(defn add-parinfer-after-console-start [console-start-num state]
   (let [pre-text (subs (:text state) 0 console-start-num)
         post-text (subs (:text state) console-start-num)
         cleared-text (str (replace pre-text #"[^\r^\n]" " ") post-text)
         temp-state (assoc state :text cleared-text)
-        temp-state (cp/add-parinfer mode-type temp-state)
+        temp-state (cp/add-parinfer :both state)
         new-text (str pre-text (subs (:text temp-state) console-start-num))]
     (assoc state :text new-text)))
 
-(defn add-parinfer
-  "Adds parinfer to the state."
-  [enable? console-start-num mode-type state]
+(defn add-parinfer [enable? console-start-num state]
   (if enable?
-    (let [state (if (pos? console-start-num)
-                  (add-parinfer-after-console-start console-start-num mode-type state)
-                  (cp/add-parinfer mode-type state))]
-      (if-let [crop (:cropped-state state)]
+    (let [cropped-state (:cropped-state state)
+          indent-type (:indent-type state)
+          state (cond
+                  (pos? console-start-num)
+                  (add-parinfer-after-console-start console-start-num state)
+                  indent-type
+                  (cp/add-indent state)
+                  :else
+                  (cp/add-parinfer :paren state))]
+      (if (and cropped-state indent-type)
         (assoc state :cropped-state
-          (merge crop (cp/add-parinfer mode-type crop)))
+          (merge cropped-state (cp/add-indent (assoc cropped-state :indent-type indent-type))))
         state))
     state))
 
 (defn add-newline [{:keys [text] :as state}]
   (if-not (= \newline (last text))
     (assoc state :text (str text \newline))
-    state))
-
-(defn adjust-indent
-  "Adds a newline and indentation to the state if necessary."
-  [enable? state]
-  (if enable?
-    (let [{:keys [indent-type cropped-state]} state
-          ; fix indentation of the state
-          state (if indent-type
-                  (cp/add-indent state)
-                  state)
-          ; fix indentation of the cropped state
-          state (if (and indent-type cropped-state)
-                  (assoc state :cropped-state
-                    (merge cropped-state
-                      (cp/add-indent (assoc cropped-state :indent-type indent-type))))
-                  state)]
-      state)
     state))
 
 (defn init-state
@@ -321,9 +309,9 @@ the entire selection rather than just the cursor position."
     ; reify the protocol
     (reify Editor
       (undo! [this]
-        (some->> edit-history mwm/undo! add-newline (adjust-indent editor?) (refresh! this)))
+        (some->> edit-history mwm/undo! (refresh! this)))
       (redo! [this]
-        (some->> edit-history mwm/redo! add-newline (adjust-indent editor?) (refresh! this)))
+        (some->> edit-history mwm/redo! (refresh! this)))
       (can-undo? [this]
         (mwm/can-undo? edit-history))
       (can-redo? [this]
@@ -352,7 +340,7 @@ the entire selection rather than just the cursor position."
               char-count (max 0 (- (count all-text) append-limit))
               new-all-text (subs all-text char-count)]
           (when (not= all-text new-all-text)
-            (set! (.-textContent content) new-all-text))
+            (gdom/setTextContent content new-all-text))
           (reset-edit-history! this (count new-all-text))))
       (enter! [this]
         (if editor?
@@ -404,29 +392,26 @@ the entire selection rather than just the cursor position."
       (edit-and-refresh! [this state]
         (->> state
              (add-newline)
-             (adjust-indent editor?)
+             (add-parinfer clj? (console/get-console-start console-history))
              (update-edit-history! edit-history)
              (refresh! this)))
       (initialize! [this]
         (when editor?
-          (->> (init-state content true false)
-               (add-parinfer clj? (console/get-console-start console-history) :paren)
+          (->> (init-state content false false)
                (edit-and-refresh! this))))
       (refresh-after-key-event! [this event]
         (let [tab? (key-name? event :tab)
-              state (init-state content true tab?)]
+              state (init-state content editor? tab?)]
           (when-not (and tab? (not @allow-tab?))
             (edit-and-refresh! this
               (case (.-keyCode event)
                 13 (assoc state :indent-type :return)
                 9 (assoc state :indent-type (if (.-shiftKey event) :back :forward))
-                (add-parinfer clj? (console/get-console-start console-history) :indent state))))
+                (assoc state :indent-type :normal))))
           (when tab?
             (reset! allow-tab? false))))
       (refresh-after-cut-paste! [this]
-        (->> (init-state content false false)
-             (add-parinfer clj? (console/get-console-start console-history) (if editor? :indent :both))
-             (edit-and-refresh! this)))
+        (edit-and-refresh! this (assoc (init-state content editor? false) :indent-type :normal)))
       (eval! [this form callback]
         (compiler-fn [form] #(callback (first %)))))))
 

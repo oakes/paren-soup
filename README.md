@@ -13,6 +13,7 @@ Here are the features:
 * Rainbow delimiters
 * Inline reader errors
 * InstaREPL (à la Light Table)
+* Automatic indentation fixing (like [aggressive-indent-mode](https://github.com/Malabarba/aggressive-indent-mode))
 * [Console mode](http://oakes.github.io/paren-soup/repl.html)
 
 To use paren-soup in your own website, just go to [the releases section](https://github.com/oakes/paren-soup/releases) and download the latest files. In your HTML, link to one of the CSS files and use the following markup:
