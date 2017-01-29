@@ -1,6 +1,6 @@
 (set-env!
   :source-paths #{"src"}
-  :dependencies '[[adzerk/boot-cljs "1.7.228-1" :scope "test"]
+  :dependencies '[[adzerk/boot-cljs "1.7.228-2" :scope "test"]
                   ; project deps
                   [org.clojure/clojurescript "1.9.456"]
                   [eval-soup "1.2.0"]])
