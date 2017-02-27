@@ -239,33 +239,38 @@ the entire selection rather than just the cursor position."
         (set! (.-backgroundColor (.-style elem)) (str "rgba(" new-color ", 0.1)"))
         (reset! last-elem elem)))))
 
+(defn key-code [event]
+  (let [code (.-keyCode event)]
+    (if (pos? code) code (.-which event))))
+
 (defn key-name?
   "Returns true if the supplied key event involves the key(s) described by key-name."
   [event key-name]
-  (case key-name
-    :undo-or-redo
-    (and (or (.-metaKey event) (.-ctrlKey event))
-       (= (.-keyCode event) 90))
-    :tab
-    (= (.-keyCode event) 9)
-    :enter
-    (= (.-keyCode event) 13)
-    :arrows
-    (contains? #{37 38 39 40} (.-keyCode event))
-    :up-arrow
-    (= (.-keyCode event) 38)
-    :down-arrow
-    (= (.-keyCode event) 40)
-    :general
-    (not (or (contains? #{0 ; invalid (possible webkit bug)
-                          16 ; shift
-                          17 ; ctrl
-                          18 ; alt
-                          91 93} ; meta
-               (.-keyCode event))
-             (.-ctrlKey event)
-             (.-metaKey event)))
-    false))
+  (let [code (key-code event)]
+    (case key-name
+      :undo-or-redo
+      (and (or (.-metaKey event) (.-ctrlKey event))
+         (= code 90))
+      :tab
+      (= code 9)
+      :enter
+      (= code 13)
+      :arrows
+      (contains? #{37 38 39 40} code)
+      :up-arrow
+      (= code 38)
+      :down-arrow
+      (= code 40)
+      :general
+      (not (or (contains? #{0 ; invalid
+                            16 ; shift
+                            17 ; ctrl
+                            18 ; alt
+                            91 93} ; meta
+                 code)
+               (.-ctrlKey event)
+               (.-metaKey event)))
+      false)))
 
 (defprotocol Editor
   (undo! [this])
@@ -404,7 +409,7 @@ the entire selection rather than just the cursor position."
               state (init-state content editor? tab?)]
           (when-not (and tab? (not @allow-tab?))
             (edit-and-refresh! this
-              (case (.-keyCode event)
+              (case (key-code event)
                 13 (assoc state :indent-type :return)
                 9 (assoc state :indent-type (if (.-shiftKey event) :back :forward))
                 (assoc state :indent-type :normal))))
