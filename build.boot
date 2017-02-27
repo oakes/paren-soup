@@ -10,7 +10,7 @@
                   [cljsjs/rangy-core "1.3.0-1"]
                   [cljsjs/rangy-textrange "1.3.0-1"]
                   [org.clojure/clojurescript "1.9.493" :scope "provided"]
-                  [org.clojure/core.async "0.2.395"]]
+                  [org.clojure/core.async "0.3.441"]]
   :repositories (conj (get-env :repositories)
                   ["clojars" {:url "https://clojars.org/repo/"
                               :username (System/getenv "CLOJARS_USER")
