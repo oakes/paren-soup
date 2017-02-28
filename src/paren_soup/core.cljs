@@ -179,7 +179,7 @@
         post-text (subs (:text state) console-start-num)
         cleared-text (str (replace pre-text #"[^\r^\n]" " ") post-text)
         temp-state (assoc state :text cleared-text)
-        temp-state (cp/add-parinfer :both state)
+        temp-state (cp/add-parinfer :both temp-state)
         new-text (str pre-text (subs (:text temp-state) console-start-num))]
     (assoc state :text new-text)))
 
