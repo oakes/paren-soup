@@ -2,8 +2,8 @@
   :source-paths #{"src"}
   :dependencies '[[adzerk/boot-cljs "1.7.228-2" :scope "test"]
                   ; project deps
-                  [org.clojure/clojurescript "1.9.518"]
-                  [eval-soup "1.2.1"]])
+                  [org.clojure/clojurescript "1.9.660"]
+                  [eval-soup "1.2.2"]])
 
 (require
   '[adzerk.boot-cljs :refer [cljs]]

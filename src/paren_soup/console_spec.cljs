@@ -1,7 +1,7 @@
 (ns paren-soup.console-spec
   (:require [paren-soup.console :as c]
             [mistakes-were-made.core-spec :refer [atom?]]
-            [clojure.spec :as s :refer [fdef]]))
+            [clojure.spec.alpha :as s :refer [fdef]]))
 
 (fdef c/create-console-history
   :args (s/cat)

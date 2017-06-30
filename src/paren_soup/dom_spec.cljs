@@ -1,7 +1,7 @@
 (ns paren-soup.dom-spec
   (:require [paren-soup.dom :as d]
             [mistakes-were-made.core-spec :as mm]
-            [clojure.spec :as s :refer [fdef]]))
+            [clojure.spec.alpha :as s :refer [fdef]]))
 
 (def node? #(instance? js/Node %))
 

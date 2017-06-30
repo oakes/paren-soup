@@ -1,6 +1,6 @@
 (ns paren-soup.instarepl-spec
   (:require [paren-soup.instarepl :as i]
-            [clojure.spec :as s :refer [fdef]]))
+            [clojure.spec.alpha :as s :refer [fdef]]))
 
 (def elem? #(instance? js/Element %))
 

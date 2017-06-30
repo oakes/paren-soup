@@ -3,13 +3,14 @@
                   [adzerk/boot-reload "0.4.12" :scope "test"]
                   [pandeiro/boot-http "0.7.3" :scope "test"]
                   [org.clojure/test.check "0.9.0" :scope "test"]
+                  [org.clojure/clojure "1.8.0" :scope "provided"]
                   ; project deps
-                  [mistakes-were-made "1.7.1"]
-                  [html-soup "1.4.1"]
-                  [cross-parinfer "1.3.3"]
+                  [mistakes-were-made "1.7.3"]
+                  [html-soup "1.4.2"]
+                  [cross-parinfer "1.3.5"]
                   [cljsjs/rangy-core "1.3.0-1"]
                   [cljsjs/rangy-textrange "1.3.0-1"]
-                  [org.clojure/clojurescript "1.9.518" :scope "provided"]
+                  [org.clojure/clojurescript "1.9.660" :scope "provided"]
                   [org.clojure/core.async "0.3.442"]]
   :repositories (conj (get-env :repositories)
                   ["clojars" {:url "https://clojars.org/repo/"

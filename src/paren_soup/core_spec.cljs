@@ -6,7 +6,7 @@
             [paren-soup.dom-spec]
             [paren-soup.instarepl-spec]
             [paren-soup.core :as c]
-            [clojure.spec :as s :refer [fdef]]))
+            [clojure.spec.alpha :as s :refer [fdef]]))
 
 (def channel? any?) ; TODO
 (def transient-map? #(or (instance? cljs.core/TransientArrayMap %)
