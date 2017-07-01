@@ -30,6 +30,15 @@ To use paren-soup in your own website, just go to [the releases section](https:/
 ```
 If you just want a viewer, not an editor, leave out the `contenteditable` attribute. If you don’t want the instaREPL or line numbers, remove the relevant divs and they will not appear. To get the code out of the content element via JavaScript or ClojureScript, read its `textContent` property. There is no API to learn!
 
+If you want to use paren-soup in a ClojureScript project, add it to your project's dependencies (see version indicated at the top). Your HTML file will still need the markup shown above, except without the `script` tags. Instead, you can initialize it from your ClojureScript code like this:
+
+```clojure
+(ns my-project.core
+  (:require [paren-soup.core :as ps]))
+
+(ps/init-all)
+```
+
 ## Build Instructions
 
 I use [Boot](http://boot-clj.com/). To build the editor and run a server on http://localhost:3000, run `boot run`. To build a release version, run `boot build`.
