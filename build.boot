@@ -6,8 +6,8 @@
                   [org.clojure/clojure "1.8.0" :scope "provided"]
                   ; project deps
                   [mistakes-were-made "1.7.3"]
-                  [html-soup "1.4.4"]
-                  [cross-parinfer "1.3.7"]
+                  [html-soup "1.4.5"]
+                  [cross-parinfer "1.3.9"]
                   [cljsjs/rangy-core "1.3.0-1"]
                   [cljsjs/rangy-textrange "1.3.0-1"]
                   [org.clojure/clojurescript "1.9.671" :scope "provided"]
