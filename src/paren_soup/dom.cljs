@@ -1,4 +1,5 @@
-(ns paren-soup.dom)
+(ns paren-soup.dom
+  (:require [goog.object]))
 
 (defn get-selection
   "Returns the objects related to selection for the given element. If full-selection? is true,
@@ -11,8 +12,8 @@ of the selection (it is, however, much slower)."
      full-selection?
      (let [selection (.getSelection js/rangy)
            ranges (.saveCharacterRanges selection element)]
-       (if-let [char-range (some-> ranges (aget 0) (aget "characterRange"))]
-         [(aget char-range "start") (aget char-range "end")]
+       (if-let [char-range (some-> ranges (aget 0) (goog.object/get "characterRange"))]
+         [(goog.object/get char-range "start") (goog.object/get char-range "end")]
          [0 0]))
      (= 0 (.-rangeCount (.getSelection js/window)))
      [0 0]
