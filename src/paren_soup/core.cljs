@@ -10,8 +10,7 @@
             [cross-parinfer.core :as cp]
             [paren-soup.console :as console]
             [paren-soup.instarepl :as ir]
-            [paren-soup.dom :as dom]
-            [goog.dom :as gdom])
+            [paren-soup.dom :as dom])
   (:require-macros [cljs.core.async.macros :refer [go]]))
 
 (defn show-error-message!
@@ -21,10 +20,10 @@
         x (.-clientX event)
         y (.-clientY event)
         popup (.createElement js/document "div")]
-    (aset popup "textContent" (-> elem .-dataset .-message))
-    (aset (.-style popup) "top" (str y "px"))
-    (aset (.-style popup) "left" (str x "px"))
-    (aset popup "className" "error-text")
+    (set! (.-textContent popup) (-> elem .-dataset .-message))
+    (set! (.-top (.-style popup)) (str y "px"))
+    (set! (.-left (.-style popup)) (str x "px"))
+    (set! (.-className popup) "error-text")
     (.appendChild parent-elem popup)))
 
 (defn hide-error-messages!
@@ -135,7 +134,7 @@
                       :else
                       elems))
         ; add old elems' text to the string
-        _ (gdom/setTextContent element text)
+        _ (set! (.-textContent element) text)
         text (join (map #(.-textContent %) old-elems))
         ; create temporary element
         temp-elem (.createElement js/document "span")
@@ -343,10 +342,16 @@ the entire selection rather than just the cursor position."
               _ (.appendChild content node)
               all-text (.-textContent content)
               char-count (max 0 (- (count all-text) append-limit))
-              new-all-text (subs all-text char-count)]
+              new-all-text (subs all-text char-count)
+              ; if text ends with a newline, it will be ignored,
+              ; so we need to account for that
+              ; see: https://stackoverflow.com/q/43492826
+              char-count (if (.endsWith new-all-text "\n")
+                           (dec (count new-all-text))
+                           (count new-all-text))]
           (when (not= all-text new-all-text)
-            (gdom/setTextContent content new-all-text))
-          (reset-edit-history! this (count new-all-text))))
+            (set! (.-textContent content) new-all-text))
+          (reset-edit-history! this char-count)))
       (enter! [this]
         (if editor?
           (.execCommand js/document "insertHTML" false "\n")
