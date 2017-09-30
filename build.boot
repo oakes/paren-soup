@@ -6,12 +6,12 @@
                   [org.clojure/clojure "1.8.0" :scope "provided"]
                   ; project deps
                   [mistakes-were-made "1.7.3"]
-                  [html-soup "1.4.6"]
-                  [cross-parinfer "1.3.10"]
+                  [html-soup "1.5.0"]
+                  [cross-parinfer "1.4.0"]
                   [cljsjs/rangy-core "1.3.0-1"]
                   [cljsjs/rangy-textrange "1.3.0-1"]
-                  [org.clojure/clojurescript "1.9.854" :scope "provided"]
-                  [org.clojure/core.async "0.3.442"]]
+                  [org.clojure/clojurescript "1.9.908" :scope "provided"]
+                  [org.clojure/core.async "0.3.443"]]
   :repositories (conj (get-env :repositories)
                   ["clojars" {:url "https://clojars.org/repo/"
                               :username (System/getenv "CLOJARS_USER")
