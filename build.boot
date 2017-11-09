@@ -10,7 +10,7 @@
                   [cross-parinfer "1.4.1"]
                   [cljsjs/rangy-core "1.3.0-1"]
                   [cljsjs/rangy-textrange "1.3.0-1"]
-                  [org.clojure/clojurescript "1.9.908" :scope "provided"]
+                  [org.clojure/clojurescript "1.9.946" :scope "provided"]
                   [org.clojure/core.async "0.3.443"]]
   :repositories (conj (get-env :repositories)
                   ["clojars" {:url "https://clojars.org/repo/"
