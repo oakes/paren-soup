@@ -7,7 +7,7 @@
                   ; project deps
                   [mistakes-were-made "1.7.3"]
                   [html-soup "1.5.0"]
-                  [cross-parinfer "1.4.0"]
+                  [cross-parinfer "1.4.1"]
                   [cljsjs/rangy-core "1.3.0-1"]
                   [cljsjs/rangy-textrange "1.3.0-1"]
                   [org.clojure/clojurescript "1.9.908" :scope "provided"]
