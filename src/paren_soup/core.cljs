@@ -421,7 +421,9 @@ the entire selection rather than just the cursor position."
           (when tab?
             (reset! allow-tab? false))))
       (refresh-after-cut-paste! [this]
-        (edit-and-refresh! this (assoc (init-state content editor? false) :indent-type :normal)))
+        (set! (.-innerHTML content)
+          (replace (.-innerHTML content) "</tr>" \newline))
+        (edit-and-refresh! this (assoc (init-state content false false) :indent-type :normal)))
       (eval! [this form callback]
         (compiler-fn [form] #(callback (first %)))))))
 
