@@ -82,7 +82,7 @@
   [content events-chan state]
   ; set the cursor position
   (if-let [crop (:cropped-state state)]
-    (dom/set-cursor-position! (:element crop) (:cursor-position crop))
+    (some-> (:element crop) (dom/set-cursor-position! (:cursor-position crop)))
     (dom/set-cursor-position! content (:cursor-position state)))
   ; set up errors
   (hide-error-messages! (.-parentElement content))
