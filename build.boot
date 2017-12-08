@@ -3,7 +3,7 @@
                   [adzerk/boot-reload "0.4.12" :scope "test"]
                   [pandeiro/boot-http "0.7.3" :scope "test"]
                   [org.clojure/test.check "0.9.0" :scope "test"]
-                  [org.clojure/clojure "1.8.0" :scope "provided"]
+                  [org.clojure/clojure "1.9.0" :scope "provided"]
                   ; project deps
                   [mistakes-were-made "1.7.3"]
                   [html-soup "1.5.1"]
