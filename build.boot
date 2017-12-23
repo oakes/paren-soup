@@ -1,17 +1,9 @@
 (set-env!
-  :dependencies '[[adzerk/boot-cljs "1.7.228-2" :scope "test"]
-                  [adzerk/boot-reload "0.4.12" :scope "test"]
+  :dependencies '[[adzerk/boot-cljs "2.1.4" :scope "test"]
+                  [adzerk/boot-reload "0.5.2" :scope "test"]
                   [pandeiro/boot-http "0.7.3" :scope "test"]
                   [org.clojure/test.check "0.9.0" :scope "test"]
-                  [org.clojure/clojure "1.9.0" :scope "provided"]
-                  ; project deps
-                  [mistakes-were-made "1.7.3"]
-                  [html-soup "1.5.1"]
-                  [cross-parinfer "1.4.2"]
-                  [cljsjs/rangy-core "1.3.0-1"]
-                  [cljsjs/rangy-textrange "1.3.0-1"]
-                  [org.clojure/clojurescript "1.9.946" :scope "provided"]
-                  [org.clojure/core.async "0.3.443"]]
+                  [org.clojars.oakes/boot-tools-deps "0.1.4" :scope "test"]]
   :repositories (conj (get-env :repositories)
                   ["clojars" {:url "https://clojars.org/repo/"
                               :username (System/getenv "CLOJARS_USER")
@@ -20,7 +12,8 @@
 (require
   '[adzerk.boot-cljs :refer [cljs]]
   '[adzerk.boot-reload :refer [reload]]
-  '[pandeiro.boot-http :refer [serve]])
+  '[pandeiro.boot-http :refer [serve]]
+  '[boot-tools-deps.core :refer [deps]])
 
 (task-options!
   pom {:project 'paren-soup
@@ -33,21 +26,22 @@
 (deftask run []
   (set-env! :source-paths #{"src"} :resource-paths #{"resources" "dev-resources"})
   (comp
+    (deps)
     (serve :dir "target/public")
     (watch)
     (reload :on-jsload 'paren-soup.core/init-all)
-    (cljs :source-map true :optimizations :none)
+    (cljs :source-map true :optimizations :none :compiler-options {:asset-path "paren-soup.out"})
     (target)))
 
 (deftask build []
   (set-env! :source-paths #{"src"} :resource-paths #{"resources" "prod-resources"})
-  (comp (cljs :optimizations :advanced) (target)))
+  (comp (deps) (cljs :optimizations :advanced) (target)))
 
 (deftask local []
   (set-env! :source-paths #{} :resource-paths #{"src" "resources" "prod-resources"})
-  (comp (pom) (jar) (install)))
+  (comp (deps) (pom) (jar) (install)))
 
 (deftask deploy []
   (set-env! :source-paths #{} :resource-paths #{"src" "resources" "prod-resources"})
-  (comp (pom) (jar) (push)))
+  (comp (deps) (pom) (jar) (push)))
 
