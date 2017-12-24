@@ -1,5 +1,13 @@
 (ns paren-soup.dom
-  (:require [goog.object :as gobj]))
+  (:require [goog.object :as gobj]
+            [mistakes-were-made.core :as mm]
+            [clojure.spec.alpha :as s :refer [fdef]]))
+
+(def node? #(instance? js/Node %))
+
+(fdef get-selection
+  :args (s/cat :element node? :full-selection? boolean?)
+  :ret map?)
 
 (defn get-selection
   "Returns the objects related to selection for the given element. If full-selection? is true,
@@ -26,10 +34,17 @@ of the selection (it is, however, much slower)."
            pos (-> pre-caret-range .toString .-length)]
        [pos pos]))})
 
+(fdef get-cursor-position
+  :args (s/cat :element node? :full-selection? boolean?)
+  :ret :mistakes-were-made.core/cursor-position)
+
 (defn get-cursor-position
   "Returns the cursor position."
   [element full-selection?]
   (-> element (get-selection full-selection?) :cursor-position))
+
+(fdef set-cursor-position!
+  :args (s/cat :element node? :position :mistakes-were-made.core/cursor-position))
 
 (defn set-cursor-position!
   "Moves the cursor to the specified position."
@@ -43,6 +58,10 @@ of the selection (it is, however, much slower)."
         ranges (array range)]
     (.restoreCharacterRanges selection element ranges)))
 
+(fdef get-parent
+  :args (s/cat :node node? :class-name string?)
+  :ret (s/nilable node?))
+
 (defn get-parent
   "Returns the nearest parent with the given class name."
   [node class-name]
@@ -51,6 +70,10 @@ of the selection (it is, however, much slower)."
       (if (.contains (.-classList parent) class-name)
         parent
         (recur parent)))))
+
+(fdef get-parents
+  :args (s/cat :node node? :class-name string?)
+  :ret (s/coll-of node?))
 
 (defn get-parents
   "Returns all the parents with the given class name."
@@ -61,21 +84,41 @@ of the selection (it is, however, much slower)."
       (recur parent (conj elems parent))
       elems)))
 
+(fdef text-node?
+  :args (s/cat :node node?)
+  :ret boolean?)
+
 (defn text-node?
   [node]
   (= 3 (.-nodeType node)))
+
+(fdef error-node?
+  :args (s/cat :node node?)
+  :ret boolean?)
 
 (defn error-node?
   [node]
   (some-> node .-classList (.contains "error")))
 
+(fdef coll-node?
+  :args (s/cat :node node?)
+  :ret boolean?)
+
 (defn coll-node?
   [node]
   (some-> node .-classList (.contains "collection")))
 
+(fdef top-level?
+  :args (s/cat :node node?)
+  :ret boolean?)
+
 (defn top-level?
   [node]
   (some-> node .-parentElement .-classList (.contains "content")))
+
+(fdef common-ancestor
+  :args (s/cat :first-node node? :second-node node?)
+  :ret (s/nilable node?))
 
 (defn common-ancestor
   "Returns the common ancestor of the given nodes."
@@ -92,10 +135,20 @@ of the selection (it is, however, much slower)."
            (top-level? first-node))
       first-node)))
 
+(fdef get-focused-elem
+  :args (s/cat :class-name string?))
+
 (defn get-focused-elem [class-name]
   (some-> js/rangy .getSelection .-anchorNode (get-parent class-name)))
 
+(fdef get-focused-form
+  :args (s/cat))
+
 (def get-focused-form #(get-focused-elem "collection"))
+
+(fdef get-nearest-ns
+  :args (s/cat :node node?)
+  :ret (s/nilable symbol?))
 
 (defn get-nearest-ns [node]
   (loop [node node]
@@ -104,6 +157,10 @@ of the selection (it is, however, much slower)."
       (when-let [sibling (.-previousSibling node)]
         (recur sibling)))))
 
+(fdef get-focused-top-level
+  :args (s/cat)
+  :ret node?)
+
 (defn get-focused-top-level []
   (when-let [node (some-> js/rangy .getSelection .-anchorNode)]
     (loop [node node]
@@ -111,6 +168,10 @@ of the selection (it is, however, much slower)."
         node
         (when-let [parent (.-parentElement node)]
           (recur parent))))))
+
+(fdef get-completion-context
+  :args (s/cat :symbol-length number? :cursor-offset number?)
+  :ret (s/nilable map?))
 
 (defn get-completion-context [symbol-length cursor-offset]
   (when-let [top-level-elem (get-focused-top-level)]
@@ -121,6 +182,10 @@ of the selection (it is, however, much slower)."
        :context-before (subs text 0 prefix-start)
        :context-after (subs text (+ prefix-start symbol-length))
        :start-position prefix-start})))
+
+(fdef get-completion-info
+  :args (s/cat)
+  :ret (s/nilable map?))
 
 (defn get-completion-info []
   (when-let [prefix-elem (get-focused-elem "symbol")]

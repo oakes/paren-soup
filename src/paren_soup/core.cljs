@@ -5,13 +5,23 @@
             [goog.functions :refer [debounce]]
             [cljsjs.rangy-core]
             [cljsjs.rangy-textrange]
-            [mistakes-were-made.core :as mwm]
+            [mistakes-were-made.core :as mwm :refer [atom?]]
             [html-soup.core :as hs]
             [cross-parinfer.core :as cp]
             [paren-soup.console :as console]
             [paren-soup.instarepl :as ir]
-            [paren-soup.dom :as dom])
+            [paren-soup.dom :as dom]
+            [clojure.spec.alpha :as s :refer [fdef]])
   (:require-macros [cljs.core.async.macros :refer [go]]))
+
+(def channel? any?) ; TODO
+(def transient-map? #(or (instance? cljs.core/TransientArrayMap %)
+                         (instance? cljs.core/TransientHashMap %)))
+(def elem? #(instance? js/Element %))
+(def obj? #(instance? js/Object %))
+
+(fdef show-error-message!
+  :args (s/cat :parent-elem elem? :event obj?))
 
 (defn show-error-message!
   "Shows a popup with an error message."
@@ -26,6 +36,9 @@
     (set! (.-className popup) "error-text")
     (.appendChild parent-elem popup)))
 
+(fdef hide-error-messages!
+  :args (s/cat :parent-elem elem?))
+
 (defn hide-error-messages!
   "Hides all error popups."
   [parent-elem]
@@ -33,6 +46,12 @@
     (.removeChild parent-elem elem)))
 
 (def ^:const rainbow-count 5)
+
+(fdef rainbow-delimiters
+  :args (s/alt
+          :two-args (s/cat :parent elem? :level number?)
+          :three-args (s/cat :parent elem? :level number? :m transient-map?))
+  :ret (s/or :two-args map? :three-args transient-map?))
 
 (defn rainbow-delimiters
   "Returns a map of elements and class names."
@@ -52,16 +71,26 @@
      m
      (-> parent .-children array-seq))))
 
+(fdef line-numbers
+  :args (s/cat :line-count number?)
+  :ret string?)
+
 (defn line-numbers
   "Adds line numbers to the numbers."
   [line-count]
   (join (for [i (range line-count)]
           (str "<div>" (inc i) "</div>"))))
 
+(fdef refresh-numbers!
+  :args (s/cat :numbers elem? :line-count number?))
+
 (defn refresh-numbers!
   "Refreshes the line numbers."
   [numbers line-count]
   (set! (.-innerHTML numbers) (line-numbers line-count)))
+
+(fdef refresh-instarepl!
+  :args (s/cat :instarepl elem? :content elem? :compiler-fn fn?))
 
 (defn refresh-instarepl!
   "Refreshes the InstaREPL."
@@ -76,6 +105,9 @@
         (when (.-parentElement instarepl)
           (set! (.-innerHTML instarepl)
                 (ir/results->html results locations)))))))
+
+(fdef post-refresh-content!
+  :args (s/cat :content elem? :events-chan channel? :state map?))
 
 (defn post-refresh-content!
   "Does additional work on the content after it is rendered."
@@ -96,6 +128,9 @@
   ; add rainbow delimiters
   (doseq [[elem class-name] (rainbow-delimiters content -1)]
     (.add (.-classList elem) class-name)))
+
+(fdef refresh-content-element!
+  :args (s/cat :cropped-state map?))
 
 (defn refresh-content-element!
   "Replaces a single node in the content, and siblings if necessary."
@@ -151,6 +186,9 @@
       (.removeChild parent old-elem))
     (assoc cropped-state :element (first new-elems))))
 
+(fdef refresh-content!
+  :args (s/cat :content elem? :state map?))
+
 (defn refresh-content!
   "Refreshes the content."
   [content state]
@@ -164,6 +202,9 @@
       (set! (.-innerHTML content) (hs/code->html (:text state)))
       (dissoc state :cropped-state))))
 
+(fdef refresh-console-content!
+  :args (s/cat :content elem? :state map? :console-start-num number? :clj? boolean?))
+
 (defn refresh-console-content! [content state console-start-num clj?]
   (set! (.-innerHTML content)
     (if clj?
@@ -173,6 +214,10 @@
       (hs/escape-html-str (:text state))))
   state)
 
+(fdef add-parinfer-after-console-start
+  :args (s/cat :console-start-num number? :state map?)
+  :ret map?)
+
 (defn add-parinfer-after-console-start [console-start-num state]
   (let [pre-text (subs (:text state) 0 console-start-num)
         post-text (subs (:text state) console-start-num)
@@ -181,6 +226,10 @@
         temp-state (cp/add-parinfer :both temp-state)
         new-text (str pre-text (subs (:text temp-state) console-start-num))]
     (assoc state :text new-text)))
+
+(fdef add-parinfer
+  :args (s/cat :enable? boolean? :console-start-num number? :state map?)
+  :ret map?)
 
 (defn add-parinfer [enable? console-start-num state]
   (if enable?
@@ -199,10 +248,18 @@
         state))
     state))
 
+(fdef add-newline
+  :args (s/cat :state map?)
+  :ret map?)
+
 (defn add-newline [{:keys [text] :as state}]
   (if-not (= \newline (last text))
     (assoc state :text (str text \newline))
     state))
+
+(fdef init-state
+  :args (s/cat :content elem? :crop? boolean? :full-selection? boolean?)
+  :ret map?)
 
 (defn init-state
   "Returns the editor's state. If full-selection? is true, it will try to save
@@ -222,11 +279,18 @@ the entire selection rather than just the cursor position."
         state)
       state)))
 
+(fdef update-edit-history!
+  :args (s/cat :edit-history atom? :state map?)
+  :ret map?)
+
 (defn update-edit-history! [edit-history state]
   (try
     (mwm/update-edit-history! edit-history (dissoc state :cropped-state))
     state
     (catch js/Error _ (mwm/get-current-state edit-history))))
+
+(fdef update-highlight!
+  :args (s/cat :content elem? :last-elem atom?))
 
 (defn update-highlight! [content last-elem]
   (when-let [elem @last-elem]
@@ -238,9 +302,17 @@ the entire selection rather than just the cursor position."
         (set! (.-backgroundColor (.-style elem)) (str "rgba(" new-color ", 0.1)"))
         (reset! last-elem elem)))))
 
+(fdef key-code
+  :args (s/cat :event obj?)
+  :ret integer?)
+
 (defn key-code [event]
   (let [code (.-keyCode event)]
     (if (pos? code) code (.-which event))))
+
+(fdef key-name?
+  :args (s/cat :event obj? :key-name keyword?)
+  :ret boolean?)
 
 (defn key-name?
   "Returns true if the supplied key event involves the key(s) described by key-name."
@@ -289,6 +361,10 @@ the entire selection rather than just the cursor position."
   (refresh-after-key-event! [this event])
   (refresh-after-cut-paste! [this])
   (eval! [this form callback]))
+
+(fdef create-editor
+  :args (s/cat :paren-soup elem? :content elem? :events-chan channel? :opts map?)
+  :ret #(instance? Editor %))
 
 (defn create-editor [paren-soup content events-chan
                      {:keys [history-limit append-limit compiler-fn console-callback disable-clj? edit-history]
@@ -430,6 +506,10 @@ the entire selection rather than just the cursor position."
       (eval! [this form callback]
         (compiler-fn [form] #(callback (first %)))))))
 
+(fdef prevent-default?
+  :args (s/cat :event obj? :opts map?)
+  :ret boolean?)
+
 (defn prevent-default? [event opts]
   (or (key-name? event :undo-or-redo)
       (key-name? event :tab)
@@ -437,6 +517,9 @@ the entire selection rather than just the cursor position."
       (and (:console-callback opts)
            (or (key-name? event :up-arrow)
                (key-name? event :down-arrow)))))
+
+(fdef add-event-listeners!
+  :args (s/cat :content elem? :events-chan channel? :opts map?))
 
 (defn add-event-listeners! [content events-chan opts]
   (doto content
@@ -449,6 +532,9 @@ the entire selection rather than just the cursor position."
     (events/listen "cut" #(put! events-chan %))
     (events/listen "paste" #(put! events-chan %))
     (events/listen "mouseup" #(put! events-chan %))))
+
+(fdef init
+  :args (s/cat :paren-soup elem? :opts obj?))
 
 (defn ^:export init [paren-soup opts]
   (.init js/rangy)
@@ -502,6 +588,9 @@ the entire selection rather than just the cursor position."
             (some-> opts :change-callback (#(% event)))))))
     ; return editor
     editor))
+
+(fdef init-all
+  :args (s/cat))
 
 (defn ^:export init-all []
   (doseq [paren-soup (-> js/document (.querySelectorAll ".paren-soup") array-seq)]
