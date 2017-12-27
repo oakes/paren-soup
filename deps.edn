@@ -1,5 +1,6 @@
 {:paths ["src"]
- :deps {org.clojure/core.async {:mvn/version "0.3.443"}
+ :deps {org.clojure/clojure {:mvn/version "1.9.0" :scope "provided"}
+        org.clojure/core.async {:mvn/version "0.3.443"}
         mistakes-were-made {:mvn/version "1.7.4"}
         html-soup {:mvn/version "1.5.2"}
         cross-parinfer {:mvn/version "1.4.3"}
