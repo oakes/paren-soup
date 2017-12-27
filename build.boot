@@ -1,5 +1,6 @@
 (set-env!
-  :dependencies '[[adzerk/boot-cljs "2.1.4" :scope "test"]
+  :dependencies '[[org.clojure/clojure "1.9.0" :scope "provided"]
+                  [adzerk/boot-cljs "2.1.4" :scope "test"]
                   [adzerk/boot-reload "0.5.2" :scope "test"]
                   [pandeiro/boot-http "0.7.3" :scope "test"]
                   [org.clojure/test.check "0.9.0" :scope "test"]
