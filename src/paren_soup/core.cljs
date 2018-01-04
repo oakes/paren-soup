@@ -280,27 +280,27 @@ the entire selection rather than just the cursor position."
       state)))
 
 (fdef update-edit-history!
-  :args (s/cat :edit-history atom? :state map?)
+  :args (s/cat :*edit-history atom? :state map?)
   :ret map?)
 
-(defn update-edit-history! [edit-history state]
+(defn update-edit-history! [*edit-history state]
   (try
-    (mwm/update-edit-history! edit-history (dissoc state :cropped-state))
+    (mwm/update-edit-history! *edit-history (dissoc state :cropped-state))
     state
-    (catch js/Error _ (mwm/get-current-state edit-history))))
+    (catch js/Error _ (mwm/get-current-state *edit-history))))
 
 (fdef update-highlight!
   :args (s/cat :content elem? :last-elem atom?))
 
-(defn update-highlight! [content last-elem]
-  (when-let [elem @last-elem]
+(defn update-highlight! [content *last-elem]
+  (when-let [elem @*last-elem]
     (set! (.-backgroundColor (.-style elem)) nil)
-    (reset! last-elem nil))
+    (reset! *last-elem nil))
   (when-let [elem (dom/get-focused-form)]
     (when-let [color (.getPropertyValue (.getComputedStyle js/window (.-firstChild elem)) "color")]
       (let [new-color (-> color (replace #"rgb\(" "") (replace #"\)" ""))]
         (set! (.-backgroundColor (.-style elem)) (str "rgba(" new-color ", 0.1)"))
-        (reset! last-elem elem)))))
+        (reset! *last-elem elem)))))
 
 (fdef key-code
   :args (s/cat :event obj?)
@@ -373,46 +373,46 @@ the entire selection rather than just the cursor position."
   (let [clj? (not disable-clj?)
         editor? (not console-callback)
         compiler-fn (or compiler-fn (ir/create-compiler-fn))
-        edit-history (doto (or edit-history (mwm/create-edit-history))
-                       (swap! assoc :limit history-limit))
+        *edit-history (doto (or edit-history (mwm/create-edit-history))
+                        (swap! assoc :limit history-limit))
         refresh-instarepl-with-delay! (debounce refresh-instarepl! 300)
-        console-history (console/create-console-history)
-        last-highlight-elem (atom nil)
-        allow-tab? (atom false)]
+        *console-history (console/create-console-history)
+        *last-highlight-elem (atom nil)
+        *allow-tab? (atom false)]
     ; in console mode, don't allow text before console start to be edited
     (when-not editor?
-      (set-validator! edit-history
+      (set-validator! *edit-history
         (fn [{:keys [current-state states]}]
           (if-let [state (get states current-state)]
-            (-> state :cursor-position first (>= (console/get-console-start console-history)))
+            (-> state :cursor-position first (>= (console/get-console-start *console-history)))
             true))))
     ; reify the protocol
     (reify Editor
       (undo! [this]
-        (some->> edit-history mwm/undo! (refresh! this)))
+        (some->> *edit-history mwm/undo! (refresh! this)))
       (redo! [this]
-        (some->> edit-history mwm/redo! (refresh! this)))
+        (some->> *edit-history mwm/redo! (refresh! this)))
       (can-undo? [this]
-        (mwm/can-undo? edit-history))
+        (mwm/can-undo? *edit-history))
       (can-redo? [this]
-        (mwm/can-redo? edit-history))
+        (mwm/can-redo? *edit-history))
       (update-cursor-position! [this position]
         (try
-          (mwm/update-cursor-position! edit-history position)
+          (mwm/update-cursor-position! *edit-history position)
           (catch js/Error _
             (when (apply = position)
-              (let [start (console/get-console-start console-history)]
+              (let [start (console/get-console-start *console-history)]
                 (dom/set-cursor-position! content [start start])
-                (mwm/update-cursor-position! edit-history [start start])))))
-        (update-highlight! content last-highlight-elem))
+                (mwm/update-cursor-position! *edit-history [start start])))))
+        (update-highlight! content *last-highlight-elem))
       (reset-edit-history! [this start]
-        (console/update-console-start! console-history start)
+        (console/update-console-start! *console-history start)
         (dom/set-cursor-position! content [start start])
-        (let [new-edit-history (mwm/create-edit-history)
+        (let [*new-edit-history (mwm/create-edit-history)
               state {:cursor-position [start start]
                      :text (.-textContent content)}]
-          (update-edit-history! new-edit-history state)
-          (reset! edit-history @new-edit-history)))
+          (update-edit-history! *new-edit-history state)
+          (reset! *edit-history @*new-edit-history)))
       (append-text! [this text]
         (let [node (.createTextNode js/document text)
               _ (.appendChild content node)
@@ -432,41 +432,41 @@ the entire selection rather than just the cursor position."
         (if editor?
           (.execCommand js/document "insertHTML" false "\n")
           (let [text (trimr (.-textContent content))
-                post-text (subs text (console/get-console-start console-history))]
+                post-text (subs text (console/get-console-start *console-history))]
             (reset-edit-history! this (count text))
-            (console/update-console-history! console-history post-text)
+            (console/update-console-history! *console-history post-text)
             (console-callback post-text))))
       (up! [this]
         (when-not editor?
           (let [text (.-textContent content)
-                pre-text (subs text 0 (console/get-console-start console-history))
-                line (or (console/up! console-history) "")
+                pre-text (subs text 0 (console/get-console-start *console-history))
+                line (or (console/up! *console-history) "")
                 state {:cursor-position (dom/get-cursor-position content false)
                        :text (str pre-text line \newline)}]
             (->> state
-                 (update-edit-history! edit-history)
+                 (update-edit-history! *edit-history)
                  (refresh! this)))))
       (down! [this]
         (when-not editor?
           (let [text (.-textContent content)
-                pre-text (subs text 0 (console/get-console-start console-history))
-                line (or (console/down! console-history) "")
+                pre-text (subs text 0 (console/get-console-start *console-history))
+                line (or (console/down! *console-history) "")
                 state {:cursor-position (dom/get-cursor-position content false)
                        :text (str pre-text line \newline)}]
             (->> state
-                 (update-edit-history! edit-history)
+                 (update-edit-history! *edit-history)
                  (refresh! this)))))
       (tab! [this]
         ; on Windows, alt+tab causes the browser to receive the tab's keyup event
         ; this caused the code to be tabbed after using alt+tab
         ; this boolean atom will be set to true only on keydown in order to prevent this issue
         (when editor?
-          (reset! allow-tab? true)))
+          (reset! *allow-tab? true)))
       (refresh! [this state]
         (post-refresh-content! content events-chan
           (if editor?
             (refresh-content! content state)
-            (refresh-console-content! content state (console/get-console-start console-history) clj?)))
+            (refresh-console-content! content state (console/get-console-start *console-history) clj?)))
         (when editor?
           (some-> (.querySelector paren-soup ".numbers")
                   (refresh-numbers! (count (re-seq #"\n" (:text state)))))
@@ -474,12 +474,12 @@ the entire selection rather than just the cursor position."
             (when-let [elem (.querySelector paren-soup ".instarepl")]
               (when-not (-> elem .-style .-display (= "none"))
                 (refresh-instarepl-with-delay! elem content compiler-fn)))))
-        (update-highlight! content last-highlight-elem))
+        (update-highlight! content *last-highlight-elem))
       (edit-and-refresh! [this state]
         (->> state
              (add-newline)
-             (add-parinfer clj? (console/get-console-start console-history))
-             (update-edit-history! edit-history)
+             (add-parinfer clj? (console/get-console-start *console-history))
+             (update-edit-history! *edit-history)
              (refresh! this)))
       (initialize! [this]
         (when editor?
@@ -488,14 +488,14 @@ the entire selection rather than just the cursor position."
       (refresh-after-key-event! [this event]
         (let [tab? (key-name? event :tab)
               state (init-state content editor? tab?)]
-          (when-not (and tab? (not @allow-tab?))
+          (when-not (and tab? (not @*allow-tab?))
             (edit-and-refresh! this
               (case (key-code event)
                 13 (assoc state :indent-type :return)
                 9 (assoc state :indent-type (if (.-shiftKey event) :back :forward))
                 (assoc state :indent-type :normal))))
           (when tab?
-            (reset! allow-tab? false))))
+            (reset! *allow-tab? false))))
       (refresh-after-cut-paste! [this]
         (let [html (.-innerHTML content)
               insert-newlines? (-> html (.indexOf "</tr>") (> 0))
