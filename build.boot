@@ -3,13 +3,14 @@
                   [adzerk/boot-reload "0.5.2" :scope "test"]
                   [pandeiro/boot-http "0.7.3" :scope "test"]
                   [org.clojure/test.check "0.9.0" :scope "test"]
-                  [org.clojars.oakes/boot-tools-deps "0.1.4.1" :scope "test"]]
+                  [seancorfield/boot-tools-deps "0.1.4" :scope "test"]]
   :repositories (conj (get-env :repositories)
                   ["clojars" {:url "https://clojars.org/repo/"
                               :username (System/getenv "CLOJARS_USER")
                               :password (System/getenv "CLOJARS_PASS")}]))
 
 (require
+  '[clojure.edn :as edn]
   '[adzerk.boot-cljs :refer [cljs]]
   '[adzerk.boot-reload :refer [reload]]
   '[pandeiro.boot-http :refer [serve]]
@@ -20,7 +21,19 @@
        :version "2.9.5-SNAPSHOT"
        :description "A viewer and editor for ClojureScript"
        :url "https://github.com/oakes/paren-soup"
-       :license {"Public Domain" "http://unlicense.org/UNLICENSE"}}
+       :license {"Public Domain" "http://unlicense.org/UNLICENSE"}
+       :dependencies (->> "deps.edn"
+                          slurp
+                          edn/read-string
+                          :deps
+                          (reduce
+                            (fn [deps [artifact info]]
+                              (if-let [version (:mvn/version info)]
+                                (conj deps
+                                  (transduce cat conj [artifact version]
+                                    (select-keys info [:scope :exclusions])))
+                                deps))
+                            []))}
   push {:repo "clojars"})
 
 (deftask run []
@@ -39,9 +52,9 @@
 
 (deftask local []
   (set-env! :source-paths #{} :resource-paths #{"src" "resources" "prod-resources"})
-  (comp (deps) (pom) (jar) (install)))
+  (comp (pom) (jar) (install)))
 
 (deftask deploy []
   (set-env! :source-paths #{} :resource-paths #{"src" "resources" "prod-resources"})
-  (comp (deps) (pom) (jar) (push)))
+  (comp (pom) (jar) (push)))
 
