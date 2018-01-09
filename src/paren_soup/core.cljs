@@ -14,7 +14,7 @@
             [clojure.spec.alpha :as s :refer [fdef]])
   (:require-macros [cljs.core.async.macros :refer [go]]))
 
-(def channel? any?) ; TODO
+(def channel? #(instance? cljs.core.async.impl.channels.ManyToManyChannel %))
 (def transient-map? #(or (instance? cljs.core/TransientArrayMap %)
                          (instance? cljs.core/TransientHashMap %)))
 (def elem? #(instance? js/Element %))
