@@ -364,7 +364,7 @@ the entire selection rather than just the cursor position."
 
 (fdef create-editor
   :args (s/cat :paren-soup elem? :content elem? :events-chan channel? :opts map?)
-  :ret #(instance? Editor %))
+  :ret #(satisfies? Editor %))
 
 (defn create-editor [paren-soup content events-chan
                      {:keys [history-limit append-limit compiler-fn console-callback disable-clj? edit-history]
@@ -511,12 +511,13 @@ the entire selection rather than just the cursor position."
   :ret boolean?)
 
 (defn prevent-default? [event opts]
-  (or (key-name? event :undo-or-redo)
-      (key-name? event :tab)
-      (key-name? event :enter)
-      (and (:console-callback opts)
-           (or (key-name? event :up-arrow)
-               (key-name? event :down-arrow)))))
+  (boolean
+    (or (key-name? event :undo-or-redo)
+        (key-name? event :tab)
+        (key-name? event :enter)
+        (and (:console-callback opts)
+             (or (key-name? event :up-arrow)
+                 (key-name? event :down-arrow))))))
 
 (fdef add-event-listeners!
   :args (s/cat :content elem? :events-chan channel? :opts map?))

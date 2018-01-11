@@ -25,7 +25,7 @@
 
 (fdef results->html
   :args (s/cat :results any? :locations (s/coll-of map?))
-  :ret (s/coll-of string?))
+  :ret string?)
 
 (defn results->html
   "Returns HTML for the given eval results."

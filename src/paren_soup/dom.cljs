@@ -98,7 +98,7 @@ of the selection (it is, however, much slower)."
 
 (defn error-node?
   [node]
-  (some-> node .-classList (.contains "error")))
+  (boolean (some-> node .-classList (.contains "error"))))
 
 (fdef coll-node?
   :args (s/cat :node node?)
@@ -106,7 +106,7 @@ of the selection (it is, however, much slower)."
 
 (defn coll-node?
   [node]
-  (some-> node .-classList (.contains "collection")))
+  (boolean (some-> node .-classList (.contains "collection"))))
 
 (fdef top-level?
   :args (s/cat :node node?)
@@ -114,7 +114,7 @@ of the selection (it is, however, much slower)."
 
 (defn top-level?
   [node]
-  (some-> node .-parentElement .-classList (.contains "content")))
+  (boolean (some-> node .-parentElement .-classList (.contains "content"))))
 
 (fdef common-ancestor
   :args (s/cat :first-node node? :second-node node?)
