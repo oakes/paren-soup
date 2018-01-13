@@ -111,10 +111,10 @@
 
 (defn post-refresh-content!
   "Does additional work on the content after it is rendered."
-  [content events-chan state]
+  [content events-chan {:keys [cropped-state] :as state}]
   ; set the cursor position
-  (if-let [crop (:cropped-state state)]
-    (some-> (:element crop) (dom/set-cursor-position! (:cursor-position crop)))
+  (if (some->> cropped-state :element (.contains content))
+    (some-> cropped-state :element (dom/set-cursor-position! (:cursor-position cropped-state)))
     (if (and (:selection-change? state) (:original-cursor-position state))
       (dom/set-cursor-position! content (:original-cursor-position state))
       (dom/set-cursor-position! content (:cursor-position state))))
@@ -137,9 +137,8 @@
 
 (defn refresh-content-element!
   "Replaces a single node in the content, and siblings if necessary."
-  [cropped-state]
-  (let [{:keys [element text]} cropped-state
-        parent (.-parentElement element)
+  [{:keys [element text] :as cropped-state}]
+  (let [parent (.-parentElement element)
         ; find the last element to refresh
         last-elem (.-lastChild parent)
         last-error (loop [current-elem last-elem]
@@ -196,12 +195,12 @@
 (defn refresh-content!
   "Refreshes the content."
   [content state]
-  (if-let [crop (:cropped-state state)]
-    (let [crop (refresh-content-element! crop)]
-      ; if there were changes outside the node, we need to run it on the whole document instead
-      (if (not= (:text state) (.-textContent content))
-        (refresh-content! content (dissoc state :cropped-state))
-        (assoc state :cropped-state crop)))
+  (if-let [crop (some-> state :cropped-state refresh-content-element!)]
+    ; if there were changes outside the node, we need to run it on the whole document instead
+    (if (or (not= (:text state) (.-textContent content))
+            (= content (.-parentElement (:element crop))))
+      (refresh-content! content (dissoc state :cropped-state))
+      (assoc state :cropped-state crop))
     (do
       (set! (.-innerHTML content) (hs/code->html (:text state)))
       (dissoc state :cropped-state))))
@@ -290,7 +289,10 @@ the entire selection rather than just the cursor position."
 
 (defn update-edit-history! [*edit-history state]
   (try
-    (mwm/update-edit-history! *edit-history (dissoc state :cropped-state))
+    (mwm/update-edit-history! *edit-history
+      (if (:selection-change? state)
+        state
+        (dissoc state :cropped-state)))
     state
     (catch js/Error _ (mwm/get-current-state *edit-history))))
 
@@ -444,10 +446,22 @@ the entire selection rather than just the cursor position."
       (up! [this alt?]
         (if alt?
           (when-let [elem (dom/get-focused-form)]
-            (dom/set-cursor-position! elem [0 (-> elem .-textContent count)])
-            (->> (assoc (init-state content false true) :selection-change? true)
-                 (update-edit-history! *edit-history)
-                 (refresh! this)))
+            (when-let [state (mwm/get-current-state *edit-history)]
+              (when-let [; if elem was already selected, try selecting parent
+                         elem (if (and (:selection-change? state)
+                                       (= elem (some-> state :cropped-state :element)))
+                                (dom/get-parent elem "collection")
+                                elem)]
+                (let [text (.-textContent elem)
+                      pos [0 (count text)]]
+                  (dom/set-cursor-position! elem pos)
+                  (update-edit-history! *edit-history
+                    (assoc state
+                      :selection-change? true
+                      :cropped-state {:cursor-position pos
+                                      :text text
+                                      :element elem}))
+                  (update-highlight! content *last-highlight-elem)))))
           (when-not editor?
             (let [text (.-textContent content)
                   pre-text (subs text 0 (console/get-console-start *console-history))
@@ -478,9 +492,10 @@ the entire selection rather than just the cursor position."
           (reset! *allow-tab? true)))
       (refresh! [this state]
         (post-refresh-content! content events-chan
-          (if editor?
-            (refresh-content! content state)
-            (refresh-console-content! content state (console/get-console-start *console-history) clj?)))
+          (cond
+            (:selection-change? state) state
+            editor? (refresh-content! content state)
+            :else (refresh-console-content! content state (console/get-console-start *console-history) clj?)))
         (when editor?
           (some-> (.querySelector paren-soup ".numbers")
                   (refresh-numbers! (count (re-seq #"\n" (:text state)))))
