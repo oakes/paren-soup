@@ -115,7 +115,9 @@
   ; set the cursor position
   (if-let [crop (:cropped-state state)]
     (some-> (:element crop) (dom/set-cursor-position! (:cursor-position crop)))
-    (dom/set-cursor-position! content (:cursor-position state)))
+    (if (and (:selection-change? state) (:original-cursor-position state))
+      (dom/set-cursor-position! content (:original-cursor-position state))
+      (dom/set-cursor-position! content (:cursor-position state))))
   ; set up errors
   (hide-error-messages! (.-parentElement content))
   (doseq [elem (-> content (.querySelectorAll ".error") array-seq)]
@@ -130,7 +132,8 @@
     (.add (.-classList elem) class-name)))
 
 (fdef refresh-content-element!
-  :args (s/cat :cropped-state map?))
+  :args (s/cat :cropped-state map?)
+  :ret map?)
 
 (defn refresh-content-element!
   "Replaces a single node in the content, and siblings if necessary."
@@ -187,7 +190,8 @@
     (assoc cropped-state :element (first new-elems))))
 
 (fdef refresh-content!
-  :args (s/cat :content elem? :state map?))
+  :args (s/cat :content elem? :state map?)
+  :ret map?)
 
 (defn refresh-content!
   "Refreshes the content."
@@ -203,7 +207,8 @@
       (dissoc state :cropped-state))))
 
 (fdef refresh-console-content!
-  :args (s/cat :content elem? :state map? :console-start-num number? :clj? boolean?))
+  :args (s/cat :content elem? :state map? :console-start-num number? :clj? boolean?)
+  :ret map?)
 
 (defn refresh-console-content! [content state console-start-num clj?]
   (set! (.-innerHTML content)
@@ -352,8 +357,8 @@ the entire selection rather than just the cursor position."
   (reset-edit-history! [this start])
   (append-text! [this text])
   (enter! [this])
-  (up! [this])
-  (down! [this])
+  (up! [this alt?])
+  (down! [this alt?])
   (tab! [this])
   (refresh! [this state])
   (edit-and-refresh! [this state])
@@ -436,26 +441,35 @@ the entire selection rather than just the cursor position."
             (reset-edit-history! this (count text))
             (console/update-console-history! *console-history post-text)
             (console-callback post-text))))
-      (up! [this]
-        (when-not editor?
-          (let [text (.-textContent content)
-                pre-text (subs text 0 (console/get-console-start *console-history))
-                line (or (console/up! *console-history) "")
-                state {:cursor-position (dom/get-cursor-position content false)
-                       :text (str pre-text line \newline)}]
-            (->> state
+      (up! [this alt?]
+        (if alt?
+          (when-let [elem (dom/get-focused-form)]
+            (dom/set-cursor-position! elem [0 (-> elem .-textContent count)])
+            (->> (assoc (init-state content false true) :selection-change? true)
                  (update-edit-history! *edit-history)
-                 (refresh! this)))))
-      (down! [this]
-        (when-not editor?
-          (let [text (.-textContent content)
-                pre-text (subs text 0 (console/get-console-start *console-history))
-                line (or (console/down! *console-history) "")
-                state {:cursor-position (dom/get-cursor-position content false)
-                       :text (str pre-text line \newline)}]
-            (->> state
-                 (update-edit-history! *edit-history)
-                 (refresh! this)))))
+                 (refresh! this)))
+          (when-not editor?
+            (let [text (.-textContent content)
+                  pre-text (subs text 0 (console/get-console-start *console-history))
+                  line (or (console/up! *console-history) "")
+                  state {:cursor-position (dom/get-cursor-position content false)
+                         :text (str pre-text line \newline)}]
+              (->> state
+                   (update-edit-history! *edit-history)
+                   (refresh! this))))))
+      (down! [this alt?]
+        (if alt?
+          (when (:selection-change? (mwm/get-current-state *edit-history))
+            (undo! this))
+          (when-not editor?
+            (let [text (.-textContent content)
+                  pre-text (subs text 0 (console/get-console-start *console-history))
+                  line (or (console/down! *console-history) "")
+                  state {:cursor-position (dom/get-cursor-position content false)
+                         :text (str pre-text line \newline)}]
+              (->> state
+                   (update-edit-history! *edit-history)
+                   (refresh! this))))))
       (tab! [this]
         ; on Windows, alt+tab causes the browser to receive the tab's keyup event
         ; this caused the code to be tabbed after using alt+tab
@@ -515,7 +529,8 @@ the entire selection rather than just the cursor position."
     (or (key-name? event :undo-or-redo)
         (key-name? event :tab)
         (key-name? event :enter)
-        (and (:console-callback opts)
+        (and (or (:console-callback opts)
+                 (.-altKey event))
              (or (key-name? event :up-arrow)
                  (key-name? event :down-arrow))))))
 
@@ -562,9 +577,9 @@ the entire selection rather than just the cursor position."
                 (key-name? event :enter)
                 (enter! editor)
                 (key-name? event :up-arrow)
-                (up! editor)
+                (up! editor (.-altKey event))
                 (key-name? event :down-arrow)
-                (down! editor)
+                (down! editor (.-altKey event))
                 (key-name? event :tab)
                 (tab! editor))
               "keyup"
