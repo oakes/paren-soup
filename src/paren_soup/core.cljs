@@ -516,7 +516,7 @@ the entire selection rather than just the cursor position."
               crop? (and editor? (not insert-newlines?))]
           (when insert-newlines?
             (set! (.-innerHTML content) (replace html "</tr>" \newline)))
-          (edit-and-refresh! this (assoc (init-state content crop? false) :indent-type :normal))))
+          (edit-and-refresh! this (init-state content crop? false))))
       (eval! [this form callback]
         (compiler-fn [form] #(callback (first %)))))))
 
