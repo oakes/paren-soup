@@ -51,10 +51,6 @@ of the selection (it is, however, much slower)."
   [element position]
   (let [[start-pos end-pos] position
         max-length (-> element .-textContent count)
-        [start-pos end-pos] (if (and (= start-pos end-pos)
-                                     (> start-pos max-length))
-                              [max-length max-length]
-                              position)
         selection (.getSelection js/rangy)
         char-range #js {:start start-pos :end end-pos}
         range #js {:characterRange char-range

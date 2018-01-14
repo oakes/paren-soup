@@ -463,9 +463,10 @@ the entire selection rather than just the cursor position."
                   (update-highlight! content *last-highlight-elem)))))
           (when-not editor?
             (let [text (.-textContent content)
+                  start (console/get-console-start *console-history)
                   pre-text (subs text 0 (console/get-console-start *console-history))
                   line (or (console/up! *console-history) "")
-                  state {:cursor-position (dom/get-cursor-position content false)
+                  state {:cursor-position [start start]
                          :text (str pre-text line \newline)}]
               (->> state
                    (update-edit-history! *edit-history)
@@ -476,9 +477,10 @@ the entire selection rather than just the cursor position."
             (undo! this))
           (when-not editor?
             (let [text (.-textContent content)
-                  pre-text (subs text 0 (console/get-console-start *console-history))
+                  start (console/get-console-start *console-history)
+                  pre-text (subs text 0 start)
                   line (or (console/down! *console-history) "")
-                  state {:cursor-position (dom/get-cursor-position content false)
+                  state {:cursor-position [start start]
                          :text (str pre-text line \newline)}]
               (->> state
                    (update-edit-history! *edit-history)
