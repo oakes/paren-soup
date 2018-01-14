@@ -197,8 +197,7 @@
   [content state]
   (if-let [crop (some-> state :cropped-state refresh-content-element!)]
     ; if there were changes outside the node, we need to run it on the whole document instead
-    (if (or (not= (:text state) (.-textContent content))
-            (= content (.-parentElement (:element crop))))
+    (if (not= (:text state) (.-textContent content))
       (refresh-content! content (dissoc state :cropped-state))
       (assoc state :cropped-state crop))
     (do
