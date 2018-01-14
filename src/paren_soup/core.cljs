@@ -113,7 +113,7 @@
   "Does additional work on the content after it is rendered."
   [content events-chan {:keys [cropped-state] :as state}]
   ; set the cursor position
-  (if (some->> cropped-state :element (.contains content))
+  (if cropped-state
     (some-> cropped-state :element (dom/set-cursor-position! (:cursor-position cropped-state)))
     (if (and (:selection-change? state) (:original-cursor-position state))
       (dom/set-cursor-position! content (:original-cursor-position state))
@@ -531,7 +531,7 @@ the entire selection rather than just the cursor position."
               crop? (and editor? (not insert-newlines?))]
           (when insert-newlines?
             (set! (.-innerHTML content) (replace html "</tr>" \newline)))
-          (edit-and-refresh! this (init-state content crop? false))))
+          (edit-and-refresh! this (assoc (init-state content crop? false) :indent-type :normal))))
       (eval! [this form callback]
         (compiler-fn [form] #(callback (first %)))))))
 
