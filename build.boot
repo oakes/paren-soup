@@ -4,7 +4,7 @@
                   [pandeiro/boot-http "0.7.3" :scope "test"]
                   [org.clojure/test.check "0.9.0" :scope "test"]
                   [seancorfield/boot-tools-deps "0.1.4" :scope "test"]
-                  [orchestra "2017.11.12-1"]]
+                  [orchestra "2017.11.12-1" :scope "test"]]
   :repositories (conj (get-env :repositories)
                   ["clojars" {:url "https://clojars.org/repo/"
                               :username (System/getenv "CLOJARS_USER")
