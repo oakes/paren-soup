@@ -1,46 +1,54 @@
-(set-env!
-  :dependencies '[[adzerk/boot-cljs "2.1.4" :scope "test"]
-                  [adzerk/boot-reload "0.5.2" :scope "test"]
-                  [pandeiro/boot-http "0.7.3" :scope "test"]
-                  [org.clojure/test.check "0.9.0" :scope "test"]
-                  [seancorfield/boot-tools-deps "0.1.4" :scope "test"]
-                  [orchestra "2017.11.12-1" :scope "test"]]
-  :repositories (conj (get-env :repositories)
-                  ["clojars" {:url "https://clojars.org/repo/"
-                              :username (System/getenv "CLOJARS_USER")
-                              :password (System/getenv "CLOJARS_PASS")}]))
+(defn read-deps-edn [aliases-to-include]
+  (let [{:keys [paths deps aliases]} (-> "deps.edn" slurp clojure.edn/read-string)
+        deps (->> (select-keys aliases aliases-to-include)
+                  vals
+                  (mapcat :extra-deps)
+                  (into deps)
+                  (reduce
+                    (fn [deps [artifact info]]
+                      (if-let [version (:mvn/version info)]
+                        (conj deps
+                          (transduce cat conj [artifact version]
+                            (select-keys info [:scope :exclusions])))
+                        deps))
+                    []))]
+    {:dependencies deps
+     :source-paths (set paths)
+     :resource-paths (set paths)}))
+
+(let [{:keys [source-paths resource-paths dependencies]} (read-deps-edn [])]
+  (set-env!
+    :source-paths source-paths
+    :resource-paths resource-paths
+    :dependencies (into '[[adzerk/boot-cljs "2.1.4" :scope "test"]
+                          [adzerk/boot-reload "0.5.2" :scope "test"]
+                          [pandeiro/boot-http "0.7.3" :scope "test"]
+                          [org.clojure/test.check "0.9.0" :scope "test"]
+                          [orchestra "2017.11.12-1" :scope "test"]]
+                        dependencies)
+    :repositories (conj (get-env :repositories)
+                    ["clojars" {:url "https://clojars.org/repo/"
+                                :username (System/getenv "CLOJARS_USER")
+                                :password (System/getenv "CLOJARS_PASS")}])))
 
 (require
-  '[clojure.edn :as edn]
   '[adzerk.boot-cljs :refer [cljs]]
   '[adzerk.boot-reload :refer [reload]]
-  '[pandeiro.boot-http :refer [serve]]
-  '[boot-tools-deps.core :refer [deps]])
+  '[pandeiro.boot-http :refer [serve]])
 
 (task-options!
   pom {:project 'paren-soup
        :version "2.10.4-SNAPSHOT"
        :description "A viewer and editor for ClojureScript"
        :url "https://github.com/oakes/paren-soup"
-       :license {"Public Domain" "http://unlicense.org/UNLICENSE"}
-       :dependencies (->> "deps.edn"
-                          slurp
-                          edn/read-string
-                          :deps
-                          (reduce
-                            (fn [deps [artifact info]]
-                              (if-let [version (:mvn/version info)]
-                                (conj deps
-                                  (transduce cat conj [artifact version]
-                                    (select-keys info [:scope :exclusions])))
-                                deps))
-                            []))}
+       :license {"Public Domain" "http://unlicense.org/UNLICENSE"}}
   push {:repo "clojars"})
 
 (deftask run []
-  (set-env! :source-paths #{"src"} :resource-paths #{"resources" "dev-resources"})
+  (set-env!
+    :dependencies #(into (set %) (:dependencies (read-deps-edn [:cljs])))
+    :resource-paths #(conj % "dev-resources"))
   (comp
-    (deps :aliases [:cljs])
     (serve :dir "target/public")
     (watch)
     (reload :on-jsload 'paren-soup.core/init-all)
@@ -48,14 +56,14 @@
     (target)))
 
 (deftask build []
-  (set-env! :source-paths #{"src"} :resource-paths #{"resources" "prod-resources"})
-  (comp (deps :aliases [:cljs]) (cljs :optimizations :advanced) (target)))
+  (set-env!
+    :dependencies #(into (set %) (:dependencies (read-deps-edn [:cljs])))
+    :resource-paths #(conj % "prod-resources"))
+  (comp (cljs :optimizations :advanced) (target)))
 
 (deftask local []
-  (set-env! :source-paths #{} :resource-paths #{"src" "resources" "prod-resources"})
   (comp (pom) (jar) (install)))
 
 (deftask deploy []
-  (set-env! :source-paths #{} :resource-paths #{"src" "resources" "prod-resources"})
   (comp (pom) (jar) (push)))
 
