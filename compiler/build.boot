@@ -21,5 +21,5 @@
     (with-pass-thru _
       (let [from (io/file "target/main.js")
             to (io/file "../resources/public/paren-soup-compiler.js")]
-        (.renameTo from to)))))
+        (io/copy from to)))))
 
