@@ -12,6 +12,7 @@
             [paren-soup.instarepl :as ir]
             [paren-soup.dom :as dom]
             [clojure.spec.alpha :as s :refer [fdef]])
+  (:refer-clojure :exclude [eval])
   (:require-macros [cljs.core.async.macros :refer [go]]))
 
 (def channel? #(instance? cljs.core.async.impl.channels.ManyToManyChannel %))
