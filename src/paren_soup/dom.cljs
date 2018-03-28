@@ -170,6 +170,13 @@ of the selection (it is, however, much slower)."
         (when-let [parent (.-parentElement node)]
           (recur parent))))))
 
+(fdef scroll-to-nearest-elem
+  :args (s/cat))
+
+(defn scroll-to-nearest-elem []
+  (some-> js/rangy .getSelection .-anchorNode .-parentElement
+          (.scrollIntoView #js {:behavior "auto" :block "nearest" :inline "nearest"})))
+
 (fdef get-completion-context
   :args (s/cat :symbol-length number? :cursor-offset number?)
   :ret (s/nilable map?))
