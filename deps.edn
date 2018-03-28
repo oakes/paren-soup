@@ -1,4 +1,4 @@
-{:paths ["src" "resources"]
+{:paths ["src"]
  :deps {org.clojure/clojure {:mvn/version "1.9.0" :scope "provided"}
         org.clojure/core.async {:mvn/version "0.3.443"}
         mistakes-were-made {:mvn/version "1.8.0"}

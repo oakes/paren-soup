@@ -49,7 +49,7 @@
 (deftask run []
   (set-env!
     :dependencies #(into (set %) (:dependencies (read-deps-edn [:cljs])))
-    :resource-paths #(conj % "dev-resources"))
+    :resource-paths #(conj % "resources" "dev-resources"))
   (comp
     (with-pass-thru _
       (future
@@ -69,7 +69,7 @@
 (deftask build []
   (set-env!
     :dependencies #(into (set %) (:dependencies (read-deps-edn [:cljs])))
-    :resource-paths #(conj % "prod-resources"))
+    :resource-paths #(conj % "resources" "prod-resources"))
   (comp (cljs :optimizations :advanced) (target)))
 
 (deftask local []
