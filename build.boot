@@ -22,8 +22,8 @@
     :resource-paths resource-paths
     :dependencies (into '[[adzerk/boot-cljs "2.1.4" :scope "test"]
                           [adzerk/boot-reload "0.5.2" :scope "test"]
-                          [pandeiro/boot-http "0.7.3" :scope "test"]
                           [org.clojure/test.check "0.9.0" :scope "test"]
+                          [ring "1.6.3" :scope "test"]
                           [orchestra "2017.11.12-1" :scope "test"]]
                         dependencies)
     :repositories (conj (get-env :repositories)
@@ -34,7 +34,9 @@
 (require
   '[adzerk.boot-cljs :refer [cljs]]
   '[adzerk.boot-reload :refer [reload]]
-  '[pandeiro.boot-http :refer [serve]])
+  '[ring.adapter.jetty :refer [run-jetty]]
+  '[ring.middleware.file :refer [wrap-file]]
+  '[ring.util.response :refer [not-found]])
 
 (task-options!
   pom {:project 'paren-soup
@@ -49,9 +51,19 @@
     :dependencies #(into (set %) (:dependencies (read-deps-edn [:cljs])))
     :resource-paths #(conj % "dev-resources"))
   (comp
-    (serve :dir "target/public")
+    (with-pass-thru _
+      (future
+        (-> (fn [{:keys [uri]}]
+              (if (= uri "/")
+                {:status 200
+                 :headers {"Content-Type" "text/html"}
+                 :body (slurp "resources/public/index.html")}
+                (not-found "File not found")))
+             (wrap-file "target/public")
+             (wrap-file "resources/public")
+             (run-jetty {:port 3000}))))
     (watch)
-    (reload :on-jsload 'paren-soup.core/init-all)
+    (reload :asset-path "public" :on-jsload 'paren-soup.core/init-all)
     (cljs :source-map true :optimizations :none :compiler-options {:asset-path "paren-soup.out"})
     (target)))
 
