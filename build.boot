@@ -57,10 +57,9 @@
               (if (= uri "/")
                 {:status 200
                  :headers {"Content-Type" "text/html"}
-                 :body (slurp "resources/public/index.html")}
+                 :body (slurp "target/public/index.html")}
                 (not-found "File not found")))
              (wrap-file "target/public")
-             (wrap-file "resources/public")
              (run-jetty {:port 3000}))))
     (watch)
     (reload :asset-path "public" :on-jsload 'paren-soup.core/init-all)
