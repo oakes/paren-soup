@@ -396,11 +396,11 @@ the entire selection rather than just the cursor position."
     ; reify the protocol
     (reify Editor
       (undo! [this]
-        (dom/scroll-to-nearest-elem)
-        (some->> *edit-history mwm/undo! (refresh! this)))
+        (some->> *edit-history mwm/undo! (refresh! this))
+        (dom/scroll-to-nearest-elem))
       (redo! [this]
-        (dom/scroll-to-nearest-elem)
-        (some->> *edit-history mwm/redo! (refresh! this)))
+        (some->> *edit-history mwm/redo! (refresh! this))
+        (dom/scroll-to-nearest-elem))
       (can-undo? [this]
         (mwm/can-undo? *edit-history))
       (can-redo? [this]
