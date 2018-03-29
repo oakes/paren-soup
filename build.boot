@@ -32,6 +32,7 @@
                                 :password (System/getenv "CLOJARS_PASS")}])))
 
 (require
+  '[clojure.java.io :as io]
   '[adzerk.boot-cljs :refer [cljs]]
   '[adzerk.boot-reload :refer [reload]]
   '[ring.adapter.jetty :refer [run-jetty]]
@@ -52,15 +53,15 @@
     :resource-paths #(conj % "resources" "dev-resources"))
   (comp
     (with-pass-thru _
-      (future
-        (-> (fn [{:keys [uri]}]
-              (if (= uri "/")
-                {:status 200
-                 :headers {"Content-Type" "text/html"}
-                 :body (slurp "target/public/index.html")}
-                (not-found "File not found")))
-             (wrap-file "target/public")
-             (run-jetty {:port 3000}))))
+      (.mkdirs (io/file "target/public"))
+      (-> (fn [{:keys [uri]}]
+            (if (= uri "/")
+              {:status 200
+               :headers {"Content-Type" "text/html"}
+               :body (slurp "target/public/index.html")}
+              (not-found "File not found")))
+           (wrap-file "target/public")
+           (run-jetty {:port 3000 :join? false})))
     (watch)
     (reload :asset-path "public" :on-jsload 'paren-soup.core/init-all)
     (cljs :source-map true :optimizations :none :compiler-options {:asset-path "paren-soup.out"})
