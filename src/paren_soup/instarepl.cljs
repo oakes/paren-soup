@@ -87,8 +87,10 @@
 
 (defn form->serializable [form]
   (if (instance? js/Error form)
-    (array (or (some-> form .-cause .-message) (.-message form))
-               (.-fileName form) (.-lineNumber form))
+    (array
+      (or (some-> form .-cause .-message) (.-message form))
+      (.-fileName form)
+      (.-lineNumber form))
     (pr-str form)))
 
 (fdef create-compiler-fn
