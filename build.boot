@@ -64,14 +64,14 @@
            (run-jetty {:port 3000 :join? false})))
     (watch)
     (reload :asset-path "public" :on-jsload 'paren-soup.core/init-all)
-    (cljs :source-map true :optimizations :none :compiler-options {:asset-path "paren-soup.out"})
+    (cljs)
     (target)))
 
 (deftask build []
   (set-env!
     :dependencies #(into (set %) (:dependencies (read-deps-edn [:cljs])))
     :resource-paths #(conj % "resources" "prod-resources"))
-  (comp (cljs :optimizations :advanced) (target)))
+  (comp (cljs) (target)))
 
 (deftask local []
   (comp (pom) (jar) (install)))

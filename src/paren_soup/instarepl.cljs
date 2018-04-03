@@ -4,7 +4,8 @@
             [html-soup.core :as hs]
             [clojure.string :refer [join]]
             [paren-soup.dom :refer [text-node?]]
-            [clojure.spec.alpha :as s :refer [fdef]]))
+            [clojure.spec.alpha :as s :refer [fdef]]
+            [eval-soup.core :as es]))
 
 (def elem? #(instance? js/Element %))
 
@@ -73,15 +74,35 @@
         content)
       content)))
 
+(def ^:dynamic *web-worker-path* nil)
+
+(fdef use-web-worker!
+  :args (s/cat))
+
+(defn use-web-worker! []
+  (set! *web-worker-path* "paren-soup-compiler.js"))
+
+(fdef form->serializable
+  :args (s/cat :form any?))
+
+(defn form->serializable [form]
+  (if (instance? js/Error form)
+    (array (or (some-> form .-cause .-message) (.-message form))
+               (.-fileName form) (.-lineNumber form))
+    (pr-str form)))
+
 (fdef create-compiler-fn
   :args (s/cat)
   :ret fn?)
 
 (defn create-compiler-fn []
-  (try
-    (let [eval-worker (js/Worker. "paren-soup-compiler.js")]
-      (fn [coll receive-fn]
-        (set! (.-onmessage eval-worker) #(receive-fn (vec (.-data %))))
-        (.postMessage eval-worker (into-array coll))))
-    (catch js/Error _ (fn [_ _] (throw js/Error "Can't compile!")))))
+  (if-let [worker (some-> *web-worker-path* js/Worker.)]
+    (fn [coll receive-fn]
+      (set! (.-onmessage worker) #(receive-fn (vec (.-data %))))
+      (.postMessage worker (into-array coll)))
+    (fn [coll receive-fn]
+      (es/code->results
+        coll
+        (fn [results]
+          (receive-fn (into-array (mapv form->serializable results))))))))
 
