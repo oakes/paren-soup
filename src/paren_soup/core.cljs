@@ -91,11 +91,11 @@
   (set! (.-innerHTML numbers) (line-numbers line-count)))
 
 (fdef refresh-instarepl!
-  :args (s/cat :instarepl elem? :content elem? :compiler-fn fn?))
+  :args (s/cat :instarepl elem? :content elem? :compiler-fn fn? :limit number?))
 
 (defn refresh-instarepl!
   "Refreshes the InstaREPL."
-  [instarepl content compiler-fn]
+  [instarepl content compiler-fn limit]
   (let [elems (ir/get-collections content)
         locations (ir/elems->locations elems (.-offsetTop instarepl))
         forms (->> elems
@@ -105,7 +105,7 @@
       (fn [results]
         (when (.-parentElement instarepl)
           (set! (.-innerHTML instarepl)
-                (ir/results->html results locations)))))))
+                (ir/results->html results locations limit)))))))
 
 (fdef post-refresh-content!
   :args (s/cat :content elem? :events-chan channel? :state map?))
@@ -506,7 +506,7 @@ the entire selection rather than just the cursor position."
           (when clj?
             (when-let [elem (.querySelector paren-soup ".instarepl")]
               (when-not (-> elem .-style .-display (= "none"))
-                (refresh-instarepl-with-delay! elem content compiler-fn)))))
+                (refresh-instarepl-with-delay! elem content compiler-fn append-limit)))))
         (update-highlight! content *last-highlight-elem))
       (edit-and-refresh! [this state]
         (->> state

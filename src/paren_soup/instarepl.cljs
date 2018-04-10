@@ -24,13 +24,22 @@
         (recur (inc i) (conj! locations {:top top :height height})))
       (persistent! locations))))
 
+(fdef truncate
+  :args (s/cat :text string? :limit number?)
+  :ret string?)
+
+(defn truncate [text limit]
+  (if (> (count text) limit)
+    (str (subs text 0 limit) "...")
+    text))
+
 (fdef results->html
-  :args (s/cat :results any? :locations (s/coll-of map?))
+  :args (s/cat :results any? :locations (s/coll-of map?) :limit number?)
   :ret string?)
 
 (defn results->html
   "Returns HTML for the given eval results."
-  [results locations]
+  [results locations limit]
   (loop [i 0
          evals (transient [])]
     (let [res (get results i)
@@ -45,6 +54,7 @@
                    height
                    height
                    (some-> (if (array? res) (first res) res)
+                           (truncate limit)
                            hs/escape-html-str))))
         (join (persistent! evals))))))
 
