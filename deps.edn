@@ -7,4 +7,4 @@
         cross-parinfer {:mvn/version "1.4.5"}
         cljsjs/rangy-core {:mvn/version "1.3.0-1"}
         cljsjs/rangy-textrange {:mvn/version "1.3.0-1"}}
- :aliases {:cljs {:extra-deps {org.clojure/clojurescript {:mvn/version "1.10.238"}}}}}
+ :aliases {:cljs {:extra-deps {org.clojure/clojurescript {:mvn/version "1.10.312"}}}}}
