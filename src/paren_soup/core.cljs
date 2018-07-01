@@ -440,16 +440,17 @@ the entire selection rather than just the cursor position."
           (reset-edit-history! this char-count)))
       (enter! [this]
         (if editor?
-          (let [pos (dom/get-cursor-position content false)]
-            (dom/insert-text! "\n")
-            ; in Edge, insert-text! does not cause the cursor to change,
-            ; so we have to change it manually. we also need to prevent the
-            ; refresh from happening, since it seems to mess things up.
-            ; this is not ideal, as it means we will lose auto-indentation,
-            ; but it at least we are closer to supporting Edge than we were before.
-            (when (not= -1 (.indexOf js/navigator.userAgent "Edge"))
+          ; in Edge, insert-text! does not cause the cursor to change,
+          ; so we have to change it manually. we also need to prevent the
+          ; refresh from happening, since it seems to mess things up.
+          ; this is not ideal, as it means we will lose auto-indentation,
+          ; but it at least we are closer to supporting Edge than we were before.
+          (if (not= -1 (.indexOf js/navigator.userAgent "Edge"))
+            (let [pos (dom/get-cursor-position content false)]
+              (dom/insert-text! "\n")
               (dom/set-cursor-position! content (mapv inc pos))
-              (reset! *skip-refresh? true)))
+              (reset! *skip-refresh? true))
+            (.execCommand js/document "insertHTML" false "\n"))
           (let [text (trimr (.-textContent content))
                 post-text (subs text (console/get-console-start *console-history))]
             (reset-edit-history! this (count text))
