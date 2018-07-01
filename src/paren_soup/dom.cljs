@@ -1,7 +1,8 @@
 (ns paren-soup.dom
   (:require [goog.object :as gobj]
             [mistakes-were-made.core :as mm]
-            [clojure.spec.alpha :as s :refer [fdef]]))
+            [clojure.spec.alpha :as s :refer [fdef]]
+            [clojure.string :as str]))
 
 (def node? #(instance? js/Node %))
 
@@ -31,7 +32,7 @@ of the selection (it is, however, much slower)."
            pre-caret-range (doto (.cloneRange range)
                              (.selectNodeContents element)
                              (.setEnd (.-endContainer range) (.-endOffset range)))
-           pos (-> pre-caret-range .toString .-length)]
+           pos (-> pre-caret-range .toString (str/replace #"\r" "") .-length)]
        [pos pos]))})
 
 (fdef get-cursor-position
@@ -71,10 +72,7 @@ of the selection (it is, however, much slower)."
       (.insertNode node)
       (.setStartAfter node)
       (.setEndAfter node)
-      (.collapse false))
-    (doto selection
-      .removeAllRanges
-      (.addRange range))))
+      (.collapse false))))
 
 (fdef get-parent
   :args (s/cat :node node? :class-name string?)
