@@ -373,7 +373,7 @@ the entire selection rather than just the cursor position."
   :args (s/cat :paren-soup elem? :content elem? :events-chan channel? :opts map?)
   :ret #(satisfies? Editor %))
 
-(defn create-editor [paren-soup content events-chan
+(defn create-editor [ps content events-chan
                      {:keys [history-limit append-limit compiler-fn console-callback disable-clj? edit-history]
                       :or {history-limit 100
                            append-limit 5000}}]
@@ -501,10 +501,10 @@ the entire selection rather than just the cursor position."
             editor? (refresh-content! content state)
             :else (refresh-console-content! content state (console/get-console-start *console-history) clj?)))
         (when editor?
-          (some-> (.querySelector paren-soup ".numbers")
+          (some-> (.querySelector ps ".numbers")
                   (refresh-numbers! (count (re-seq #"\n" (:text state)))))
           (when clj?
-            (when-let [elem (.querySelector paren-soup ".instarepl")]
+            (when-let [elem (.querySelector ps ".instarepl")]
               (when-not (-> elem .-style .-display (= "none"))
                 (refresh-instarepl-with-delay! elem content compiler-fn append-limit)))))
         (update-highlight! content *last-highlight-elem))
@@ -571,13 +571,13 @@ the entire selection rather than just the cursor position."
 (fdef init
   :args (s/cat :paren-soup elem? :opts obj?))
 
-(defn ^:export init [paren-soup opts]
+(defn ^:export init [ps opts]
   (.init js/rangy)
   (let [opts (js->clj opts :keywordize-keys true)
-        content (.querySelector paren-soup ".content")
+        content (.querySelector ps ".content")
         events-chan (chan)
-        editor (create-editor paren-soup content events-chan opts)]
-    (set! (.-spellcheck paren-soup) false)
+        editor (create-editor ps content events-chan opts)]
+    (set! (.-spellcheck ps) false)
     (when-not content
       (throw (js/Error. "Can't find a div with class 'content'")))
     (initialize! editor)
@@ -616,9 +616,9 @@ the entire selection rather than just the cursor position."
               (update-cursor-position! editor
                 (dom/get-cursor-position content (some? (:console-callback opts))))
               "mouseenter"
-              (show-error-message! paren-soup event)
+              (show-error-message! ps event)
               "mouseleave"
-              (hide-error-messages! paren-soup)
+              (hide-error-messages! ps)
               nil)
             (some-> opts :change-callback (#(% event)))))))
     ; return editor
@@ -628,8 +628,8 @@ the entire selection rather than just the cursor position."
   :args (s/cat))
 
 (defn ^:export init-all []
-  (doseq [paren-soup (-> js/document (.querySelectorAll ".paren-soup") array-seq)]
-    (init paren-soup #js {})))
+  (doseq [ps (-> js/document (.querySelectorAll ".paren-soup") array-seq)]
+    (init ps #js {})))
 
 (defn ^:export undo [editor] (undo! editor))
 (defn ^:export redo [editor] (redo! editor))
