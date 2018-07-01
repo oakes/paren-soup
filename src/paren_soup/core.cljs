@@ -447,7 +447,7 @@ the entire selection rather than just the cursor position."
             ; refresh from happening, since it seems to mess things up.
             ; this is not ideal, as it means we will lose auto-indentation,
             ; but it at least we are closer to supporting Edge than we were before.
-            (when (= pos (dom/get-cursor-position content false))
+            (when (not= -1 (.indexOf js/navigator.userAgent "Edge"))
               (dom/set-cursor-position! content (mapv inc pos))
               (reset! *skip-refresh? true)))
           (let [text (trimr (.-textContent content))
