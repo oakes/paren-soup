@@ -42,7 +42,7 @@
 
 (task-options!
   pom {:project 'paren-soup
-       :version "2.13.1"
+       :version "2.13.2"
        :description "A viewer and editor for ClojureScript"
        :url "https://github.com/oakes/paren-soup"
        :license {"Public Domain" "http://unlicense.org/UNLICENSE"}}
