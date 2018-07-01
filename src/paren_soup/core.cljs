@@ -439,7 +439,7 @@ the entire selection rather than just the cursor position."
           (reset-edit-history! this char-count)))
       (enter! [this]
         (if editor?
-          (.execCommand js/document "insertHTML" false "\n")
+          (dom/insert-text! "\n")
           (let [text (trimr (.-textContent content))
                 post-text (subs text (console/get-console-start *console-history))]
             (reset-edit-history! this (count text))

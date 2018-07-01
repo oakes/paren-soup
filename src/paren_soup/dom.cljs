@@ -59,6 +59,23 @@ of the selection (it is, however, much slower)."
         ranges (array range)]
     (.restoreCharacterRanges selection element ranges)))
 
+(fdef insert-text!
+  :args (s/cat :text string?))
+
+(defn insert-text! [text]
+  (let [selection (.getSelection js/window)
+        range (.getRangeAt selection 0)
+        node (.createTextNode js/document text)]
+    (doto range
+      .deleteContents
+      (.insertNode node)
+      (.setStartAfter node)
+      (.setEndAfter node)
+      (.collapse false))
+    (doto selection
+      .removeAllRanges
+      (.addRange range))))
+
 (fdef get-parent
   :args (s/cat :node node? :class-name string?)
   :ret (s/nilable node?))
