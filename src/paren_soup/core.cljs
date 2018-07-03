@@ -11,7 +11,8 @@
             [paren-soup.console :as console]
             [paren-soup.instarepl :as ir]
             [paren-soup.dom :as dom]
-            [clojure.spec.alpha :as s :refer [fdef]])
+            [clojure.spec.alpha :as s :refer [fdef]]
+            [goog.labs.userAgent.browser :as browser])
   (:refer-clojure :exclude [eval])
   (:require-macros [cljs.core.async.macros :refer [go]]))
 
@@ -440,12 +441,12 @@ the entire selection rather than just the cursor position."
           (reset-edit-history! this char-count)))
       (enter! [this]
         (if editor?
-          ; in Edge, insert-text! does not cause the cursor to change,
-          ; so we have to change it manually. we also need to prevent the
-          ; refresh from happening, since it seems to mess things up.
+          ; the execCommand technique doesn't work in Edge, so we use
+          ; insert-text! instead. we also need to manually move the cursor,
+          ; and then prevent the refresh from happening.
           ; this is not ideal, as it means we will lose auto-indentation,
-          ; but it at least we are closer to supporting Edge than we were before.
-          (if (not= -1 (.indexOf js/navigator.userAgent "Edge"))
+          ; but at least we are closer to supporting Edge than we were before.
+          (if (browser/isEdge)
             (let [pos (dom/get-cursor-position content false)]
               (dom/insert-text! "\n")
               (dom/set-cursor-position! content (mapv inc pos))
