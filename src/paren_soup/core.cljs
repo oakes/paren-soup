@@ -446,7 +446,7 @@ the entire selection rather than just the cursor position."
           ; and then prevent the refresh from happening.
           ; this is not ideal, as it means we will lose auto-indentation,
           ; but at least we are closer to supporting Edge than we were before.
-          (if (browser/isEdge)
+          (if (or (browser/isEdge) (browser/isIE))
             (let [pos (dom/get-cursor-position content false)]
               (dom/insert-text! "\n")
               (dom/set-cursor-position! content (mapv inc pos))
