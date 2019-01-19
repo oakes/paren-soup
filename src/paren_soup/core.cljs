@@ -520,7 +520,6 @@ the entire selection rather than just the cursor position."
               (:selection-change? state) state
               editor? (refresh-content! content state)
               :else (refresh-console-content! content state (console/get-console-start *console-history) clj?))))
-        (reset! *first-refresh? false)
         (when editor?
           (some-> (.querySelector ps ".numbers")
                   (refresh-numbers! (count (re-seq #"\n" (:text state)))))
@@ -538,7 +537,8 @@ the entire selection rather than just the cursor position."
       (initialize! [this]
         (when editor?
           (->> (init-state content false false)
-               (edit-and-refresh! this))))
+               (edit-and-refresh! this)))
+        (reset! *first-refresh? false))
       (refresh-after-key-event! [this event]
         (let [tab? (key-name? event :tab)
               state (init-state content editor? tab?)]
