@@ -109,13 +109,13 @@
                 (ir/results->html results locations limit)))))))
 
 (fdef post-refresh-content!
-  :args (s/cat :content elem? :events-chan channel? :state map?))
+  :args (s/cat :content elem? :events-chan channel? :focus? boolean? :state map?))
 
 (defn post-refresh-content!
   "Does additional work on the content after it is rendered."
-  [content events-chan {:keys [cropped-state] :as state}]
+  [content events-chan focus? {:keys [cropped-state] :as state}]
   ; set the cursor position
-  (when (= content js/document.activeElement)
+  (when focus?
     (if (some->> cropped-state :element (.contains content))
       (some-> cropped-state :element (dom/set-cursor-position! (:cursor-position cropped-state)))
       (if (and (:selection-change? state) (:original-cursor-position state))
@@ -376,9 +376,13 @@ the entire selection rather than just the cursor position."
   :ret #(satisfies? Editor %))
 
 (defn create-editor [ps content events-chan
-                     {:keys [history-limit append-limit compiler-fn console-callback disable-clj? edit-history]
+                     {:keys [history-limit append-limit
+                             compiler-fn console-callback
+                             disable-clj? edit-history
+                             focus?]
                       :or {history-limit 100
-                           append-limit 5000}}]
+                           append-limit 5000
+                           focus? false}}]
   (let [clj? (not disable-clj?)
         editor? (not console-callback)
         compiler-fn (or compiler-fn (ir/create-compiler-fn))
@@ -388,7 +392,8 @@ the entire selection rather than just the cursor position."
         *console-history (console/create-console-history)
         *last-highlight-elem (atom nil)
         *allow-tab? (atom false)
-        *skip-refresh? (atom false)]
+        *skip-refresh? (atom false)
+        *first-refresh? (atom true)]
     ; in console mode, don't allow text before console start to be edited
     (when-not editor?
       (set-validator! *edit-history
@@ -510,11 +515,12 @@ the entire selection rather than just the cursor position."
       (refresh! [this state]
         (if @*skip-refresh?
           (reset! *skip-refresh? false)
-          (post-refresh-content! content events-chan
+          (post-refresh-content! content events-chan (or focus? (not @*first-refresh?))
             (cond
               (:selection-change? state) state
               editor? (refresh-content! content state)
               :else (refresh-console-content! content state (console/get-console-start *console-history) clj?))))
+        (reset! *first-refresh? false)
         (when editor?
           (some-> (.querySelector ps ".numbers")
                   (refresh-numbers! (count (re-seq #"\n" (:text state)))))
