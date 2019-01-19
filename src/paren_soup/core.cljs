@@ -115,11 +115,12 @@
   "Does additional work on the content after it is rendered."
   [content events-chan {:keys [cropped-state] :as state}]
   ; set the cursor position
-  (if (some->> cropped-state :element (.contains content))
-    (some-> cropped-state :element (dom/set-cursor-position! (:cursor-position cropped-state)))
-    (if (and (:selection-change? state) (:original-cursor-position state))
-      (dom/set-cursor-position! content (:original-cursor-position state))
-      (dom/set-cursor-position! content (:cursor-position state))))
+  (when (= content js/document.activeElement)
+    (if (some->> cropped-state :element (.contains content))
+      (some-> cropped-state :element (dom/set-cursor-position! (:cursor-position cropped-state)))
+      (if (and (:selection-change? state) (:original-cursor-position state))
+        (dom/set-cursor-position! content (:original-cursor-position state))
+        (dom/set-cursor-position! content (:cursor-position state)))))
   ; set up errors
   (hide-error-messages! (.-parentElement content))
   (doseq [elem (-> content (.querySelectorAll ".error") array-seq)]
