@@ -3,7 +3,7 @@
   :dependencies '[[adzerk/boot-cljs "2.1.5" :scope "test"]
                   ; project deps
                   [org.clojure/clojurescript "1.10.439"]
-                  [eval-soup "1.4.3"]])
+                  [eval-soup "1.5.0"]])
 
 (require
   '[adzerk.boot-cljs :refer [cljs]]
