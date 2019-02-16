@@ -551,12 +551,7 @@ the entire selection rather than just the cursor position."
           (when tab?
             (reset! *allow-tab? false))))
       (refresh-after-cut-paste! [this]
-        (let [html (.-innerHTML content)
-              insert-newlines? (-> html (.indexOf "</tr>") (> 0))
-              crop? (and editor? (not insert-newlines?))]
-          (when insert-newlines?
-            (set! (.-innerHTML content) (replace html "</tr>" \newline)))
-          (edit-and-refresh! this (assoc (init-state content crop? false) :indent-type :normal))))
+        (edit-and-refresh! this (assoc (init-state content editor? false) :indent-type :normal)))
       (eval! [this form callback]
         (compiler-fn [form] #(callback (first %)))))))
 
