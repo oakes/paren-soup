@@ -1,39 +1,7 @@
-(defmulti task first)
-
-(defmethod task :default
-  [_]
-  (let [all-tasks  (-> task methods (dissoc :default) keys sort)
-        interposed (->> all-tasks (interpose ", ") (apply str))]
-    (println "Unknown or missing task. Choose one of:" interposed)
-    (System/exit 1)))
-
 (require
-  '[cljs.build.api :as api])
-
-(defmethod task "build"
-  [_]
-  (println "Building paren-soup.js")
-  (api/build "src" {:main          'paren-soup.prod
-                    :optimizations :advanced
-                    :output-to     "target-cljs/public/paren-soup.js"
-                    :output-dir    "target/public/paren-soup.out"})
-  (println "Building paren-soup-compiler.js")
-  (api/build "src" {:main               'paren-soup.compiler
-                    :optimizations      :simple
-                    :output-to          "target-cljs/public/paren-soup-compiler.js"
-                    :output-dir         "target/public/paren-soup-compiler.out"
-                    :static-fns         true
-                    :optimize-constants true})
-  (println "Building paren-soup-with-compiler.js")
-  (api/build "src" {:main               'paren-soup.core
-                    :optimizations      :simple
-                    :output-to          "target-cljs/public/paren-soup-with-compiler.js"
-                    :output-dir         "target/public/paren-soup-with-compiler.out"
-                    :static-fns         true
-                    :optimize-constants true}))
-
-(require
+  '[cljs.build.api :as api]
   '[leiningen.core.project :as p :refer [defproject]]
+  '[leiningen.clean :refer [clean]]
   '[leiningen.install :refer [install]]
   '[leiningen.deploy :refer [deploy]])
 
@@ -55,6 +23,38 @@
                     (select-keys info [:scope :exclusions])))
                 deps))
             []))))
+
+(defmulti task first)
+
+(defmethod task :default
+  [_]
+  (let [all-tasks  (-> task methods (dissoc :default) keys sort)
+        interposed (->> all-tasks (interpose ", ") (apply str))]
+    (println "Unknown or missing task. Choose one of:" interposed)
+    (System/exit 1)))
+
+(defmethod task "build"
+  [_]
+  (-> (read-project-clj) p/init-project clean)
+  (println "Building paren-soup.js")
+  (api/build "src" {:main          'paren-soup.prod
+                    :optimizations :advanced
+                    :output-to     "target-js/public/paren-soup.js"
+                    :output-dir    "target/public/paren-soup.out"})
+  (println "Building paren-soup-compiler.js")
+  (api/build "src" {:main               'paren-soup.compiler
+                    :optimizations      :simple
+                    :output-to          "target-js/public/paren-soup-compiler.js"
+                    :output-dir         "target/public/paren-soup-compiler.out"
+                    :static-fns         true
+                    :optimize-constants true})
+  (println "Building paren-soup-with-compiler.js")
+  (api/build "src" {:main               'paren-soup.core
+                    :optimizations      :simple
+                    :output-to          "target-js/public/paren-soup-with-compiler.js"
+                    :output-dir         "target/public/paren-soup-with-compiler.out"
+                    :static-fns         true
+                    :optimize-constants true}))
 
 (defmethod task "install"
   [_]
