@@ -1,5 +1,5 @@
 {:main          paren-soup.dev
  :optimizations :none
- :output-to     "target/public/paren-soup.js"
+ :output-to     "target-js/public/paren-soup.js"
  :output-dir    "target/public/paren-soup.out"
  :asset-path    "paren-soup.out"}
