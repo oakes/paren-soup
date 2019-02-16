@@ -24,6 +24,7 @@
                         deps))
                     []))]
     {:dependencies deps
+     :source-paths []
      :resource-paths paths}))
 
 (defmulti task first)
