@@ -8,16 +8,9 @@
     (System/exit 1)))
 
 (require
-  '[figwheel.main :as figwheel])
-
-(defmethod task "dev"
-  [_]
-  (figwheel/-main "--build" "dev"))
-
-(require
   '[cljs.build.api :as api])
 
-(defmethod task "prod"
+(defmethod task "build"
   [_]
   (println "Building paren-soup.js")
   (api/build "src" {:main          'paren-soup.prod
