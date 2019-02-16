@@ -15,19 +15,19 @@
   (println "Building paren-soup.js")
   (api/build "src" {:main          'paren-soup.prod
                     :optimizations :advanced
-                    :output-to     "resources/public/paren-soup.js"
+                    :output-to     "target-cljs/public/paren-soup.js"
                     :output-dir    "target/public/paren-soup.out"})
   (println "Building paren-soup-compiler.js")
   (api/build "src" {:main               'paren-soup.compiler
                     :optimizations      :simple
-                    :output-to          "resources/public/paren-soup-compiler.js"
+                    :output-to          "target-cljs/public/paren-soup-compiler.js"
                     :output-dir         "target/public/paren-soup-compiler.out"
                     :static-fns         true
                     :optimize-constants true})
   (println "Building paren-soup-with-compiler.js")
   (api/build "src" {:main               'paren-soup.core
                     :optimizations      :simple
-                    :output-to          "resources/public/paren-soup-with-compiler.js"
+                    :output-to          "target-cljs/public/paren-soup-with-compiler.js"
                     :output-dir         "target/public/paren-soup-with-compiler.out"
                     :static-fns         true
                     :optimize-constants true}))
