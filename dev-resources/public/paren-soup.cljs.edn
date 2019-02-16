@@ -1,5 +1,0 @@
-{:require  [paren-soup.core]
- :init-fns [orchestra-cljs.spec.test/instrument paren-soup.instarepl/use-web-worker!]
- :compiler-options {:optimizations :none
-                    :source-map true
-                    :asset-path "paren-soup.out"}}

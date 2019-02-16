@@ -1,3 +1,0 @@
-{:require  [paren-soup.core]
- :init-fns [paren-soup.instarepl/use-web-worker!]
- :compiler-options {:optimizations :advanced}}

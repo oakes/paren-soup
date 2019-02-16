@@ -1,5 +1,0 @@
-{:require  [paren-soup.core]
- :init-fns []
- :compiler-options {:optimizations :simple
-                    :compiler-options {:static-fns true
-                                       :optimize-constants true}}}

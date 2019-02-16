@@ -2,6 +2,7 @@ data_readers.clj
 hs_err_pid*.log
 pom.xml
 pom.xml.asc
+resources/public/*.js
 **/gen
 **/target
 .*
