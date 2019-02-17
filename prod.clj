@@ -62,7 +62,6 @@
 (defmethod task "install"
   [_]
   (-> (read-project-clj)
-      (dissoc :middleware)
       (merge (read-deps-edn []))
       p/init-project
       install)
@@ -71,7 +70,6 @@
 (defmethod task "deploy"
   [_]
   (-> (read-project-clj)
-      (dissoc :middleware)
       (merge (read-deps-edn []))
       p/init-project
       (deploy "clojars"))
