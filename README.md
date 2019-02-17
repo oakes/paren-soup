@@ -46,6 +46,7 @@ If you want to use paren-soup in a ClojureScript project, add it to your project
 * Install [the Clojure CLI tool](https://clojure.org/guides/getting_started#_clojure_installer_and_cli_tools)
 * To develop with figwheel: `clj -A:dev:cljs dev.clj`
 * To build the release version: `clj -A:prod:cljs prod.clj build`
+* To install the release version: `clj -A:prod prod.clj install`
 
 ## Licensing
 
