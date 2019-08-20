@@ -164,6 +164,12 @@
                                        (mapv #(+ % cursor-change) pos))))
     state))
 
+(defn add-paren-salsa [state]
+  (let [parsed-code (ps/parse (:text state) {:parinfer :indent})]
+    (-> state
+        (update-cursor-position-via-diff parsed-code)
+        (assoc :text (join (ps/flatten hs/node->html parsed-code))))))
+
 (fdef refresh-content-element!
   :args (s/cat :cropped-state map?)
   :ret map?)
@@ -208,8 +214,8 @@
         text (join (map #(.-textContent %) old-elems))
         ; create temporary element
         temp-elem (.createElement js/document "span")
-        parsed-code (ps/parse text {:parinfer :indent})
-        _ (set! (.-innerHTML temp-elem) (join (ps/flatten hs/node->html parsed-code)))
+        cropped-state (add-paren-salsa cropped-state)
+        _ (set! (.-innerHTML temp-elem) (:text cropped-state))
         ; collect elements
         new-elems (doall
                     (for [i (range (-> temp-elem .-childNodes .-length))]
@@ -220,7 +226,7 @@
     ; remove the old nodes
     (doseq [old-elem old-elems]
       (.removeChild parent old-elem))
-    (update-cursor-position-via-diff (assoc cropped-state :element (first new-elems)) parsed-code)))
+    (assoc cropped-state :element (first new-elems))))
 
 (fdef refresh-content!
   :args (s/cat :content elem? :state map?)
@@ -234,9 +240,9 @@
     (if (not= (:text state) (.-textContent content))
       (refresh-content! content (dissoc state :cropped-state))
       (assoc state :cropped-state crop))
-    (let [parsed-code (ps/parse (:text state) {:parinfer :indent})]
-      (set! (.-innerHTML content) (join (ps/flatten hs/node->html parsed-code)))
-      (update-cursor-position-via-diff (dissoc state :cropped-state) parsed-code))))
+    (do
+      (set! (.-innerHTML content) (:text state))
+      state)))
 
 (fdef refresh-console-content!
   :args (s/cat :content elem? :state map? :console-start-num number? :clj? boolean?)
@@ -528,6 +534,7 @@ the entire selection rather than just the cursor position."
       (edit-and-refresh! [this state]
         (->> state
              (add-newline)
+             (add-paren-salsa)
              (update-edit-history! *edit-history)
              (refresh! this)))
       (initialize! [this]
