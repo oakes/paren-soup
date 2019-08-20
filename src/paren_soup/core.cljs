@@ -6,8 +6,8 @@
             [cljsjs.rangy-core]
             [cljsjs.rangy-textrange]
             [mistakes-were-made.core :as mwm :refer [atom?]]
+            [paren-salsa.core :as ps]
             [html-soup.core :as hs]
-            [cross-parinfer.core :as cp]
             [paren-soup.console :as console]
             [paren-soup.instarepl :as ir]
             [paren-soup.dom :as dom]
@@ -178,7 +178,7 @@
         text (join (map #(.-textContent %) old-elems))
         ; create temporary element
         temp-elem (.createElement js/document "span")
-        _ (set! (.-innerHTML temp-elem) (hs/code->html text))
+        _ (set! (.-innerHTML temp-elem) (join (ps/flatten hs/node->html (ps/parse text {:parinfer :indent}))))
         ; collect elements
         new-elems (doall
                     (for [i (range (-> temp-elem .-childNodes .-length))]
@@ -204,7 +204,7 @@
       (refresh-content! content (dissoc state :cropped-state))
       (assoc state :cropped-state crop))
     (do
-      (set! (.-innerHTML content) (hs/code->html (:text state)))
+      (set! (.-innerHTML content) (join (ps/flatten hs/node->html (ps/parse (:text state) {:parinfer :indent}))))
       (dissoc state :cropped-state))))
 
 (fdef refresh-console-content!
@@ -216,43 +216,9 @@
     (if clj?
       (let [pre-text (subs (:text state) 0 console-start-num)
             post-text (subs (:text state) console-start-num)]
-        (str (hs/escape-html-str pre-text) (hs/code->html post-text)))
+        (str (hs/escape-html-str pre-text) (join (ps/flatten hs/node->html (ps/parse post-text {:parinfer :indent})))))
       (hs/escape-html-str (:text state))))
   state)
-
-(fdef add-parinfer-after-console-start
-  :args (s/cat :console-start-num number? :state map?)
-  :ret map?)
-
-(defn add-parinfer-after-console-start [console-start-num state]
-  (let [pre-text (subs (:text state) 0 console-start-num)
-        post-text (subs (:text state) console-start-num)
-        cleared-text (str (replace pre-text #"[^\r^\n]" " ") post-text)
-        temp-state (assoc state :text cleared-text)
-        temp-state (cp/add-parinfer :both temp-state)
-        new-text (str pre-text (subs (:text temp-state) console-start-num))]
-    (assoc state :text new-text)))
-
-(fdef add-parinfer
-  :args (s/cat :enable? boolean? :console-start-num number? :state map?)
-  :ret map?)
-
-(defn add-parinfer [enable? console-start-num state]
-  (if enable?
-    (let [cropped-state (:cropped-state state)
-          indent-type (:indent-type state)
-          state (cond
-                  (pos? console-start-num)
-                  (add-parinfer-after-console-start console-start-num state)
-                  indent-type
-                  (cp/add-indent state)
-                  :else
-                  (cp/add-parinfer :paren state))]
-      (if (and cropped-state indent-type)
-        (assoc state :cropped-state
-          (merge cropped-state (cp/add-indent (assoc cropped-state :indent-type indent-type))))
-        state))
-    state))
 
 (fdef add-newline
   :args (s/cat :state map?)
@@ -531,7 +497,6 @@ the entire selection rather than just the cursor position."
       (edit-and-refresh! [this state]
         (->> state
              (add-newline)
-             (add-parinfer clj? (console/get-console-start *console-history))
              (update-edit-history! *edit-history)
              (refresh! this)))
       (initialize! [this]
