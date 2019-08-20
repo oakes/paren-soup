@@ -1,6 +1,6 @@
 (ns paren-soup.core
   (:require [cljs.core.async :refer [chan put! <!]]
-            [clojure.string :refer [join replace trimr]]
+            [clojure.string :as str :refer [join replace trimr]]
             [goog.events :as events]
             [goog.functions :refer [debounce]]
             [cljsjs.rangy-core]
@@ -134,6 +134,36 @@
   (doseq [[elem class-name] (rainbow-delimiters content -1)]
     (.add (.-classList elem) class-name)))
 
+(fdef position->row-col
+  :args (s/cat :text string? :position integer?)
+  :ret (s/coll-of integer?))
+
+(defn position->row-col
+  "Converts a position to a row and column number."
+  [text position]
+  (let [text (subs text 0 position)
+        row (count (re-seq #"\n" text))
+        col (if-let [last-newline (str/last-index-of text "\n")]
+              (- position last-newline 1)
+              position)]
+    [row col]))
+
+(defn update-cursor-position-via-diff [{:keys [text] [cursor-begin cursor-end] :cursor-position :as state} parsed-code]
+  (if (= cursor-begin cursor-end)
+    (let [[row col] (position->row-col text cursor-begin)
+          cursor-change (->> (ps/diff parsed-code)
+                             (filterv (fn [{:keys [line column]}]
+                                        (or (< line row)
+                                            (and (= line row) (< column col)))))
+                             (map (fn [{:keys [content action]}]
+                                    (cond-> (count content)
+                                            (= action :remove)
+                                            (* -1))))
+                             (reduce + 0))]
+      (update state :cursor-position (fn [pos]
+                                       (mapv #(+ % cursor-change) pos))))
+    state))
+
 (fdef refresh-content-element!
   :args (s/cat :cropped-state map?)
   :ret map?)
@@ -178,7 +208,8 @@
         text (join (map #(.-textContent %) old-elems))
         ; create temporary element
         temp-elem (.createElement js/document "span")
-        _ (set! (.-innerHTML temp-elem) (join (ps/flatten hs/node->html (ps/parse text {:parinfer :indent}))))
+        parsed-code (ps/parse text {:parinfer :indent})
+        _ (set! (.-innerHTML temp-elem) (join (ps/flatten hs/node->html parsed-code)))
         ; collect elements
         new-elems (doall
                     (for [i (range (-> temp-elem .-childNodes .-length))]
@@ -189,7 +220,7 @@
     ; remove the old nodes
     (doseq [old-elem old-elems]
       (.removeChild parent old-elem))
-    (assoc cropped-state :element (first new-elems))))
+    (update-cursor-position-via-diff (assoc cropped-state :element (first new-elems)) parsed-code)))
 
 (fdef refresh-content!
   :args (s/cat :content elem? :state map?)
@@ -203,9 +234,9 @@
     (if (not= (:text state) (.-textContent content))
       (refresh-content! content (dissoc state :cropped-state))
       (assoc state :cropped-state crop))
-    (do
-      (set! (.-innerHTML content) (join (ps/flatten hs/node->html (ps/parse (:text state) {:parinfer :indent}))))
-      (dissoc state :cropped-state))))
+    (let [parsed-code (ps/parse (:text state) {:parinfer :indent})]
+      (set! (.-innerHTML content) (join (ps/flatten hs/node->html parsed-code)))
+      (update-cursor-position-via-diff (dissoc state :cropped-state) parsed-code))))
 
 (fdef refresh-console-content!
   :args (s/cat :content elem? :state map? :console-start-num number? :clj? boolean?)
@@ -240,7 +271,7 @@ the entire selection rather than just the cursor position."
   (let [selection (.getSelection js/rangy)
         anchor (.-anchorNode selection)
         focus (.-focusNode selection)
-        parent (when (and anchor focus)
+        parent (when (and (some? anchor) (some? focus))
                  (dom/common-ancestor anchor focus))
         state {:cursor-position (-> content (dom/get-selection full-selection?) :cursor-position)
                :text (.-textContent content)}]
