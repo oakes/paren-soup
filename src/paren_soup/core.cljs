@@ -6,7 +6,7 @@
             [cljsjs.rangy-core]
             [cljsjs.rangy-textrange]
             [mistakes-were-made.core :as mwm :refer [atom?]]
-            [paren-salsa.core :as ps]
+            [parinferish.core :as ps]
             [html-soup.core :as hs]
             [paren-soup.console :as console]
             [paren-soup.instarepl :as ir]
@@ -164,8 +164,8 @@
                                        (mapv #(+ % cursor-change) pos))))
     state))
 
-(defn add-paren-salsa [state]
-  (let [parsed-code (ps/parse (:text state) {:parinfer :indent})]
+(defn add-parinferish [state]
+  (let [parsed-code (ps/parse (:text state) {:mode :indent})]
     (-> state
         (update-cursor-position-via-diff parsed-code)
         (assoc :text (join (ps/flatten hs/node->html parsed-code))))))
@@ -214,7 +214,7 @@
         text (join (map #(.-textContent %) old-elems))
         ; create temporary element
         temp-elem (.createElement js/document "span")
-        cropped-state (add-paren-salsa cropped-state)
+        cropped-state (add-parinferish cropped-state)
         _ (set! (.-innerHTML temp-elem) (:text cropped-state))
         ; collect elements
         new-elems (doall
@@ -534,7 +534,7 @@ the entire selection rather than just the cursor position."
       (edit-and-refresh! [this state]
         (->> state
              (add-newline)
-             (add-paren-salsa)
+             (add-parinferish)
              (update-edit-history! *edit-history)
              (refresh! this)))
       (initialize! [this]
