@@ -148,26 +148,26 @@
               position)]
     [row col]))
 
-(defn update-cursor-position-via-diff [{:keys [text] [cursor-begin cursor-end] :cursor-position :as state} parsed-code]
-  (if (= cursor-begin cursor-end)
-    (let [[row col] (position->row-col text cursor-begin)
-          cursor-change (->> (ps/diff parsed-code)
-                             (filterv (fn [{:keys [line column]}]
-                                        (or (< line row)
-                                            (and (= line row) (< column col)))))
-                             (map (fn [{:keys [content action]}]
-                                    (cond-> (count content)
-                                            (= action :remove)
-                                            (* -1))))
-                             (reduce + 0))]
-      (update state :cursor-position (fn [pos]
-                                       (mapv #(+ % cursor-change) pos))))
-    state))
+(defn update-cursor-position-via-diff [state parsed-code row col]
+  (let [cursor-change (->> (ps/diff parsed-code)
+                           (filterv (fn [{:keys [line column]}]
+                                      (or (< line row)
+                                          (and (= line row) (< column col)))))
+                           (map (fn [{:keys [content action]}]
+                                  (cond-> (count content)
+                                          (= action :remove)
+                                          (* -1))))
+                           (reduce + 0))]
+    (update state :cursor-position (fn [pos]
+                                     (mapv #(+ % cursor-change) pos)))))
 
-(defn add-parinferish [state]
-  (let [parsed-code (ps/parse (:text state) {:mode :indent})]
+(defn add-parinferish [{:keys [text] [cursor-begin cursor-end] :cursor-position :as state}]
+  (let [[row col] (position->row-col text cursor-begin)
+        parsed-code (ps/parse (:text state) {:mode (if (:indent-type state) :smart :paren)
+                                             :cursor-line row
+                                             :cursor-column col})]
     (-> state
-        (update-cursor-position-via-diff parsed-code)
+        (update-cursor-position-via-diff parsed-code row col)
         (assoc :text (join (ps/flatten hs/node->html parsed-code))))))
 
 (fdef refresh-content-element!
