@@ -109,18 +109,23 @@
                 (ir/results->html results locations limit)))))))
 
 (fdef post-refresh-content!
-  :args (s/cat :content elem? :events-chan channel? :focus? boolean? :state map?))
+  :args (s/cat :content elem? :focus? boolean? :state map?))
 
 (defn post-refresh-content!
   "Does additional work on the content after it is rendered."
-  [content events-chan focus? {:keys [cropped-state] :as state}]
+  [content focus? {:keys [cropped-state] :as state}]
   ; set the cursor position
   (when focus?
     (if (some->> cropped-state :element (.contains content))
       (some-> cropped-state :element (dom/set-cursor-position! (:cursor-position cropped-state)))
       (if (and (:selection-change? state) (:original-cursor-position state))
         (dom/set-cursor-position! content (:original-cursor-position state))
-        (dom/set-cursor-position! content (:cursor-position state)))))
+        (dom/set-cursor-position! content (:cursor-position state))))))
+
+(fdef refresh-errors-and-delimiters!
+  :args (s/cat :content elem? :events-chan channel?))
+
+(defn refresh-errors-and-delimiters! [content events-chan]
   ; set up errors
   (hide-error-messages! (.-parentElement content))
   (doseq [elem (-> content (.querySelectorAll ".error") array-seq)]
@@ -502,11 +507,15 @@ the entire selection rather than just the cursor position."
         (when editor?
           (reset! *allow-tab? true)))
       (refresh! [this state]
-        (post-refresh-content! content events-chan (or focus? (not @*first-refresh?))
+        (post-refresh-content! content (or focus? (not @*first-refresh?))
           (cond
-            (:selection-change? state) state
+            (or (:selection-change? state)
+                (and editor? (not clj?)))
+            state
             editor? (refresh-content! content state)
             :else (refresh-console-content! content state (console/get-console-start *console-history) clj?)))
+        (when clj?
+          (refresh-errors-and-delimiters! content events-chan))
         (when editor?
           (some-> (.querySelector ps ".numbers")
                   (refresh-numbers! (count (re-seq #"\n" (:text state)))))
