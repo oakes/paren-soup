@@ -199,7 +199,7 @@
 (defn refresh-content! [content state clj?]
   (if-not clj?
     (do
-      (set! (.-innerHTML content) (:text state))
+      (set! (.-innerHTML content) (hs/escape-html-str (:text state)))
       state)
     (if-let [crop (some-> state :cropped-state refresh-content-element!)]
       ; if there were changes outside the node, we need to run it on the whole document instead
