@@ -205,7 +205,7 @@
     (if-let [crop (some-> state :cropped-state refresh-content-element!)]
       ; if there were changes outside the node, we need to run it on the whole document instead
       (if (not= (:text state) (.-textContent content))
-        (refresh-content! content (dissoc state :cropped-state))
+        (refresh-content! content (dissoc state :cropped-state) clj?)
         (assoc state :cropped-state crop))
       (do
         (set! (.-innerHTML content) (hs/code->html (:text state)))
@@ -545,7 +545,7 @@ the entire selection rather than just the cursor position."
           (when tab?
             (reset! *allow-tab? false))))
       (refresh-after-cut-paste! [this]
-        (edit-and-refresh! this (assoc (init-state content editor? false) :indent-type :normal)))
+        (edit-and-refresh! this (assoc (init-state content false false) :indent-type :normal)))
       (eval! [this form callback]
         (compiler-fn [form] #(callback (first %)))))))
 
