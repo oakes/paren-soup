@@ -392,7 +392,6 @@ the entire selection rather than just the cursor position."
         *console-history (console/create-console-history)
         *last-highlight-elem (atom nil)
         *allow-tab? (atom false)
-        *skip-refresh? (atom false)
         *first-refresh? (atom true)]
     ; in console mode, don't allow text before console start to be edited
     (when-not editor?
@@ -447,17 +446,7 @@ the entire selection rather than just the cursor position."
           (reset-edit-history! this char-count)))
       (enter! [this]
         (if editor?
-          ; the execCommand technique doesn't work in Edge, so we use
-          ; insert-text! instead. we also need to manually move the cursor,
-          ; and then prevent the refresh from happening.
-          ; this is not ideal, as it means we will lose auto-indentation,
-          ; but at least we are closer to supporting Edge than we were before.
-          (if (or (browser/isEdge) (browser/isIE))
-            (let [pos (dom/get-cursor-position content false)]
-              (dom/insert-text! "\n")
-              (dom/set-cursor-position! content (mapv inc pos))
-              (reset! *skip-refresh? true))
-            (.execCommand js/document "insertHTML" false "\n"))
+          (.execCommand js/document "insertHTML" false "\n")
           (let [text (trimr (.-textContent content))
                 post-text (subs text (console/get-console-start *console-history))]
             (reset-edit-history! this (count text))
@@ -513,13 +502,11 @@ the entire selection rather than just the cursor position."
         (when editor?
           (reset! *allow-tab? true)))
       (refresh! [this state]
-        (if @*skip-refresh?
-          (reset! *skip-refresh? false)
-          (post-refresh-content! content events-chan (or focus? (not @*first-refresh?))
-            (cond
-              (:selection-change? state) state
-              editor? (refresh-content! content state)
-              :else (refresh-console-content! content state (console/get-console-start *console-history) clj?))))
+        (post-refresh-content! content events-chan (or focus? (not @*first-refresh?))
+          (cond
+            (:selection-change? state) state
+            editor? (refresh-content! content state)
+            :else (refresh-console-content! content state (console/get-console-start *console-history) clj?)))
         (when editor?
           (some-> (.querySelector ps ".numbers")
                   (refresh-numbers! (count (re-seq #"\n" (:text state)))))
