@@ -111,9 +111,7 @@
 (fdef refresh-cursor-position!
   :args (s/cat :content elem? :state map?))
 
-(defn refresh-cursor-position!
-  "Does additional work on the content after it is rendered."
-  [content {:keys [cropped-state] :as state}]
+(defn refresh-cursor-position! [content {:keys [cropped-state] :as state}]
   (if (some->> cropped-state :element (.contains content))
     (some-> cropped-state :element (dom/set-cursor-position! (:cursor-position cropped-state)))
     (if (and (:selection-change? state) (:original-cursor-position state))
