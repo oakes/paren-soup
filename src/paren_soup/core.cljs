@@ -193,20 +193,22 @@
     (assoc cropped-state :element (first new-elems))))
 
 (fdef refresh-content!
-  :args (s/cat :content elem? :state map?)
+  :args (s/cat :content elem? :state map? :clj? boolean?)
   :ret map?)
 
-(defn refresh-content!
-  "Refreshes the content."
-  [content state]
-  (if-let [crop (some-> state :cropped-state refresh-content-element!)]
-    ; if there were changes outside the node, we need to run it on the whole document instead
-    (if (not= (:text state) (.-textContent content))
-      (refresh-content! content (dissoc state :cropped-state))
-      (assoc state :cropped-state crop))
+(defn refresh-content! [content state clj?]
+  (if-not clj?
     (do
-      (set! (.-innerHTML content) (hs/code->html (:text state)))
-      (dissoc state :cropped-state))))
+      (set! (.-innerHTML content) (:text state))
+      state)
+    (if-let [crop (some-> state :cropped-state refresh-content-element!)]
+      ; if there were changes outside the node, we need to run it on the whole document instead
+      (if (not= (:text state) (.-textContent content))
+        (refresh-content! content (dissoc state :cropped-state))
+        (assoc state :cropped-state crop))
+      (do
+        (set! (.-innerHTML content) (hs/code->html (:text state)))
+        (dissoc state :cropped-state)))))
 
 (fdef refresh-console-content!
   :args (s/cat :content elem? :state map? :console-start-num number? :clj? boolean?)
@@ -504,10 +506,8 @@ the entire selection rather than just the cursor position."
           (reset! *allow-tab? true)))
       (refresh! [this state]
         (let [state (cond
-                      (or (:selection-change? state)
-                          (and editor? (not clj?)))
-                      state
-                      editor? (refresh-content! content state)
+                      (:selection-change? state) state
+                      editor? (refresh-content! content state clj?)
                       :else (refresh-console-content! content state (console/get-console-start *console-history) clj?))]
           (when (or focus? (not @*first-refresh?))
             (refresh-cursor-position! content state))
