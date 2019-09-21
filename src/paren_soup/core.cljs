@@ -108,19 +108,17 @@
           (set! (.-innerHTML instarepl)
                 (ir/results->html results locations limit)))))))
 
-(fdef post-refresh-content!
-  :args (s/cat :content elem? :focus? boolean? :state map?))
+(fdef refresh-cursor-position!
+  :args (s/cat :content elem? :state map?))
 
-(defn post-refresh-content!
+(defn refresh-cursor-position!
   "Does additional work on the content after it is rendered."
-  [content focus? {:keys [cropped-state] :as state}]
-  ; set the cursor position
-  (when focus?
-    (if (some->> cropped-state :element (.contains content))
-      (some-> cropped-state :element (dom/set-cursor-position! (:cursor-position cropped-state)))
-      (if (and (:selection-change? state) (:original-cursor-position state))
-        (dom/set-cursor-position! content (:original-cursor-position state))
-        (dom/set-cursor-position! content (:cursor-position state))))))
+  [content {:keys [cropped-state] :as state}]
+  (if (some->> cropped-state :element (.contains content))
+    (some-> cropped-state :element (dom/set-cursor-position! (:cursor-position cropped-state)))
+    (if (and (:selection-change? state) (:original-cursor-position state))
+      (dom/set-cursor-position! content (:original-cursor-position state))
+      (dom/set-cursor-position! content (:cursor-position state)))))
 
 (fdef refresh-errors-and-delimiters!
   :args (s/cat :content elem? :events-chan channel?))
@@ -507,13 +505,14 @@ the entire selection rather than just the cursor position."
         (when editor?
           (reset! *allow-tab? true)))
       (refresh! [this state]
-        (post-refresh-content! content (or focus? (not @*first-refresh?))
-          (cond
-            (or (:selection-change? state)
-                (and editor? (not clj?)))
-            state
-            editor? (refresh-content! content state)
-            :else (refresh-console-content! content state (console/get-console-start *console-history) clj?)))
+        (let [state (cond
+                      (or (:selection-change? state)
+                          (and editor? (not clj?)))
+                      state
+                      editor? (refresh-content! content state)
+                      :else (refresh-console-content! content state (console/get-console-start *console-history) clj?))]
+          (when (or focus? (not @*first-refresh?))
+            (refresh-cursor-position! content state)))
         (when clj?
           (refresh-errors-and-delimiters! content events-chan))
         (when editor?
