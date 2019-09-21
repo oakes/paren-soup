@@ -512,17 +512,17 @@ the entire selection rather than just the cursor position."
                       editor? (refresh-content! content state)
                       :else (refresh-console-content! content state (console/get-console-start *console-history) clj?))]
           (when (or focus? (not @*first-refresh?))
-            (refresh-cursor-position! content state)))
-        (when clj?
-          (refresh-errors-and-delimiters! content events-chan))
-        (when editor?
-          (some-> (.querySelector ps ".numbers")
-                  (refresh-numbers! (count (re-seq #"\n" (:text state)))))
+            (refresh-cursor-position! content state))
           (when clj?
-            (when-let [elem (.querySelector ps ".instarepl")]
-              (when-not (-> elem .-style .-display (= "none"))
-                (refresh-instarepl-with-delay! elem content compiler-fn append-limit)))))
-        (update-highlight! content *last-highlight-elem))
+            (refresh-errors-and-delimiters! content events-chan))
+          (when editor?
+            (some-> (.querySelector ps ".numbers")
+                    (refresh-numbers! (count (re-seq #"\n" (:text state)))))
+            (when clj?
+              (when-let [elem (.querySelector ps ".instarepl")]
+                (when-not (-> elem .-style .-display (= "none"))
+                  (refresh-instarepl-with-delay! elem content compiler-fn append-limit)))))
+          (update-highlight! content *last-highlight-elem)))
       (edit-and-refresh! [this state]
         (->> state
              (add-newline)
