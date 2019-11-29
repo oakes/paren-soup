@@ -14,10 +14,7 @@
 }
 
 .paren-soup .instarepl {
-	float: left;
 	position: relative;
-	display: list-item;
-	padding-right: 5px;
 	min-width: 200px;
 	max-width: 200px;
 }
@@ -54,6 +51,7 @@
 
 .paren-soup .content {
 	margin: 0px;
+	margin-left: 200px;
 	padding: 0px 5px;
 	outline: 0px solid transparent;
 	white-space: pre;
