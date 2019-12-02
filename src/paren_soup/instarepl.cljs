@@ -104,10 +104,10 @@
     (pr-str form)))
 
 (fdef create-compiler-fn
-  :args (s/cat :disable-timeout? any?)
+  :args (s/cat :opts map?)
   :ret fn?)
 
-(defn create-compiler-fn [disable-timeout?]
+(defn create-compiler-fn [opts]
   (if-let [worker (some-> *web-worker-path* js/Worker.)]
     (fn [coll receive-fn]
       (set! (.-onmessage worker) #(receive-fn (vec (.-data %))))
@@ -117,5 +117,5 @@
         coll
         (fn [results]
           (receive-fn (into-array (mapv form->serializable results))))
-        {:disable-timeout? disable-timeout?}))))
+        opts))))
 
