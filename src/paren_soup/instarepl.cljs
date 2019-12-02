@@ -104,7 +104,7 @@
     (pr-str form)))
 
 (fdef create-compiler-fn
-  :args (s/cat)
+  :args (s/cat :disable-timeout? any?)
   :ret fn?)
 
 (defn create-compiler-fn [disable-timeout?]
