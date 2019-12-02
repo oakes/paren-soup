@@ -634,7 +634,7 @@ the entire selection rather than just the cursor position."
     ; return editor
     editor))
 
-(defn ^:export init-all [opts]
+(defn ^:export init-all [& [opts]]
   (doseq [ps (-> js/document (.querySelectorAll ".paren-soup") array-seq)]
     (init ps (or opts #js {}))))
 
