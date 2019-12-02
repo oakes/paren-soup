@@ -636,9 +636,9 @@ the entire selection rather than just the cursor position."
 (fdef init-all
   :args (s/cat))
 
-(defn ^:export init-all []
+(defn ^:export init-all [opts]
   (doseq [ps (-> js/document (.querySelectorAll ".paren-soup") array-seq)]
-    (init ps #js {})))
+    (init ps (or opts #js {}))))
 
 (defn ^:export undo [editor] (undo! editor))
 (defn ^:export redo [editor] (redo! editor))
