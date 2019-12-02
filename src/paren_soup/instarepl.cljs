@@ -107,7 +107,7 @@
   :args (s/cat)
   :ret fn?)
 
-(defn create-compiler-fn []
+(defn create-compiler-fn [disable-timeout?]
   (if-let [worker (some-> *web-worker-path* js/Worker.)]
     (fn [coll receive-fn]
       (set! (.-onmessage worker) #(receive-fn (vec (.-data %))))
@@ -116,5 +116,6 @@
       (es/code->results
         coll
         (fn [results]
-          (receive-fn (into-array (mapv form->serializable results))))))))
+          (receive-fn (into-array (mapv form->serializable results))))
+        {:disable-timeout? disable-timeout?}))))
 

@@ -382,13 +382,13 @@ the entire selection rather than just the cursor position."
                      {:keys [history-limit append-limit
                              compiler-fn console-callback
                              disable-clj? edit-history
-                             focus?]
+                             focus? disable-timeout?]
                       :or {history-limit 100
                            append-limit 5000
                            focus? false}}]
   (let [clj? (not disable-clj?)
         editor? (not console-callback)
-        compiler-fn (or compiler-fn (ir/create-compiler-fn))
+        compiler-fn (or compiler-fn (ir/create-compiler-fn disable-timeout?))
         *edit-history (doto (or edit-history (mwm/create-edit-history))
                         (swap! assoc :limit history-limit))
         refresh-instarepl-with-delay! (debounce refresh-instarepl! 300)
