@@ -224,10 +224,10 @@
   state)
 
 (fdef add-parinfer-after-console-start
-  :args (s/cat :console-start-num number? :state map?)
+  :args (s/cat :state map? :console-start-num number?)
   :ret map?)
 
-(defn add-parinfer-after-console-start [console-start-num state]
+(defn add-parinfer-after-console-start [state console-start-num]
   (let [pre-text (subs (:text state) 0 console-start-num)
         post-text (subs (:text state) console-start-num)
         cleared-text (str (replace pre-text #"[^\r^\n]" " ") post-text)
@@ -237,25 +237,23 @@
     (assoc state :text new-text)))
 
 (fdef add-parinfer
-  :args (s/cat :enable? boolean? :console-start-num number? :state map?)
+  :args (s/cat :state map? :console-start-num number?)
   :ret map?)
 
-(defn add-parinfer [enable? console-start-num state]
-  (if enable?
-    (let [cropped-state (:cropped-state state)
-          indent-type (:indent-type state)
-          state (cond
-                  (pos? console-start-num)
-                  (add-parinfer-after-console-start console-start-num state)
-                  indent-type
-                  (cp/add-indent state)
-                  :else
-                  (cp/add-parinfer :paren state))]
-      (if (and cropped-state indent-type)
-        (assoc state :cropped-state
-          (merge cropped-state (cp/add-indent (assoc cropped-state :indent-type indent-type))))
-        state))
-    state))
+(defn add-parinfer [state console-start-num]
+  (let [cropped-state (:cropped-state state)
+        indent-type (:indent-type state)
+        state (cond
+                (pos? console-start-num)
+                (add-parinfer-after-console-start state console-start-num)
+                indent-type
+                (cp/add-indent state)
+                :else
+                (cp/add-parinfer :paren state))]
+    (if (and cropped-state indent-type)
+      (assoc state :cropped-state
+        (merge cropped-state (cp/add-indent (assoc cropped-state :indent-type indent-type))))
+      state)))
 
 (fdef add-newline
   :args (s/cat :state map?)
@@ -523,11 +521,13 @@ the entire selection rather than just the cursor position."
                   (refresh-instarepl-with-delay! elem content compiler-fn append-limit)))))
           (update-highlight! content *last-highlight-elem)))
       (edit-and-refresh! [this state]
-        (->> state
-             (add-newline)
-             (add-parinfer clj? (console/get-console-start *console-history))
-             (update-edit-history! *edit-history)
-             (refresh! this)))
+        (as-> state $
+              (add-newline $)
+              (if clj?
+                (add-parinfer $ (console/get-console-start *console-history))
+                $)
+              (update-edit-history! *edit-history $)
+              (refresh! this $)))
       (initialize! [this]
         (when editor?
           (->> (init-state content false false)
