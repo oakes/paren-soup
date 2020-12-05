@@ -237,11 +237,12 @@
     (assoc state :text new-text)))
 
 (fdef add-parinfer
-  :args (s/cat :state map? :console-start-num number?)
+  :args (s/cat :state map? :console-start-num number? :fix-indent? boolean?)
   :ret map?)
 
-(defn add-parinfer [state console-start-num]
+(defn add-parinfer [state console-start-num fix-indent?]
   (let [cropped-state (:cropped-state state)
+        state (cond-> state fix-indent? (assoc :indent-type :normal))
         indent-type (:indent-type state)
         state (cond
                 (pos? console-start-num)
@@ -379,8 +380,8 @@ the entire selection rather than just the cursor position."
 (defn create-editor [ps content events-chan
                      {:keys [history-limit append-limit
                              compiler-fn console-callback
-                             disable-clj? edit-history
-                             focus?]
+                             disable-clj? edit-history focus?
+                             fix-indent-on-init?]
                       :or {history-limit 100
                            append-limit 5000
                            focus? false}
@@ -524,7 +525,11 @@ the entire selection rather than just the cursor position."
         (as-> state $
               (add-newline $)
               (if clj?
-                (add-parinfer $ (console/get-console-start *console-history))
+                (add-parinfer $
+                              (console/get-console-start *console-history)
+                              (if fix-indent-on-init?
+                                @*first-refresh?
+                                false))
                 $)
               (update-edit-history! *edit-history $)
               (refresh! this $)))
