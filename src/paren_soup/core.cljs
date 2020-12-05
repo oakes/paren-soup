@@ -242,7 +242,10 @@
 
 (defn add-parinfer [state console-start-num fix-indent?]
   (let [cropped-state (:cropped-state state)
-        state (cond-> state fix-indent? (assoc :indent-type :normal))
+        state (cond-> state
+                      fix-indent?
+                      (assoc :indent-type :normal
+                             :cursor-position [0 0]))
         indent-type (:indent-type state)
         state (cond
                 (pos? console-start-num)
